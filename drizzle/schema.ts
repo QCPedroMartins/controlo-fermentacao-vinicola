@@ -1,17 +1,18 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  decimal,
+  date,
+  smallint,
+} from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
+// ── Utilizadores ──────────────────────────────────────────
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +26,90 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// ── Cubas de Fermentação ───────────────────────────────────
+// cf1 a cf84 são criadas automaticamente via seed
+export const cubas = mysqlTable("cubas", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Identificador interno fixo: cf1, cf2, ..., cf84 */
+  codigo: varchar("codigo", { length: 8 }).notNull().unique(),
+  /** Nome/lote personalizável pelo utilizador */
+  nomeLote: varchar("nome_lote", { length: 120 }),
+  /** Número da fermentação atual (incrementa ao arquivar) */
+  fermentacaoNum: int("fermentacao_num").default(1).notNull(),
+  /** Estado calculado: sem_dados | em_fermentacao | completa */
+  estado: mysqlEnum("estado", ["sem_dados", "em_fermentacao", "completa"])
+    .default("sem_dados")
+    .notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Cuba = typeof cubas.$inferSelect;
+export type InsertCuba = typeof cubas.$inferInsert;
+
+// ── Leituras Diárias ──────────────────────────────────────
+export const leituras = mysqlTable("leituras", {
+  id: int("id").autoincrement().primaryKey(),
+  cubaId: int("cuba_id").notNull(),
+  /** Número da fermentação a que esta leitura pertence */
+  fermentacaoNum: int("fermentacao_num").default(1).notNull(),
+  /** Data da leitura (apenas data, sem hora) */
+  dataLeitura: date("data_leitura").notNull(),
+  /** Dia de fermentação calculado (1, 2, 3...) */
+  diaNr: int("dia_nr"),
+  // Densidade — 3 leituras por dia
+  densL1: decimal("dens_l1", { precision: 7, scale: 3 }),
+  densL2: decimal("dens_l2", { precision: 7, scale: 3 }),
+  densL3: decimal("dens_l3", { precision: 7, scale: 3 }),
+  // Temperatura — 3 leituras por dia
+  tempL1: decimal("temp_l1", { precision: 5, scale: 1 }),
+  tempL2: decimal("temp_l2", { precision: 5, scale: 1 }),
+  tempL3: decimal("temp_l3", { precision: 5, scale: 1 }),
+  // O₂ dissolvido (mg/L) — leitura semanal
+  o2: decimal("o2", { precision: 6, scale: 2 }),
+  // Potencial Redox (mV) — leitura semanal
+  redox: decimal("redox", { precision: 6, scale: 1 }),
+  /** Utilizador que registou */
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Leitura = typeof leituras.$inferSelect;
+export type InsertLeitura = typeof leituras.$inferInsert;
+
+// ── Adições e Notas ───────────────────────────────────────
+export const adicoes = mysqlTable("adicoes", {
+  id: int("id").autoincrement().primaryKey(),
+  cubaId: int("cuba_id").notNull(),
+  fermentacaoNum: int("fermentacao_num").default(1).notNull(),
+  dataAdicao: date("data_adicao").notNull(),
+  produto: varchar("produto", { length: 200 }),
+  dose: varchar("dose", { length: 100 }),
+  observacoes: text("observacoes"),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Adicao = typeof adicoes.$inferSelect;
+export type InsertAdicao = typeof adicoes.$inferInsert;
+
+// ── Arquivo de Fermentações ───────────────────────────────
+export const fermentacoesArquivo = mysqlTable("fermentacoes_arquivo", {
+  id: int("id").autoincrement().primaryKey(),
+  cubaId: int("cuba_id").notNull(),
+  fermentacaoNum: int("fermentacao_num").notNull(),
+  nomeLote: varchar("nome_lote", { length: 120 }),
+  dataInicio: date("data_inicio"),
+  dataFim: date("data_fim"),
+  totalDias: int("total_dias"),
+  densMin: decimal("dens_min", { precision: 7, scale: 3 }),
+  tempMax: decimal("temp_max", { precision: 5, scale: 1 }),
+  archivedBy: varchar("archived_by", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type FermentacaoArquivo = typeof fermentacoesArquivo.$inferSelect;
+export type InsertFermentacaoArquivo = typeof fermentacoesArquivo.$inferInsert;
