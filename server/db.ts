@@ -96,6 +96,28 @@ export async function updateCubaEstado(
   await db.update(cubas).set({ estado }).where(eq(cubas.id, id));
 }
 
+export async function updateCubaDensidadeLimite(id: number, densidadeLimite: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(cubas).set({ densidadeLimite }).where(eq(cubas.id, id));
+}
+
+/** Verifica se alguma densidade da leitura atingiu o limite e atualiza estado da cuba */
+export async function verificarFermentacaoCompleta(
+  cubaId: number,
+  densidades: (string | null | undefined)[],
+  densidadeLimite: string
+): Promise<boolean> {
+  const limite = parseFloat(densidadeLimite);
+  const atingiu = densidades
+    .filter((d): d is string => d !== null && d !== undefined && d !== "")
+    .some((d) => parseFloat(d) <= limite);
+  if (atingiu) {
+    await updateCubaEstado(cubaId, "completa");
+  }
+  return atingiu;
+}
+
 // ── Leituras ──────────────────────────────────────────────
 export async function getLeiturasByCuba(cubaId: number, fermentacaoNum?: number) {
   const db = await getDb();

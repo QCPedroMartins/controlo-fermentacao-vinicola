@@ -46,8 +46,29 @@ vi.mock("./db", () => ({
   updateCubaEstado: vi.fn().mockResolvedValue(undefined),
   createArquivo: vi.fn().mockResolvedValue(undefined),
   deleteAdicao: vi.fn().mockResolvedValue(undefined),
+  updateLeitura: vi.fn().mockResolvedValue(undefined),
+  updateCubaDensidadeLimite: vi.fn().mockResolvedValue(undefined),
+  verificarFermentacaoCompleta: vi.fn().mockResolvedValue(false),
   upsertUser: vi.fn().mockResolvedValue(undefined),
   getUserByOpenId: vi.fn().mockResolvedValue(undefined),
+  getDb: vi.fn().mockResolvedValue({
+    select: vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([{
+            id: 1, codigo: "cf1", nomeLote: "Tinto Reserva", fermentacaoNum: 1,
+            estado: "em_fermentacao", densidadeLimite: "1.000",
+            createdAt: new Date(), updatedAt: new Date(),
+          }]),
+        }),
+      }),
+    }),
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      }),
+    }),
+  }),
 }));
 
 function makeCtx(authenticated = false): TrpcContext {

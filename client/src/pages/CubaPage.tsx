@@ -4,15 +4,18 @@ import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
 import { useParams } from "wouter";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import {
   Archive,
   ChevronLeft,
   ChevronRight,
+  Download,
   Edit2,
   FlaskConical,
   Plus,
   RefreshCw,
   Save,
+  Settings,
   Trash2,
   TrendingDown,
   Thermometer,
@@ -64,6 +67,10 @@ export default function CubaPage() {
   // Estado modal Nova Fermentação
   const [showNovaFerm, setShowNovaFerm] = useState(false);
   const [nomeLoteNovo, setNomeLoteNovo] = useState("");
+
+  // Estado edição densidade limite
+  const [editingLimite, setEditingLimite] = useState(false);
+  const [limiteTemp, setLimiteTemp] = useState("");
 
   // Estado tab activa
   const [activeTab, setActiveTab] = useState<"leituras" | "graficos" | "adicoes" | "arquivo">("leituras");
@@ -138,6 +145,15 @@ export default function CubaPage() {
     },
   });
 
+  const updateDensidadeLimite = trpc.cubas.updateDensidadeLimite.useMutation({
+    onSuccess: () => {
+      toast.success("Densidade limite atualizada!");
+      setEditingLimite(false);
+      utils.cubas.get.invalidate();
+    },
+    onError: (e) => toast.error("Erro: " + e.message),
+  });
+
   const novaFermentacao = trpc.arquivo.novaFermentacao.useMutation({
     onSuccess: (data) => {
       toast.success(`Fermentação arquivada! Nova fermentação Nº ${data.novaFermentacaoNum} iniciada.`);
@@ -209,6 +225,75 @@ export default function CubaPage() {
   const numCuba = parseInt(codigo.replace("cf", ""));
   const prevCuba = numCuba > 1 ? `cf${numCuba - 1}` : null;
   const nextCuba = numCuba < 84 ? `cf${numCuba + 1}` : null;
+
+  // ── Exportação ────────────────────────────────────────
+  const exportarExcel = () => {
+    if (!leituras || !cuba) return;
+    const nomeFicheiro = `${cuba.codigo}${cuba.nomeLote ? "_" + cuba.nomeLote.replace(/\s+/g, "_") : ""}_ferm${cuba.fermentacaoNum}`;
+
+    // Folha de leituras
+    const leiturasData = leituras.map((l) => ({
+      "Data": new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
+      "Dia Nº": l.diaNr ?? "",
+      "Dens. L1": l.densL1 ?? "",
+      "Temp. L1 (°C)": l.tempL1 ?? "",
+      "Dens. L2": l.densL2 ?? "",
+      "Temp. L2 (°C)": l.tempL2 ?? "",
+      "Dens. L3": l.densL3 ?? "",
+      "Temp. L3 (°C)": l.tempL3 ?? "",
+      "O₂ (mg/L)": l.o2 ?? "",
+      "Redox (mV)": l.redox ?? "",
+      "Registado por": l.userName ?? "",
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const wsLeituras = XLSX.utils.json_to_sheet(leiturasData);
+    XLSX.utils.book_append_sheet(wb, wsLeituras, "Leituras");
+
+    // Folha de adições (se existirem)
+    if (adicoes && adicoes.length > 0) {
+      const adicoesData = adicoes.map((a) => ({
+        "Data": new Date(a.dataAdicao).toLocaleDateString("pt-PT"),
+        "Produto / Adição": a.produto ?? "",
+        "Dose / Quantidade": a.dose ?? "",
+        "Observações": a.observacoes ?? "",
+        "Registado por": a.userName ?? "",
+      }));
+      const wsAdicoes = XLSX.utils.json_to_sheet(adicoesData);
+      XLSX.utils.book_append_sheet(wb, wsAdicoes, "Adições e Notas");
+    }
+
+    XLSX.writeFile(wb, `${nomeFicheiro}.xlsx`);
+    toast.success("Ficheiro Excel exportado!");
+  };
+
+  const exportarCSV = () => {
+    if (!leituras || !cuba) return;
+    const nomeFicheiro = `${cuba.codigo}${cuba.nomeLote ? "_" + cuba.nomeLote.replace(/\s+/g, "_") : ""}_ferm${cuba.fermentacaoNum}`;
+    const leiturasData = leituras.map((l) => ({
+      "Data": new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
+      "Dia Nº": l.diaNr ?? "",
+      "Dens. L1": l.densL1 ?? "",
+      "Temp. L1 (°C)": l.tempL1 ?? "",
+      "Dens. L2": l.densL2 ?? "",
+      "Temp. L2 (°C)": l.tempL2 ?? "",
+      "Dens. L3": l.densL3 ?? "",
+      "Temp. L3 (°C)": l.tempL3 ?? "",
+      "O₂ (mg/L)": l.o2 ?? "",
+      "Redox (mV)": l.redox ?? "",
+      "Registado por": l.userName ?? "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(leiturasData);
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${nomeFicheiro}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Ficheiro CSV exportado!");
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
@@ -291,11 +376,63 @@ export default function CubaPage() {
             </div>
           </div>
 
-          {/* Resumo */}
-          <div className="flex gap-3">
-            <ResumoCard icon={<TrendingDown size={14} />} label="Dias" value={resumo?.totalDias ? `${resumo.totalDias}` : "—"} color="text-[var(--color-vinho)]" />
-            <ResumoCard icon={<FlaskConical size={14} />} label="Dens. mín." value={resumo?.densMin ? resumo.densMin.toFixed(3) : "—"} color="text-green-700" />
-            <ResumoCard icon={<Thermometer size={14} />} label="Temp. máx." value={resumo?.tempMax ? `${resumo.tempMax.toFixed(1)}°` : "—"} color="text-red-600" />
+          {/* Resumo + Ações */}
+          <div className="flex flex-col gap-3 items-end">
+            <div className="flex gap-3">
+              <ResumoCard icon={<TrendingDown size={14} />} label="Dias" value={resumo?.totalDias ? `${resumo.totalDias}` : "—"} color="text-[var(--color-vinho)]" />
+              <ResumoCard icon={<FlaskConical size={14} />} label="Dens. mín." value={resumo?.densMin ? resumo.densMin.toFixed(3) : "—"} color="text-green-700" />
+              <ResumoCard icon={<Thermometer size={14} />} label="Temp. máx." value={resumo?.tempMax ? `${resumo.tempMax.toFixed(1)}°` : "—"} color="text-red-600" />
+            </div>
+            {/* Botões de exportação */}
+            <div className="flex gap-2">
+              <button
+                onClick={exportarExcel}
+                disabled={!leituras || leituras.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-700 text-white rounded-lg text-xs font-medium hover:bg-green-800 transition-colors disabled:opacity-40"
+              >
+                <Download size={12} /> Excel
+              </button>
+              <button
+                onClick={exportarCSV}
+                disabled={!leituras || leituras.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 text-white rounded-lg text-xs font-medium hover:bg-blue-800 transition-colors disabled:opacity-40"
+              >
+                <Download size={12} /> CSV
+              </button>
+            </div>
+            {/* Configuração do limite de densidade */}
+            {isAuthenticated && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Limite de densidade:</span>
+                {editingLimite ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={limiteTemp}
+                      onChange={(e) => setLimiteTemp(e.target.value)}
+                      className="w-24 border border-[var(--color-vinho)] rounded-lg px-2 py-1 text-xs focus:outline-none"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") updateDensidadeLimite.mutate({ id: cuba.id, densidadeLimite: limiteTemp });
+                        if (e.key === "Escape") setEditingLimite(false);
+                      }}
+                    />
+                    <button onClick={() => updateDensidadeLimite.mutate({ id: cuba.id, densidadeLimite: limiteTemp })} className="text-green-600 hover:text-green-700">
+                      <Save size={14} />
+                    </button>
+                    <button onClick={() => setEditingLimite(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setLimiteTemp(cuba.densidadeLimite ?? "1.000"); setEditingLimite(true); }}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:border-[var(--color-vinho)] hover:text-[var(--color-vinho)] transition-colors"
+                  >
+                    <Settings size={11} /> {cuba.densidadeLimite ?? "1.000"}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

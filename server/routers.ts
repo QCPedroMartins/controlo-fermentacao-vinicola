@@ -13,6 +13,8 @@ import {
   getLeiturasByCuba,
   updateCubaNomeLote,
   updateCubaEstado,
+  updateCubaDensidadeLimite,
+  verificarFermentacaoCompleta,
   createLeitura,
   updateLeitura,
   createAdicao,
@@ -20,6 +22,7 @@ import {
   createArquivo,
   getDb,
 } from "./db";
+import { notifyOwner } from "./_core/notification";
 import { and, eq, min, max, asc } from "drizzle-orm";
 import { cubas, leituras, adicoes } from "../drizzle/schema";
 
@@ -41,6 +44,13 @@ const cubasRouter = router({
     .input(z.object({ id: z.number(), nomeLote: z.string().max(120) }))
     .mutation(async ({ input }) => {
       await updateCubaNomeLote(input.id, input.nomeLote);
+      return { success: true };
+    }),
+
+  updateDensidadeLimite: protectedProcedure
+    .input(z.object({ id: z.number(), densidadeLimite: z.string() }))
+    .mutation(async ({ input }) => {
+      await updateCubaDensidadeLimite(input.id, input.densidadeLimite);
       return { success: true };
     }),
 
@@ -100,14 +110,33 @@ const leiturasRouter = router({
         userName: ctx.user.name ?? ctx.user.email ?? "Utilizador",
       });
 
-      // Atualizar estado da cuba
-      const allDens = [input.densL1, input.densL2, input.densL3]
-        .filter(Boolean)
-        .map(Number);
-      const hasCompleta = allDens.some((d) => d < 1.0);
-      await updateCubaEstado(input.cubaId, hasCompleta ? "completa" : "em_fermentacao");
+      // Verificar se fermentação está completa com base no limite configurado por cuba
+      const db = await getDb();
+      let fermentacaoCompleta = false;
+      if (db) {
+        const cubaRows = await db.select().from(cubas).where(eq(cubas.id, input.cubaId)).limit(1);
+        const cuba = cubaRows[0];
+        if (cuba) {
+          const estadoAnterior = cuba.estado;
+          fermentacaoCompleta = await verificarFermentacaoCompleta(
+            input.cubaId,
+            [input.densL1, input.densL2, input.densL3],
+            cuba.densidadeLimite ?? "1.000"
+          );
+          // Notificar owner se acabou de atingir o limite (transição para completa)
+          if (fermentacaoCompleta && estadoAnterior !== "completa") {
+            const nomeCuba = cuba.nomeLote ? `${cuba.codigo} (${cuba.nomeLote})` : cuba.codigo;
+            await notifyOwner({
+              title: `🍷 Fermentação Completa — ${nomeCuba.toUpperCase()}`,
+              content: `A cuba ${nomeCuba} atingiu a densidade limite de ${cuba.densidadeLimite} g/L.\nDia de fermentação: ${diaNr}\nRegistado por: ${ctx.user.name ?? ctx.user.email ?? "Utilizador"}`,
+            }).catch(() => {}); // não bloquear se notificação falhar
+          } else if (!fermentacaoCompleta) {
+            await updateCubaEstado(input.cubaId, "em_fermentacao");
+          }
+        }
+      }
 
-      return { success: true, diaNr };
+      return { success: true, diaNr, fermentacaoCompleta };
     }),
 
   update: protectedProcedure

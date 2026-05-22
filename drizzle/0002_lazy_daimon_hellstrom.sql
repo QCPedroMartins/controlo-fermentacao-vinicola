@@ -1,0 +1,1 @@
+ALTER TABLE `cubas` ADD `densidade_limite` decimal(7,3) DEFAULT '1.000' NOT NULL;

@@ -40,6 +40,8 @@ export const cubas = mysqlTable("cubas", {
   estado: mysqlEnum("estado", ["sem_dados", "em_fermentacao", "completa"])
     .default("sem_dados")
     .notNull(),
+  /** Densidade limite para considerar fermentação completa (ex: 1.000, 1.050) */
+  densidadeLimite: decimal("densidade_limite", { precision: 7, scale: 3 }).default("1.000").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

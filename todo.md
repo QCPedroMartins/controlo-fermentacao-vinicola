@@ -41,3 +41,13 @@
 - [x] Responsivo: mobile, tablet, desktop
 - [x] Testes Vitest para routers principais (8 testes a passar)
 - [x] Registo do utilizador em cada leitura (quem lançou)
+
+## Novas Funcionalidades (v2)
+- [x] Schema: adicionar campo `densidadeLimite` (decimal, default 1.000) na tabela `cubas`
+- [x] Migração SQL aplicada na base de dados
+- [x] Backend: router para atualizar `densidadeLimite` por cuba
+- [x] Backend: ao criar leitura, verificar se alguma densidade atingiu o limite e atualizar estado para `completa`
+- [x] Backend: enviar notificação ao owner quando cuba atinge fermentação completa
+- [x] Frontend: campo editável de "Densidade Limite" na página de cada cuba
+- [x] Frontend: botões de exportação Excel e CSV por cuba
+- [x] 8 testes Vitest a passar (incluindo novos mocks)
