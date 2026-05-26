@@ -1062,10 +1062,17 @@ export default function CubaPage() {
                         {arq.nomeLote ?? "Sem nome"}
                       </h3>
                     </div>
-                    <span className="text-xs text-gray-400">
-                      {arq.dataInicio ? new Date(arq.dataInicio).toLocaleDateString("pt-PT") : "—"} →{" "}
-                      {arq.dataFim ? new Date(arq.dataFim).toLocaleDateString("pt-PT") : "—"}
-                    </span>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className="text-xs text-gray-400">
+                        {arq.dataInicio ? new Date(arq.dataInicio).toLocaleDateString("pt-PT") : "—"} →{" "}
+                        {arq.dataFim ? new Date(arq.dataFim).toLocaleDateString("pt-PT") : "—"}
+                      </span>
+                      <Link href={`/cuba/${codigo}/arquivo/${arq.fermentacaoNum}`}>
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-vinho)] text-white text-xs font-semibold hover:bg-[var(--color-vinho-light)] transition-colors">
+                          <Archive size={12} /> Ver detalhe completo
+                        </button>
+                      </Link>
+                    </div>
                   </div>
                   <div className="flex gap-4">
                     <div className="text-center">

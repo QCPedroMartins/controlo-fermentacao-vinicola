@@ -73,3 +73,12 @@
 - [x] Frontend: painel de alertas ativos na página de cuba (temperatura e variação de densidade)
 - [x] Frontend: alertas visíveis no dashboard geral (cubas com alertas ativos, badge vermelho + filtro)
 - [x] Testes Vitest atualizados (16 testes a passar)
+
+## Consulta de Fermentações Arquivadas (v6)
+- [x] Corrigir problema atual na aplicação (erro leituras.listAllDashboard resolvido com reinicio do servidor)
+- [x] Backend: query para leituras de fermentação arquivada (por cubaId + fermentacaoNum)
+- [x] Backend: query para adições de fermentação arquivada (por cubaId + fermentacaoNum)
+- [x] Frontend: botão "Ver detalhe" em cada fermentação arquivada no separador Arquivo
+- [x] Frontend: página de consulta completa /cuba/:codigo/arquivo/:fermentacaoNum (histórico, gráficos, adições, resumo)
+- [x] Frontend: navegação de volta para a cuba atual (botão Voltar)
+- [x] Testes Vitest atualizados (20 testes a passar)

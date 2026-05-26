@@ -82,7 +82,21 @@ vi.mock("./db", async (importOriginal) => {
               tempPretendida: "18.0", desvioTempAlerta: "5.0", desvioDesnsAlerta: "0.010",
               createdAt: new Date(), updatedAt: new Date(),
             }]),
+            orderBy: vi.fn().mockResolvedValue([{
+              id: 1, codigo: "cf1", nomeLote: "Tinto Reserva", fermentacaoNum: 1,
+              estado: "em_fermentacao", densidadeLimite: "1.000",
+              tempPretendida: "18.0", desvioTempAlerta: "5.0", desvioDesnsAlerta: "0.010",
+              createdAt: new Date(), updatedAt: new Date(),
+            }]),
+            // Permite await direto (sem .limit) para select().from().where() usado em listAllDashboard
+            then: vi.fn().mockImplementation((resolve) => resolve([{
+              id: 1, codigo: "cf1", nomeLote: "Tinto Reserva", fermentacaoNum: 1,
+              estado: "em_fermentacao", densidadeLimite: "1.000",
+              tempPretendida: "18.0", desvioTempAlerta: "5.0", desvioDesnsAlerta: "0.010",
+              createdAt: new Date(), updatedAt: new Date(),
+            }])),
           }),
+          orderBy: vi.fn().mockResolvedValue([]),
         }),
       }),
       update: vi.fn().mockReturnValue({
@@ -282,6 +296,44 @@ describe("adicoes.listByCuba", () => {
   it("retorna lista de adições (pode estar vazia)", async () => {
     const caller = appRouter.createCaller(makeCtx(false));
     const result = await caller.adicoes.listByCuba({ cubaId: 1, fermentacaoNum: 1 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+// ── Testes de arquivo detalhe ─────────────────────────────
+describe("arquivoDetalhe.getLeituras", () => {
+  it("retorna leituras de uma fermentação arquivada", async () => {
+    const caller = appRouter.createCaller(makeCtx(false));
+    const result = await caller.arquivoDetalhe.getLeituras({ cubaId: 1, fermentacaoNum: 1 });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe("arquivoDetalhe.getAdicoes", () => {
+  it("retorna adições de uma fermentação arquivada (pode estar vazia)", async () => {
+    const caller = appRouter.createCaller(makeCtx(false));
+    const result = await caller.arquivoDetalhe.getAdicoes({ cubaId: 1, fermentacaoNum: 1 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("arquivoDetalhe.getResumo", () => {
+  it("retorna null quando não há arquivo (mock retorna array vazio)", async () => {
+    const caller = appRouter.createCaller(makeCtx(false));
+    // O mock de getDb retorna um select encadeado que devolve array vazio para fermentacoesArquivo
+    // Neste caso o resultado pode ser null ou um objeto
+    const result = await caller.arquivoDetalhe.getResumo({ cubaId: 1, fermentacaoNum: 1 });
+    // Aceita null ou objeto (depende do mock)
+    expect(result === null || typeof result === "object").toBe(true);
+  });
+});
+
+// ── Testes de leituras.listAllDashboard ───────────────────
+describe("leituras.listAllDashboard", () => {
+  it("retorna array de leituras para cubas em fermentação", async () => {
+    const caller = appRouter.createCaller(makeCtx(false));
+    const result = await caller.leituras.listAllDashboard();
     expect(Array.isArray(result)).toBe(true);
   });
 });

@@ -539,6 +539,45 @@ const arquivoRouter = router({
     }),
 });
 
+// ── Router de Arquivo / Nova Fermentação (extensão) ─────────
+// Adicionar ao arquivoRouter os procedimentos de consulta de detalhe
+const arquivoDetalheRouter = router({
+  /** Retorna todas as leituras de uma fermentação arquivada */
+  getLeituras: publicProcedure
+    .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number() }))
+    .query(async ({ input }) => {
+      return getLeiturasByCuba(input.cubaId, input.fermentacaoNum);
+    }),
+
+  /** Retorna todas as adições de uma fermentação arquivada */
+  getAdicoes: publicProcedure
+    .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number() }))
+    .query(async ({ input }) => {
+      return getAdicoesByCuba(input.cubaId, input.fermentacaoNum);
+    }),
+
+  /** Retorna o resumo de uma fermentação arquivada (metadados do arquivo) */
+  getResumo: publicProcedure
+    .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) return null;
+      const { fermentacoesArquivo } = await import("../drizzle/schema");
+      const { and } = await import("drizzle-orm");
+      const result = await db
+        .select()
+        .from(fermentacoesArquivo)
+        .where(
+          and(
+            eq(fermentacoesArquivo.cubaId, input.cubaId),
+            eq(fermentacoesArquivo.fermentacaoNum, input.fermentacaoNum)
+          )
+        )
+        .limit(1);
+      return result[0] ?? null;
+    }),
+});
+
 // ── App Router ────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -554,6 +593,7 @@ export const appRouter = router({
   leituras: leiturasRouter,
   adicoes: adicoesRouter,
   arquivo: arquivoRouter,
+  arquivoDetalhe: arquivoDetalheRouter,
 });
 
 export type AppRouter = typeof appRouter;
