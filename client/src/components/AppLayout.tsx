@@ -27,11 +27,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
     onSuccess: () => (window.location.href = "/"),
   });
 
+  const TODAS_CUBAS = [
+    'CF1','CF2','CF3','CF4','CF5','CF6','CF7','CF8','CF9','CF10',
+    'CF11','CF12','CF13','CF14','CF15','CF16','CF17','CF18','CF19','CF20',
+    'CF21','CF22','CF23','CF24','CF25','CF26','CF27','CF28','CF29','CF30',
+    'CF31','CF32','CF33','CF34','CF35','CF36',
+    'LF37','LF38',
+    'CF80','CF81','CF82','CF83','CF84','CF85',
+    'CF93','CF94',
+    'CF200','CF201','CF202','CF203','CF204','CF205','CF206','CF207','CF208','CF209','CF210',
+  ];
+
   const cubaGroups = [
-    { label: "cf1 – cf20", range: Array.from({ length: 20 }, (_, i) => i + 1) },
-    { label: "cf21 – cf40", range: Array.from({ length: 20 }, (_, i) => i + 21) },
-    { label: "cf41 – cf60", range: Array.from({ length: 20 }, (_, i) => i + 41) },
-    { label: "cf61 – cf84", range: Array.from({ length: 24 }, (_, i) => i + 61) },
+    { label: "CF1 – CF20", codes: TODAS_CUBAS.slice(0, 20) },
+    { label: "CF21 – CF36, LF37, LF38", codes: TODAS_CUBAS.slice(20, 38) },
+    { label: "CF80 – CF94", codes: TODAS_CUBAS.slice(38, 46) },
+    { label: "CF200 – CF210", codes: TODAS_CUBAS.slice(46) },
   ];
 
   const navLink = (href: string, label: string, icon: React.ReactNode) => {
@@ -92,7 +103,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <CubaGroupNav
                   key={group.label}
                   label={group.label}
-                  range={group.range}
+                  codes={group.codes}
                   currentLocation={location}
                   onNavigate={() => setSidebarOpen(false)}
                 />
@@ -191,12 +202,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
 // Componente auxiliar para grupo de cubas na sidebar
 function CubaGroupNav({
   label,
-  range,
+  codes,
   currentLocation,
   onNavigate,
 }: {
   label: string;
-  range: number[];
+  codes: string[];
   currentLocation: string;
   onNavigate: () => void;
 }) {
@@ -212,22 +223,22 @@ function CubaGroupNav({
         {label}
       </button>
       {expanded && (
-        <div className="ml-3 grid grid-cols-4 gap-0.5 animate-fade-in">
-          {range.map((n) => {
-            const href = `/cuba/cf${n}`;
+        <div className="ml-3 grid grid-cols-3 gap-0.5 animate-fade-in">
+          {codes.map((codigo) => {
+            const href = `/cuba/${codigo.toLowerCase()}`;
             const active = currentLocation === href;
             return (
               <Link
-                key={n}
+                key={codigo}
                 href={href}
                 onClick={onNavigate}
-                className={`text-center py-1 rounded text-xs transition-all ${
+                className={`text-center py-1 px-0.5 rounded text-xs transition-all ${
                   active
                     ? "bg-[var(--color-dourado)] text-[var(--color-vinho)] font-bold"
                     : "text-white/60 hover:text-white hover:bg-white/10"
                 }`}
               >
-                {n}
+                {codigo}
               </Link>
             );
           })}
