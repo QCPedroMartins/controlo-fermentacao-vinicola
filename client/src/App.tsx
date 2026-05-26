@@ -8,12 +8,14 @@ import Dashboard from "./pages/Dashboard";
 import CubaPage from "./pages/CubaPage";
 import LoginPage from "./pages/LoginPage";
 import AppLayout from "./components/AppLayout";
+import RegistoRapido from "./pages/RegistoRapido";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/cuba/:codigo" component={CubaPage} />
+      <Route path="/registo-rapido" component={RegistoRapido} />
       <Route path="/login" component={LoginPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

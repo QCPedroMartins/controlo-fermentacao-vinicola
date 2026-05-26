@@ -139,6 +139,90 @@ const leiturasRouter = router({
       return { success: true, diaNr, fermentacaoCompleta };
     }),
 
+  registarLote: protectedProcedure
+    .input(
+      z.object({
+        dataLeitura: z.string(),
+        leituras: z.array(
+          z.object({
+            cubaId: z.number(),
+            fermentacaoNum: z.number(),
+            densL1: z.string().nullable().optional(),
+            densL2: z.string().nullable().optional(),
+            densL3: z.string().nullable().optional(),
+            tempL1: z.string().nullable().optional(),
+            tempL2: z.string().nullable().optional(),
+            tempL3: z.string().nullable().optional(),
+            o2: z.string().nullable().optional(),
+            redox: z.string().nullable().optional(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const resultados: { cubaId: number; success: boolean; erro?: string }[] = [];
+
+      for (const linha of input.leituras) {
+        try {
+          // Calcular dia de fermentação
+          const existingLeituras = await getLeiturasByCuba(linha.cubaId, linha.fermentacaoNum);
+          let diaNr = 1;
+          if (existingLeituras.length > 0) {
+            const firstDate = new Date(existingLeituras[0].dataLeitura as unknown as string);
+            const currentDate = new Date(input.dataLeitura);
+            diaNr = Math.floor((currentDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          }
+
+          await createLeitura({
+            cubaId: linha.cubaId,
+            fermentacaoNum: linha.fermentacaoNum,
+            dataLeitura: input.dataLeitura,
+            diaNr,
+            densL1: linha.densL1,
+            densL2: linha.densL2,
+            densL3: linha.densL3,
+            tempL1: linha.tempL1,
+            tempL2: linha.tempL2,
+            tempL3: linha.tempL3,
+            o2: linha.o2,
+            redox: linha.redox,
+            userId: ctx.user.id,
+            userName: ctx.user.name ?? ctx.user.email ?? "Utilizador",
+          });
+
+          // Verificar fermentação completa
+          const cubaRows = await db.select().from(cubas).where(eq(cubas.id, linha.cubaId)).limit(1);
+          const cuba = cubaRows[0];
+          if (cuba) {
+            const estadoAnterior = cuba.estado;
+            const fermentacaoCompleta = await verificarFermentacaoCompleta(
+              linha.cubaId,
+              [linha.densL1, linha.densL2, linha.densL3],
+              cuba.densidadeLimite ?? "1.000"
+            );
+            if (fermentacaoCompleta && estadoAnterior !== "completa") {
+              const nomeCuba = cuba.nomeLote ? `${cuba.codigo} (${cuba.nomeLote})` : cuba.codigo;
+              await notifyOwner({
+                title: `🍷 Fermentação Completa — ${nomeCuba.toUpperCase()}`,
+                content: `A cuba ${nomeCuba} atingiu a densidade limite de ${cuba.densidadeLimite} g/L.\nDia de fermentação: ${diaNr}\nRegistado por: ${ctx.user.name ?? ctx.user.email ?? "Utilizador"}`,
+              }).catch(() => {});
+            } else if (!fermentacaoCompleta) {
+              await updateCubaEstado(linha.cubaId, "em_fermentacao");
+            }
+          }
+
+          resultados.push({ cubaId: linha.cubaId, success: true });
+        } catch (err) {
+          resultados.push({ cubaId: linha.cubaId, success: false, erro: String(err) });
+        }
+      }
+
+      return { resultados, total: input.leituras.length, sucesso: resultados.filter((r) => r.success).length };
+    }),
+
   update: protectedProcedure
     .input(
       z.object({

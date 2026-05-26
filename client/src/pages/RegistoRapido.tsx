@@ -1,0 +1,350 @@
+import { useState, useMemo } from "react";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { getLoginUrl } from "@/const";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Save, RotateCcw, CheckCircle2, XCircle, Loader2, LogIn, ChevronDown, ChevronUp } from "lucide-react";
+
+const TODAS_CUBAS = [
+  'CF1','CF2','CF3','CF4','CF5','CF6','CF7','CF8','CF9','CF10',
+  'CF11','CF12','CF13','CF14','CF15','CF16','CF17','CF18','CF19','CF20',
+  'CF21','CF22','CF23','CF24','CF25','CF26','CF27','CF28','CF29','CF30',
+  'CF31','CF32','CF33','CF34','CF35','CF36',
+  'LF37','LF38',
+  'CF80','CF81','CF82','CF83','CF84','CF85',
+  'CF93','CF94',
+  'CF200','CF201','CF202','CF203','CF204','CF205','CF206','CF207','CF208','CF209','CF210',
+];
+
+type LinhaLeitura = {
+  densL1: string; densL2: string; densL3: string;
+  tempL1: string; tempL2: string; tempL3: string;
+  o2: string; redox: string;
+};
+
+type EstadoLinha = "idle" | "ok" | "erro";
+
+function linhaVazia(): LinhaLeitura {
+  return { densL1: "", densL2: "", densL3: "", tempL1: "", tempL2: "", tempL3: "", o2: "", redox: "" };
+}
+
+function temDados(linha: LinhaLeitura): boolean {
+  return Object.values(linha).some((v) => v.trim() !== "");
+}
+
+function toNullable(v: string): string | null {
+  return v.trim() === "" ? null : v.trim();
+}
+
+export default function RegistoRapido() {
+  const { isAuthenticated } = useAuth();
+  const today = new Date().toISOString().split("T")[0];
+  const [data, setData] = useState(today);
+  const [linhas, setLinhas] = useState<Record<string, LinhaLeitura>>(() =>
+    Object.fromEntries(TODAS_CUBAS.map((c) => [c, linhaVazia()]))
+  );
+  const [estados, setEstados] = useState<Record<string, EstadoLinha>>({});
+  const [mostrarSemDados, setMostrarSemDados] = useState(true);
+
+  const { data: cubasData } = trpc.cubas.list.useQuery();
+  const registarLote = trpc.leituras.registarLote.useMutation();
+
+  const cubaMap = useMemo(() => {
+    if (!cubasData) return {};
+    return Object.fromEntries(cubasData.map((c) => [c.codigo.toUpperCase(), c]));
+  }, [cubasData]);
+
+  const cubasComDados = TODAS_CUBAS.filter((c) => temDados(linhas[c]));
+  const cubasSemDados = TODAS_CUBAS.filter((c) => !temDados(linhas[c]));
+
+  function updateCampo(codigo: string, campo: keyof LinhaLeitura, valor: string) {
+    setLinhas((prev) => ({ ...prev, [codigo]: { ...prev[codigo], [campo]: valor } }));
+    setEstados((prev) => ({ ...prev, [codigo]: "idle" }));
+  }
+
+  function limparTudo() {
+    setLinhas(Object.fromEntries(TODAS_CUBAS.map((c) => [c, linhaVazia()])));
+    setEstados({});
+  }
+
+  async function registar() {
+    const linhasComDados = TODAS_CUBAS.filter((c) => temDados(linhas[c]));
+    if (linhasComDados.length === 0) {
+      toast.error("Não há dados para registar. Preencha pelo menos uma leitura.");
+      return;
+    }
+    if (!data) {
+      toast.error("Selecione uma data antes de registar.");
+      return;
+    }
+
+    const payload = linhasComDados.map((codigo) => {
+      const cuba = cubaMap[codigo.toUpperCase()];
+      const l = linhas[codigo];
+      return {
+        cubaId: cuba.id,
+        fermentacaoNum: cuba.fermentacaoNum,
+        densL1: toNullable(l.densL1),
+        densL2: toNullable(l.densL2),
+        densL3: toNullable(l.densL3),
+        tempL1: toNullable(l.tempL1),
+        tempL2: toNullable(l.tempL2),
+        tempL3: toNullable(l.tempL3),
+        o2: toNullable(l.o2),
+        redox: toNullable(l.redox),
+      };
+    });
+
+    try {
+      const resultado = await registarLote.mutateAsync({ dataLeitura: data, leituras: payload });
+      const novosEstados: Record<string, EstadoLinha> = {};
+      resultado.resultados.forEach((r) => {
+        const cuba = cubasData?.find((c) => c.id === r.cubaId);
+        if (cuba) novosEstados[cuba.codigo.toUpperCase()] = r.success ? "ok" : "erro";
+      });
+      setEstados(novosEstados);
+      toast.success(`${resultado.sucesso} de ${resultado.total} cubas registadas com sucesso!`);
+      // Limpar linhas com sucesso
+      setLinhas((prev) => {
+        const novo = { ...prev };
+        resultado.resultados.forEach((r) => {
+          if (r.success) {
+            const cuba = cubasData?.find((c) => c.id === r.cubaId);
+            if (cuba) novo[cuba.codigo.toUpperCase()] = linhaVazia();
+          }
+        });
+        return novo;
+      });
+    } catch {
+      toast.error("Erro ao registar leituras. Tente novamente.");
+    }
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <p className="text-[var(--color-vinho)] font-semibold text-lg">Precisa de iniciar sessão para registar leituras.</p>
+        <a href={getLoginUrl()}>
+          <Button className="bg-[var(--color-vinho)] text-white gap-2">
+            <LogIn size={16} /> Iniciar Sessão
+          </Button>
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-6 max-w-full">
+      {/* Cabeçalho */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-[var(--color-vinho)]" style={{ fontFamily: "var(--font-serif)" }}>
+          Registo Rápido
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Preencha as leituras de várias cubas de uma só vez e clique em "Registar Tudo".
+        </p>
+      </div>
+
+      {/* Barra de controlo */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-white rounded-xl border border-[var(--color-dourado)]/30 shadow-sm">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-semibold text-[var(--color-vinho)]">Data:</label>
+          <Input
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            className="w-40 text-sm border-[var(--color-dourado)]/40 focus:border-[var(--color-vinho)]"
+          />
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <Badge variant="outline" className="text-xs border-[var(--color-vinho)]/30 text-[var(--color-vinho)]">
+            {cubasComDados.length} cubas com dados
+          </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={limparTudo}
+            className="gap-1.5 text-xs border-gray-300 text-gray-600 hover:text-red-600 hover:border-red-300"
+          >
+            <RotateCcw size={13} /> Limpar tudo
+          </Button>
+          <Button
+            size="sm"
+            onClick={registar}
+            disabled={registarLote.isPending || cubasComDados.length === 0}
+            className="gap-1.5 text-xs bg-[var(--color-vinho)] hover:bg-[var(--color-vinho)]/90 text-white"
+          >
+            {registarLote.isPending ? (
+              <><Loader2 size={13} className="animate-spin" /> A registar...</>
+            ) : (
+              <><Save size={13} /> Registar Tudo ({cubasComDados.length})</>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabela */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-[var(--color-vinho)] text-white">
+                <th className="sticky left-0 z-10 bg-[var(--color-vinho)] px-3 py-3 text-left font-semibold w-20">Cuba</th>
+                <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Dens. L1</th>
+                <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Temp. L1</th>
+                <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Dens. L2</th>
+                <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Temp. L2</th>
+                <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Dens. L3</th>
+                <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Temp. L3</th>
+                <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
+                <th className="px-2 py-3 text-center font-semibold text-purple-300 w-20">Redox (mV)</th>
+                <th className="px-2 py-3 text-center font-semibold w-16">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TODAS_CUBAS.map((codigo, idx) => {
+                const linha = linhas[codigo];
+                const estado = estados[codigo] ?? "idle";
+                const temDadosLinha = temDados(linha);
+                const rowBg = temDadosLinha
+                  ? "bg-amber-50"
+                  : idx % 2 === 0
+                  ? "bg-white"
+                  : "bg-gray-50/60";
+
+                return (
+                  <tr key={codigo} className={`${rowBg} hover:bg-amber-50/80 transition-colors border-b border-gray-100`}>
+                    {/* Cuba */}
+                    <td className={`sticky left-0 z-10 ${rowBg} px-3 py-1.5`}>
+                      <span className="font-bold text-[var(--color-vinho)] text-xs">{codigo}</span>
+                    </td>
+                    {/* Dens L1 */}
+                    <td className="px-1 py-1">
+                      <Input
+                        type="number"
+                        step="0.001"
+                        placeholder="—"
+                        value={linha.densL1}
+                        onChange={(e) => updateCampo(codigo, "densL1", e.target.value)}
+                        className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1"
+                      />
+                    </td>
+                    {/* Temp L1 */}
+                    <td className="px-1 py-1">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        placeholder="—"
+                        value={linha.tempL1}
+                        onChange={(e) => updateCampo(codigo, "tempL1", e.target.value)}
+                        className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1"
+                      />
+                    </td>
+                    {/* Dens L2 */}
+                    <td className="px-1 py-1">
+                      <Input
+                        type="number"
+                        step="0.001"
+                        placeholder="—"
+                        value={linha.densL2}
+                        onChange={(e) => updateCampo(codigo, "densL2", e.target.value)}
+                        className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1"
+                      />
+                    </td>
+                    {/* Temp L2 */}
+                    <td className="px-1 py-1">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        placeholder="—"
+                        value={linha.tempL2}
+                        onChange={(e) => updateCampo(codigo, "tempL2", e.target.value)}
+                        className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1"
+                      />
+                    </td>
+                    {/* Dens L3 */}
+                    <td className="px-1 py-1">
+                      <Input
+                        type="number"
+                        step="0.001"
+                        placeholder="—"
+                        value={linha.densL3}
+                        onChange={(e) => updateCampo(codigo, "densL3", e.target.value)}
+                        className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1"
+                      />
+                    </td>
+                    {/* Temp L3 */}
+                    <td className="px-1 py-1">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        placeholder="—"
+                        value={linha.tempL3}
+                        onChange={(e) => updateCampo(codigo, "tempL3", e.target.value)}
+                        className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1"
+                      />
+                    </td>
+                    {/* O2 */}
+                    <td className="px-1 py-1">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="—"
+                        value={linha.o2}
+                        onChange={(e) => updateCampo(codigo, "o2", e.target.value)}
+                        className="h-7 text-xs text-center border-cyan-200 focus:border-cyan-500 px-1"
+                      />
+                    </td>
+                    {/* Redox */}
+                    <td className="px-1 py-1">
+                      <Input
+                        type="number"
+                        step="1"
+                        placeholder="—"
+                        value={linha.redox}
+                        onChange={(e) => updateCampo(codigo, "redox", e.target.value)}
+                        className="h-7 text-xs text-center border-purple-200 focus:border-purple-500 px-1"
+                      />
+                    </td>
+                    {/* Estado */}
+                    <td className="px-2 py-1 text-center">
+                      {estado === "ok" && <CheckCircle2 size={16} className="text-green-500 mx-auto" />}
+                      {estado === "erro" && <XCircle size={16} className="text-red-500 mx-auto" />}
+                      {estado === "idle" && temDadosLinha && (
+                        <div className="w-2 h-2 rounded-full bg-amber-400 mx-auto" title="Por registar" />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Rodapé */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-100 border border-amber-300 inline-block" /> Linha com dados por registar</span>
+          <span className="flex items-center gap-1.5"><CheckCircle2 size={12} className="text-green-500" /> Registado com sucesso</span>
+          <span className="flex items-center gap-1.5"><XCircle size={12} className="text-red-500" /> Erro no registo</span>
+        </div>
+        <Button
+          size="sm"
+          onClick={registar}
+          disabled={registarLote.isPending || cubasComDados.length === 0}
+          className="gap-1.5 text-xs bg-[var(--color-vinho)] hover:bg-[var(--color-vinho)]/90 text-white"
+        >
+          {registarLote.isPending ? (
+            <><Loader2 size={13} className="animate-spin" /> A registar...</>
+          ) : (
+            <><Save size={13} /> Registar Tudo ({cubasComDados.length})</>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}

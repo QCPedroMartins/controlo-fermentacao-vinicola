@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { BarChart3, CheckCircle2, Circle, FlaskConical } from "lucide-react";
+import { BarChart3, CheckCircle2, Circle, ClipboardList, FlaskConical } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
 
@@ -44,17 +44,25 @@ export default function Dashboard() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
       {/* Cabeçalho */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-1">
-          <BarChart3 size={22} className="text-[var(--color-vinho)]" />
-          <h1 className="text-2xl font-bold text-[var(--color-vinho)]">Dashboard</h1>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <BarChart3 size={22} className="text-[var(--color-vinho)]" />
+            <h1 className="text-2xl font-bold text-[var(--color-vinho)]">Dashboard</h1>
+          </div>
+          <p className="text-gray-500 text-sm">Estado geral das 57 cubas de fermentação</p>
         </div>
-        <p className="text-gray-500 text-sm">Estado geral das 84 cubas de fermentação</p>
+        <Link href="/registo-rapido">
+          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-vinho)] text-white text-sm font-semibold shadow hover:bg-[var(--color-vinho)]/90 transition-colors">
+            <ClipboardList size={16} />
+            Registo Rápido
+          </button>
+        </Link>
       </div>
 
       {/* Estatísticas */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total" value={84} color="text-[var(--color-vinho)]" bg="bg-white" />
+        <StatCard label="Total" value={57} color="text-[var(--color-vinho)]" bg="bg-white" />
         <StatCard label="Sem dados" value={semDados} color="text-gray-500" bg="bg-white" />
         <StatCard label="Em fermentação" value={emFermentacao} color="text-amber-600" bg="bg-amber-50" />
         <StatCard label="Completas" value={completas} color="text-green-600" bg="bg-green-50" />

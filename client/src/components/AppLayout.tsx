@@ -5,6 +5,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronRight,
+  ClipboardList,
   FlaskConical,
   LogOut,
   Menu,
@@ -85,6 +86,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       {/* Navegação */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navLink("/", "Dashboard", <BarChart3 size={16} />)}
+        {navLink("/registo-rapido", "Registo Rápido", <ClipboardList size={16} />)}
 
         {/* Cubas expandível */}
         <div>

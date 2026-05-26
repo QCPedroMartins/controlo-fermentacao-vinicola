@@ -51,3 +51,10 @@
 - [x] Frontend: campo editável de "Densidade Limite" na página de cada cuba
 - [x] Frontend: botões de exportação Excel e CSV por cuba
 - [x] 8 testes Vitest a passar (incluindo novos mocks)
+
+## Registo Rápido Multi-Cuba (v4)
+- [x] Backend: router tRPC `leituras.registarLote` para aceitar array de leituras de múltiplas cubas
+- [x] Frontend: página `/registo-rapido` com seletor de data global, tabela com todas as 57 cubas e colunas editáveis
+- [x] Frontend: botão "Registar Tudo" que envia apenas as linhas com dados preenchidos
+- [x] Frontend: feedback visual de sucesso/erro por linha após registo
+- [x] Integrar link no menu lateral e no dashboard
