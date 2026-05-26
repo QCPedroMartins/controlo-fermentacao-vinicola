@@ -378,6 +378,37 @@ const leiturasRouter = router({
       return { resultados, total: input.leituras.length, sucesso: resultados.filter((r) => r.success).length };
     }),
 
+  /** Retorna leituras de todas as cubas em fermentação para cálculo de alertas no dashboard */
+  listAllDashboard: publicProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    // Apenas cubas em fermentação precisam de alertas
+    const cubasAtivas = await db.select().from(cubas).where(eq(cubas.estado, "em_fermentacao"));
+    if (cubasAtivas.length === 0) return [];
+    // Buscar leituras de cada cuba ativa (apenas a fermentação atual)
+    const todasLeituras: Array<{
+      cubaId: number; fermentacaoNum: number;
+      densL1: string | null; densL2: string | null; densL3: string | null;
+      tempL1: string | null; tempL2: string | null; tempL3: string | null;
+    }> = [];
+    for (const cuba of cubasAtivas) {
+      const rows = await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum);
+      for (const r of rows) {
+        todasLeituras.push({
+          cubaId: cuba.id,
+          fermentacaoNum: cuba.fermentacaoNum,
+          densL1: r.densL1 ?? null,
+          densL2: r.densL2 ?? null,
+          densL3: r.densL3 ?? null,
+          tempL1: r.tempL1 ?? null,
+          tempL2: r.tempL2 ?? null,
+          tempL3: r.tempL3 ?? null,
+        });
+      }
+    }
+    return todasLeituras;
+  }),
+
   resumo: publicProcedure
     .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number().optional() }))
     .query(async ({ input }) => {

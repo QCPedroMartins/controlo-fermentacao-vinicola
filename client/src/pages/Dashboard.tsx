@@ -1,9 +1,9 @@
 import { trpc } from "@/lib/trpc";
-import { BarChart3, CheckCircle2, Circle, ClipboardList, FlaskConical } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, BarChart3, CheckCircle2, Circle, ClipboardList, FlaskConical } from "lucide-react";
+import { useState, useMemo } from "react";
 import { Link } from "wouter";
 
-type Estado = "todos" | "sem_dados" | "em_fermentacao" | "completa";
+type Estado = "todos" | "sem_dados" | "em_fermentacao" | "completa" | "com_alertas";
 
 const estadoConfig = {
   sem_dados: {
@@ -29,17 +29,84 @@ const estadoConfig = {
   },
 };
 
+/** Calcula alertas para uma cuba com base nas suas leituras — lógica idêntica ao CubaPage */
+function temAlertasAtivos(cuba: {
+  tempPretendida?: string | null;
+  desvioTempAlerta?: string | null;
+  desvioDesnsAlerta?: string | null;
+  leituras: Array<{
+    densL1?: string | null; densL2?: string | null; densL3?: string | null;
+    tempL1?: string | null; tempL2?: string | null; tempL3?: string | null;
+  }>;
+}): boolean {
+  const desvioTemp = parseFloat(cuba.desvioTempAlerta ?? "5") || 5;
+  const desvioDesns = parseFloat(cuba.desvioDesnsAlerta ?? "0.010") || 0.010;
+
+  for (let i = 0; i < cuba.leituras.length; i++) {
+    const l = cuba.leituras[i];
+
+    // Alerta de temperatura
+    if (cuba.tempPretendida) {
+      const pretendida = parseFloat(cuba.tempPretendida);
+      const temps = [l.tempL1, l.tempL2, l.tempL3]
+        .filter((t): t is string => !!t)
+        .map(parseFloat);
+      for (const t of temps) {
+        if (Math.abs(t - pretendida) > desvioTemp) return true;
+      }
+    }
+
+    // Alerta de variação brusca de densidade
+    if (i > 0) {
+      const anterior = cuba.leituras[i - 1];
+      const pares: [string | null | undefined, string | null | undefined][] = [
+        [anterior.densL1, l.densL1],
+        [anterior.densL2, l.densL2],
+        [anterior.densL3, l.densL3],
+      ];
+      for (const [ant, atual] of pares) {
+        if (ant && atual) {
+          const diff = Math.abs(parseFloat(ant) - parseFloat(atual));
+          if (diff > desvioDesns) return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 export default function Dashboard() {
   const [filtro, setFiltro] = useState<Estado>("todos");
   const { data: cubas, isLoading } = trpc.cubas.dashboard.useQuery();
+  const { data: todasLeituras, isLoading: loadingAlertas } = trpc.leituras.listAllDashboard.useQuery();
 
   const semDados = cubas?.filter((c) => c.estado === "sem_dados").length ?? 0;
   const emFermentacao = cubas?.filter((c) => c.estado === "em_fermentacao").length ?? 0;
   const completas = cubas?.filter((c) => c.estado === "completa").length ?? 0;
 
-  const cubasFiltradas = cubas?.filter(
-    (c) => filtro === "todos" || c.estado === filtro
-  );
+  // Calcular alertas por cuba
+  const alertasPorCuba = useMemo(() => {
+    if (!cubas || !todasLeituras) return new Map<number, boolean>();
+    const map = new Map<number, boolean>();
+    for (const cuba of cubas) {
+      if (cuba.estado !== "em_fermentacao") continue;
+      const leiturasC = todasLeituras.filter((l) => l.cubaId === cuba.id && l.fermentacaoNum === cuba.fermentacaoNum);
+      map.set(cuba.id, temAlertasAtivos({ ...cuba, leituras: leiturasC }));
+    }
+    return map;
+  }, [cubas, todasLeituras]);
+
+  const totalAlertas = useMemo(() => {
+    let count = 0;
+    alertasPorCuba.forEach((v) => { if (v) count++; });
+    return count;
+  }, [alertasPorCuba]);
+
+  const cubasFiltradas = cubas?.filter((c) => {
+    if (filtro === "todos") return true;
+    if (filtro === "com_alertas") return alertasPorCuba.get(c.id) === true;
+    return c.estado === filtro;
+  });
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
@@ -61,23 +128,28 @@ export default function Dashboard() {
       </div>
 
       {/* Estatísticas */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
         <StatCard label="Total" value={57} color="text-[var(--color-vinho)]" bg="bg-white" />
         <StatCard label="Sem dados" value={semDados} color="text-gray-500" bg="bg-white" />
         <StatCard label="Em fermentação" value={emFermentacao} color="text-amber-600" bg="bg-amber-50" />
         <StatCard label="Completas" value={completas} color="text-green-600" bg="bg-green-50" />
+        <StatCard label="Com alertas" value={totalAlertas} color="text-red-600" bg="bg-red-50" icon={<AlertTriangle size={14} className="text-red-500" />} loading={loadingAlertas} />
       </div>
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2 mb-5">
-        {(["todos", "sem_dados", "em_fermentacao", "completa"] as Estado[]).map((f) => (
+        {(["todos", "sem_dados", "em_fermentacao", "completa", "com_alertas"] as Estado[]).map((f) => (
           <button
             key={f}
             onClick={() => setFiltro(f)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
               filtro === f
-                ? "bg-[var(--color-vinho)] text-white border-[var(--color-vinho)]"
-                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                ? f === "com_alertas"
+                  ? "bg-red-600 text-white border-red-600"
+                  : "bg-[var(--color-vinho)] text-white border-[var(--color-vinho)]"
+                : f === "com_alertas"
+                  ? "bg-red-50 text-red-600 border-red-200 hover:border-red-400"
+                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
             }`}
           >
             {f === "todos"
@@ -86,7 +158,13 @@ export default function Dashboard() {
               ? "Sem dados"
               : f === "em_fermentacao"
               ? "Em fermentação"
-              : "Completas"}
+              : f === "completa"
+              ? "Completas"
+              : (
+                <span className="flex items-center gap-1">
+                  <AlertTriangle size={11} /> Com alertas {totalAlertas > 0 && `(${totalAlertas})`}
+                </span>
+              )}
           </button>
         ))}
       </div>
@@ -102,24 +180,39 @@ export default function Dashboard() {
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
           {cubasFiltradas?.map((cuba) => {
             const cfg = estadoConfig[cuba.estado];
+            const temAlerta = alertasPorCuba.get(cuba.id) === true;
             return (
               <Link key={cuba.id} href={`/cuba/${cuba.codigo}`}>
                 <div
-                  className={`relative border rounded-lg p-2 cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 ${cfg.card}`}
+                  className={`relative border rounded-lg p-2 cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 ${
+                    temAlerta
+                      ? "bg-red-50 border-red-300 hover:border-red-500"
+                      : cfg.card
+                  }`}
                 >
+                  {/* Badge de alerta */}
+                  {temAlerta && (
+                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center shadow">
+                      <AlertTriangle size={9} className="text-white" />
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
                       {cuba.codigo}
                     </span>
-                    <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                    <div className={`w-2 h-2 rounded-full ${temAlerta ? "bg-red-400 animate-pulse" : cfg.dot}`} />
                   </div>
                   <p className="text-xs font-semibold text-gray-700 truncate leading-tight">
                     {cuba.nomeLote ?? "—"}
                   </p>
-                  <div className={`mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${cfg.badge}`}>
-                    {cfg.icon}
+                  <div className={`mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${
+                    temAlerta ? "bg-red-100 text-red-700" : cfg.badge
+                  }`}>
+                    {temAlerta ? <AlertTriangle size={9} /> : cfg.icon}
                     <span className="hidden sm:inline">
-                      {cuba.estado === "sem_dados"
+                      {temAlerta
+                        ? "Alerta"
+                        : cuba.estado === "sem_dados"
                         ? "Vazia"
                         : cuba.estado === "em_fermentacao"
                         ? "Ativa"
@@ -148,16 +241,27 @@ function StatCard({
   value,
   color,
   bg,
+  icon,
+  loading,
 }: {
   label: string;
   value: number;
   color: string;
   bg: string;
+  icon?: React.ReactNode;
+  loading?: boolean;
 }) {
   return (
     <div className={`${bg} rounded-xl border border-gray-100 p-4 shadow-sm`}>
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${color}`}>{value}</p>
+      <div className="flex items-center gap-1 mb-1">
+        {icon}
+        <p className="text-xs text-gray-500">{label}</p>
+      </div>
+      {loading ? (
+        <div className="h-8 w-10 bg-gray-200 animate-pulse rounded mt-1" />
+      ) : (
+        <p className={`text-2xl font-bold ${color}`}>{value}</p>
+      )}
     </div>
   );
 }

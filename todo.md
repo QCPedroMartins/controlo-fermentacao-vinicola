@@ -71,5 +71,5 @@
 - [x] Frontend: indicação visual de "editado" nas linhas que foram alteradas (tooltip com data/utilizador)
 - [x] Frontend: configurações de alerta na página de cuba (tempPretendida, desvioTempAlerta, desvioDesnsAlerta)
 - [x] Frontend: painel de alertas ativos na página de cuba (temperatura e variação de densidade)
-- [ ] Frontend: alertas visíveis no dashboard geral (cubas com alertas ativos) [pendente]
+- [x] Frontend: alertas visíveis no dashboard geral (cubas com alertas ativos, badge vermelho + filtro)
 - [x] Testes Vitest atualizados (16 testes a passar)
