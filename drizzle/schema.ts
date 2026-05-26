@@ -27,10 +27,9 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 // ── Cubas de Fermentação ───────────────────────────────────
-// cf1 a cf84 são criadas automaticamente via seed
 export const cubas = mysqlTable("cubas", {
   id: int("id").autoincrement().primaryKey(),
-  /** Identificador interno fixo: cf1, cf2, ..., cf84 */
+  /** Identificador interno fixo: cf1, cf2, ..., lf37, lf38, cf80..cf85, cf93, cf94, cf200..cf210 */
   codigo: varchar("codigo", { length: 8 }).notNull().unique(),
   /** Nome/lote personalizável pelo utilizador */
   nomeLote: varchar("nome_lote", { length: 120 }),
@@ -42,6 +41,12 @@ export const cubas = mysqlTable("cubas", {
     .notNull(),
   /** Densidade limite para considerar fermentação completa (ex: 1.000, 1.050) */
   densidadeLimite: decimal("densidade_limite", { precision: 7, scale: 3 }).default("1.000").notNull(),
+  /** Temperatura de fermentação pretendida (°C) */
+  tempPretendida: decimal("temp_pretendida", { precision: 5, scale: 1 }),
+  /** Limiar de desvio de temperatura para alerta (°C, padrão: 5) */
+  desvioTempAlerta: decimal("desvio_temp_alerta", { precision: 5, scale: 1 }).default("5.0").notNull(),
+  /** Limiar de variação brusca de densidade entre leituras consecutivas (padrão: 10 pontos = 0.010) */
+  desvioDesnsAlerta: decimal("desvio_desns_alerta", { precision: 7, scale: 3 }).default("0.010").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -74,6 +79,10 @@ export const leituras = mysqlTable("leituras", {
   /** Utilizador que registou */
   userId: int("user_id"),
   userName: varchar("user_name", { length: 120 }),
+  /** Auditoria de edição */
+  editedAt: timestamp("edited_at"),
+  editedBy: int("edited_by"),
+  editedByName: varchar("edited_by_name", { length: 120 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

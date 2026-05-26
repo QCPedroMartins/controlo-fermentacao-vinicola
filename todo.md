@@ -58,3 +58,18 @@
 - [x] Frontend: botão "Registar Tudo" que envia apenas as linhas com dados preenchidos
 - [x] Frontend: feedback visual de sucesso/erro por linha após registo
 - [x] Integrar link no menu lateral e no dashboard
+
+## Edição, Alertas de Temperatura e Densidade (v5)
+- [x] Schema: adicionar campos `tempPretendida` e `desvioTempAlerta` (decimal) na tabela `cubas`
+- [x] Schema: adicionar campo `desvioDesnsAlerta` (decimal) na tabela `cubas`
+- [x] Schema: adicionar campos de auditoria na tabela `leituras`: `editedAt`, `editedBy`, `editedByName`
+- [x] Migração SQL aplicada na base de dados
+- [x] Backend: router `leituras.edit` para editar uma leitura existente (com log de quem editou)
+- [x] Backend: router `cubas.updateAlertas` para atualizar tempPretendida, desvioTempAlerta, desvioDesnsAlerta
+- [x] Backend: ao criar/editar leitura, verificar desvio de temperatura e variação brusca de densidade
+- [x] Frontend: botão de edição em cada linha da tabela histórico (modal com formulário pré-preenchido)
+- [x] Frontend: indicação visual de "editado" nas linhas que foram alteradas (tooltip com data/utilizador)
+- [x] Frontend: configurações de alerta na página de cuba (tempPretendida, desvioTempAlerta, desvioDesnsAlerta)
+- [x] Frontend: painel de alertas ativos na página de cuba (temperatura e variação de densidade)
+- [ ] Frontend: alertas visíveis no dashboard geral (cubas com alertas ativos) [pendente]
+- [x] Testes Vitest atualizados (16 testes a passar)

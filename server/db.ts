@@ -102,6 +102,26 @@ export async function updateCubaDensidadeLimite(id: number, densidadeLimite: str
   await db.update(cubas).set({ densidadeLimite }).where(eq(cubas.id, id));
 }
 
+/** Atualiza as configurações de alerta de temperatura e densidade de uma cuba */
+export async function updateCubaAlertas(
+  id: number,
+  data: {
+    tempPretendida?: string | null;
+    desvioTempAlerta?: string;
+    desvioDesnsAlerta?: string;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+  const set: Record<string, unknown> = {};
+  if (data.tempPretendida !== undefined) set.tempPretendida = data.tempPretendida;
+  if (data.desvioTempAlerta !== undefined) set.desvioTempAlerta = data.desvioTempAlerta;
+  if (data.desvioDesnsAlerta !== undefined) set.desvioDesnsAlerta = data.desvioDesnsAlerta;
+  if (Object.keys(set).length > 0) {
+    await db.update(cubas).set(set).where(eq(cubas.id, id));
+  }
+}
+
 /** Verifica se alguma densidade da leitura atingiu o limite e atualiza estado da cuba */
 export async function verificarFermentacaoCompleta(
   cubaId: number,
@@ -118,6 +138,71 @@ export async function verificarFermentacaoCompleta(
   return atingiu;
 }
 
+/** Verifica alertas de temperatura e densidade para uma leitura nova/editada.
+ *  Retorna array de mensagens de alerta (vazio se tudo OK). */
+export function calcularAlertas(params: {
+  tempPretendida: string | null | undefined;
+  desvioTempAlerta: string;
+  desvioDesnsAlerta: string;
+  tempL1?: string | null;
+  tempL2?: string | null;
+  tempL3?: string | null;
+  densL1?: string | null;
+  densL2?: string | null;
+  densL3?: string | null;
+  /** Leitura anterior para comparação de variação brusca */
+  leituraAnterior?: {
+    densL1?: string | null;
+    densL2?: string | null;
+    densL3?: string | null;
+  } | null;
+}): string[] {
+  const alertas: string[] = [];
+  const desvioTemp = parseFloat(params.desvioTempAlerta) || 5;
+  const desvioDesns = parseFloat(params.desvioDesnsAlerta) || 0.010;
+
+  // Alerta de temperatura
+  if (params.tempPretendida) {
+    const pretendida = parseFloat(params.tempPretendida);
+    const temps = [params.tempL1, params.tempL2, params.tempL3]
+      .filter((t): t is string => t !== null && t !== undefined && t !== "")
+      .map(parseFloat);
+    for (const t of temps) {
+      if (Math.abs(t - pretendida) > desvioTemp) {
+        alertas.push(
+          `Temperatura ${t.toFixed(1)}°C desvia ${Math.abs(t - pretendida).toFixed(1)}°C da pretendida (${pretendida.toFixed(1)}°C ± ${desvioTemp}°C)`
+        );
+        break; // um alerta por leitura é suficiente
+      }
+    }
+  }
+
+  // Alerta de variação brusca de densidade entre leituras consecutivas
+  if (params.leituraAnterior) {
+    const pares: [string | null | undefined, string | null | undefined][] = [
+      [params.leituraAnterior.densL1, params.densL1],
+      [params.leituraAnterior.densL2, params.densL2],
+      [params.leituraAnterior.densL3, params.densL3],
+    ];
+    for (const [anterior, atual] of pares) {
+      if (
+        anterior !== null && anterior !== undefined && anterior !== "" &&
+        atual !== null && atual !== undefined && atual !== ""
+      ) {
+        const diff = Math.abs(parseFloat(anterior) - parseFloat(atual));
+        if (diff > desvioDesns) {
+          alertas.push(
+            `Variação brusca de densidade: ${diff.toFixed(3)} (limiar: ${desvioDesns.toFixed(3)})`
+          );
+          break;
+        }
+      }
+    }
+  }
+
+  return alertas;
+}
+
 // ── Leituras ──────────────────────────────────────────────
 export async function getLeiturasByCuba(cubaId: number, fermentacaoNum?: number) {
   const db = await getDb();
@@ -126,6 +211,13 @@ export async function getLeiturasByCuba(cubaId: number, fermentacaoNum?: number)
     ? and(eq(leituras.cubaId, cubaId), eq(leituras.fermentacaoNum, fermentacaoNum))
     : eq(leituras.cubaId, cubaId);
   return db.select().from(leituras).where(conditions).orderBy(asc(leituras.dataLeitura));
+}
+
+export async function getLeituraById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(leituras).where(eq(leituras.id, id)).limit(1);
+  return result[0];
 }
 
 // Helper: converte string "YYYY-MM-DD" para Date (para campos date do Drizzle MySQL)
@@ -169,22 +261,37 @@ export async function createLeitura(data: {
   });
 }
 
-export async function updateLeitura(
+/** Editar uma leitura existente, registando quem editou e quando */
+export async function editarLeitura(
   id: number,
-  data: Partial<{
-    densL1: string | null;
-    densL2: string | null;
-    densL3: string | null;
-    tempL1: string | null;
-    tempL2: string | null;
-    tempL3: string | null;
-    o2: string | null;
-    redox: string | null;
-  }>
+  data: {
+    densL1?: string | null;
+    densL2?: string | null;
+    densL3?: string | null;
+    tempL1?: string | null;
+    tempL2?: string | null;
+    tempL3?: string | null;
+    o2?: string | null;
+    redox?: string | null;
+    editedBy?: number;
+    editedByName?: string;
+  }
 ) {
   const db = await getDb();
   if (!db) return;
-  await db.update(leituras).set(data).where(eq(leituras.id, id));
+  await db.update(leituras).set({
+    densL1: data.densL1,
+    densL2: data.densL2,
+    densL3: data.densL3,
+    tempL1: data.tempL1,
+    tempL2: data.tempL2,
+    tempL3: data.tempL3,
+    o2: data.o2,
+    redox: data.redox,
+    editedAt: new Date(),
+    editedBy: data.editedBy,
+    editedByName: data.editedByName,
+  }).where(eq(leituras.id, id));
 }
 
 // ── Adições ───────────────────────────────────────────────

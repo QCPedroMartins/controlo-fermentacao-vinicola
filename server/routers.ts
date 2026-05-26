@@ -11,19 +11,22 @@ import {
   getCubaByCodigo,
   getDashboardCubas,
   getLeiturasByCuba,
+  getLeituraById,
   updateCubaNomeLote,
   updateCubaEstado,
   updateCubaDensidadeLimite,
+  updateCubaAlertas,
   verificarFermentacaoCompleta,
+  calcularAlertas,
   createLeitura,
-  updateLeitura,
+  editarLeitura,
   createAdicao,
   deleteAdicao,
   createArquivo,
   getDb,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
-import { and, eq, min, max, asc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { cubas, leituras, adicoes } from "../drizzle/schema";
 
 // ── Router de Cubas ───────────────────────────────────────
@@ -54,10 +57,89 @@ const cubasRouter = router({
       return { success: true };
     }),
 
+  /** Atualizar configurações de alerta: temperatura pretendida, desvio de temperatura, desvio de densidade */
+  updateAlertas: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        tempPretendida: z.string().nullable().optional(),
+        desvioTempAlerta: z.string().optional(),
+        desvioDesnsAlerta: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await updateCubaAlertas(input.id, {
+        tempPretendida: input.tempPretendida,
+        desvioTempAlerta: input.desvioTempAlerta,
+        desvioDesnsAlerta: input.desvioDesnsAlerta,
+      });
+      return { success: true };
+    }),
+
   dashboard: publicProcedure.query(async () => {
     return getDashboardCubas();
   }),
 });
+
+// ── Função auxiliar: verificar alertas e notificar ────────
+async function processarAlertas(params: {
+  cuba: { id: number; codigo: string; nomeLote: string | null; densidadeLimite: string; estado: string; tempPretendida: string | null; desvioTempAlerta: string; desvioDesnsAlerta: string };
+  densidades: (string | null | undefined)[];
+  leituraInput: {
+    densL1?: string | null; densL2?: string | null; densL3?: string | null;
+    tempL1?: string | null; tempL2?: string | null; tempL3?: string | null;
+  };
+  leituraAnterior?: { densL1?: string | null; densL2?: string | null; densL3?: string | null } | null;
+  diaNr: number;
+  userName: string;
+}): Promise<{ fermentacaoCompleta: boolean; alertas: string[] }> {
+  const estadoAnterior = params.cuba.estado;
+
+  // Verificar fermentação completa
+  const fermentacaoCompleta = await verificarFermentacaoCompleta(
+    params.cuba.id,
+    params.densidades,
+    params.cuba.densidadeLimite ?? "1.000"
+  );
+  if (fermentacaoCompleta && estadoAnterior !== "completa") {
+    const nomeCuba = params.cuba.nomeLote
+      ? `${params.cuba.codigo} (${params.cuba.nomeLote})`
+      : params.cuba.codigo;
+    await notifyOwner({
+      title: `🍷 Fermentação Completa — ${nomeCuba.toUpperCase()}`,
+      content: `A cuba ${nomeCuba} atingiu a densidade limite de ${params.cuba.densidadeLimite} g/L.\nDia de fermentação: ${params.diaNr}\nRegistado por: ${params.userName}`,
+    }).catch(() => {});
+  } else if (!fermentacaoCompleta) {
+    await updateCubaEstado(params.cuba.id, "em_fermentacao");
+  }
+
+  // Calcular alertas de temperatura e variação de densidade
+  const alertas = calcularAlertas({
+    tempPretendida: params.cuba.tempPretendida,
+    desvioTempAlerta: params.cuba.desvioTempAlerta ?? "5.0",
+    desvioDesnsAlerta: params.cuba.desvioDesnsAlerta ?? "0.010",
+    tempL1: params.leituraInput.tempL1,
+    tempL2: params.leituraInput.tempL2,
+    tempL3: params.leituraInput.tempL3,
+    densL1: params.leituraInput.densL1,
+    densL2: params.leituraInput.densL2,
+    densL3: params.leituraInput.densL3,
+    leituraAnterior: params.leituraAnterior,
+  });
+
+  // Notificar alertas críticos
+  if (alertas.length > 0) {
+    const nomeCuba = params.cuba.nomeLote
+      ? `${params.cuba.codigo} (${params.cuba.nomeLote})`
+      : params.cuba.codigo;
+    await notifyOwner({
+      title: `⚠️ Alerta de Fermentação — ${nomeCuba.toUpperCase()}`,
+      content: alertas.join("\n") + `\nDia de fermentação: ${params.diaNr}\nRegistado por: ${params.userName}`,
+    }).catch(() => {});
+  }
+
+  return { fermentacaoCompleta, alertas };
+}
 
 // ── Router de Leituras ────────────────────────────────────
 const leiturasRouter = router({
@@ -84,6 +166,9 @@ const leiturasRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
       // Calcular dia de fermentação
       const existingLeituras = await getLeiturasByCuba(input.cubaId, input.fermentacaoNum);
       let diaNr = 1;
@@ -92,6 +177,8 @@ const leiturasRouter = router({
         const currentDate = new Date(input.dataLeitura);
         diaNr = Math.floor((currentDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       }
+
+      const userName = ctx.user.name ?? ctx.user.email ?? "Utilizador";
 
       await createLeitura({
         cubaId: input.cubaId,
@@ -107,36 +194,102 @@ const leiturasRouter = router({
         o2: input.o2,
         redox: input.redox,
         userId: ctx.user.id,
-        userName: ctx.user.name ?? ctx.user.email ?? "Utilizador",
+        userName,
       });
 
-      // Verificar se fermentação está completa com base no limite configurado por cuba
-      const db = await getDb();
+      // Obter dados da cuba (limite, alertas)
+      const cubaRows = await db.select().from(cubas).where(eq(cubas.id, input.cubaId)).limit(1);
+      const cuba = cubaRows[0];
       let fermentacaoCompleta = false;
+      let alertas: string[] = [];
+
+      if (cuba) {
+        // Leitura anterior para comparação de variação de densidade
+        const leituraAnterior = existingLeituras.length > 0
+          ? existingLeituras[existingLeituras.length - 1]
+          : null;
+
+        const resultado = await processarAlertas({
+          cuba: {
+            ...cuba,
+            tempPretendida: cuba.tempPretendida ?? null,
+            desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
+            desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+          },
+          densidades: [input.densL1, input.densL2, input.densL3],
+          leituraInput: input,
+          leituraAnterior,
+          diaNr,
+          userName,
+        });
+        fermentacaoCompleta = resultado.fermentacaoCompleta;
+        alertas = resultado.alertas;
+      }
+
+      return { success: true, diaNr, fermentacaoCompleta, alertas };
+    }),
+
+  /** Editar uma leitura já registada — regista quem editou e quando */
+  edit: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        densL1: z.string().nullable().optional(),
+        densL2: z.string().nullable().optional(),
+        densL3: z.string().nullable().optional(),
+        tempL1: z.string().nullable().optional(),
+        tempL2: z.string().nullable().optional(),
+        tempL3: z.string().nullable().optional(),
+        o2: z.string().nullable().optional(),
+        redox: z.string().nullable().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { id, ...data } = input;
+      const userName = ctx.user.name ?? ctx.user.email ?? "Utilizador";
+
+      // Verificar que a leitura existe
+      const leituraExistente = await getLeituraById(id);
+      if (!leituraExistente) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Leitura não encontrada" });
+      }
+
+      await editarLeitura(id, {
+        ...data,
+        editedBy: ctx.user.id,
+        editedByName: userName,
+      });
+
+      // Rever alertas e estado após edição
+      const db = await getDb();
+      let alertas: string[] = [];
       if (db) {
-        const cubaRows = await db.select().from(cubas).where(eq(cubas.id, input.cubaId)).limit(1);
+        const cubaRows = await db.select().from(cubas).where(eq(cubas.id, leituraExistente.cubaId)).limit(1);
         const cuba = cubaRows[0];
         if (cuba) {
-          const estadoAnterior = cuba.estado;
-          fermentacaoCompleta = await verificarFermentacaoCompleta(
-            input.cubaId,
-            [input.densL1, input.densL2, input.densL3],
-            cuba.densidadeLimite ?? "1.000"
-          );
-          // Notificar owner se acabou de atingir o limite (transição para completa)
-          if (fermentacaoCompleta && estadoAnterior !== "completa") {
-            const nomeCuba = cuba.nomeLote ? `${cuba.codigo} (${cuba.nomeLote})` : cuba.codigo;
-            await notifyOwner({
-              title: `🍷 Fermentação Completa — ${nomeCuba.toUpperCase()}`,
-              content: `A cuba ${nomeCuba} atingiu a densidade limite de ${cuba.densidadeLimite} g/L.\nDia de fermentação: ${diaNr}\nRegistado por: ${ctx.user.name ?? ctx.user.email ?? "Utilizador"}`,
-            }).catch(() => {}); // não bloquear se notificação falhar
-          } else if (!fermentacaoCompleta) {
-            await updateCubaEstado(input.cubaId, "em_fermentacao");
-          }
+          // Leitura anterior (a que vem antes desta na ordem de data)
+          const todasLeituras = await getLeiturasByCuba(leituraExistente.cubaId, leituraExistente.fermentacaoNum);
+          const idx = todasLeituras.findIndex((l) => l.id === id);
+          const leituraAnterior = idx > 0 ? todasLeituras[idx - 1] : null;
+
+          const resultado = await processarAlertas({
+            cuba: {
+              ...cuba,
+              tempPretendida: cuba.tempPretendida ?? null,
+              desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
+              desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+            },
+            densidades: [data.densL1, data.densL2, data.densL3],
+            leituraInput: data,
+            leituraAnterior,
+            diaNr: leituraExistente.diaNr ?? 1,
+            userName,
+          });
+          alertas = resultado.alertas;
         }
       }
 
-      return { success: true, diaNr, fermentacaoCompleta };
+      return { success: true, alertas };
     }),
 
   registarLote: protectedProcedure
@@ -163,11 +316,11 @@ const leiturasRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const resultados: { cubaId: number; success: boolean; erro?: string }[] = [];
+      const resultados: { cubaId: number; success: boolean; alertas?: string[]; erro?: string }[] = [];
+      const userName = ctx.user.name ?? ctx.user.email ?? "Utilizador";
 
       for (const linha of input.leituras) {
         try {
-          // Calcular dia de fermentação
           const existingLeituras = await getLeiturasByCuba(linha.cubaId, linha.fermentacaoNum);
           let diaNr = 1;
           if (existingLeituras.length > 0) {
@@ -190,57 +343,39 @@ const leiturasRouter = router({
             o2: linha.o2,
             redox: linha.redox,
             userId: ctx.user.id,
-            userName: ctx.user.name ?? ctx.user.email ?? "Utilizador",
+            userName,
           });
 
-          // Verificar fermentação completa
           const cubaRows = await db.select().from(cubas).where(eq(cubas.id, linha.cubaId)).limit(1);
           const cuba = cubaRows[0];
+          let alertas: string[] = [];
           if (cuba) {
-            const estadoAnterior = cuba.estado;
-            const fermentacaoCompleta = await verificarFermentacaoCompleta(
-              linha.cubaId,
-              [linha.densL1, linha.densL2, linha.densL3],
-              cuba.densidadeLimite ?? "1.000"
-            );
-            if (fermentacaoCompleta && estadoAnterior !== "completa") {
-              const nomeCuba = cuba.nomeLote ? `${cuba.codigo} (${cuba.nomeLote})` : cuba.codigo;
-              await notifyOwner({
-                title: `🍷 Fermentação Completa — ${nomeCuba.toUpperCase()}`,
-                content: `A cuba ${nomeCuba} atingiu a densidade limite de ${cuba.densidadeLimite} g/L.\nDia de fermentação: ${diaNr}\nRegistado por: ${ctx.user.name ?? ctx.user.email ?? "Utilizador"}`,
-              }).catch(() => {});
-            } else if (!fermentacaoCompleta) {
-              await updateCubaEstado(linha.cubaId, "em_fermentacao");
-            }
+            const leituraAnterior = existingLeituras.length > 0
+              ? existingLeituras[existingLeituras.length - 1]
+              : null;
+            const resultado = await processarAlertas({
+              cuba: {
+                ...cuba,
+                tempPretendida: cuba.tempPretendida ?? null,
+                desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
+                desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+              },
+              densidades: [linha.densL1, linha.densL2, linha.densL3],
+              leituraInput: linha,
+              leituraAnterior,
+              diaNr,
+              userName,
+            });
+            alertas = resultado.alertas;
           }
 
-          resultados.push({ cubaId: linha.cubaId, success: true });
+          resultados.push({ cubaId: linha.cubaId, success: true, alertas });
         } catch (err) {
           resultados.push({ cubaId: linha.cubaId, success: false, erro: String(err) });
         }
       }
 
       return { resultados, total: input.leituras.length, sucesso: resultados.filter((r) => r.success).length };
-    }),
-
-  update: protectedProcedure
-    .input(
-      z.object({
-        id: z.number(),
-        densL1: z.string().nullable().optional(),
-        densL2: z.string().nullable().optional(),
-        densL3: z.string().nullable().optional(),
-        tempL1: z.string().nullable().optional(),
-        tempL2: z.string().nullable().optional(),
-        tempL3: z.string().nullable().optional(),
-        o2: z.string().nullable().optional(),
-        redox: z.string().nullable().optional(),
-      })
-    )
-    .mutation(async ({ input }) => {
-      const { id, ...data } = input;
-      await updateLeitura(id, data);
-      return { success: true };
     }),
 
   resumo: publicProcedure
@@ -327,7 +462,6 @@ const arquivoRouter = router({
 
       const fermentacaoAtual = cuba[0].fermentacaoNum;
 
-      // Calcular resumo da fermentação atual
       const rows = await getLeiturasByCuba(input.cubaId, fermentacaoAtual);
       let dataInicio: string | null = null;
       let dataFim: string | null = null;
@@ -349,7 +483,6 @@ const arquivoRouter = router({
         if (allTemp.length > 0) tempMax = Math.max(...allTemp).toFixed(1);
       }
 
-      // Arquivar fermentação atual
       await createArquivo({
         cubaId: input.cubaId,
         fermentacaoNum: fermentacaoAtual,
@@ -362,7 +495,6 @@ const arquivoRouter = router({
         archivedBy: ctx.user.name ?? ctx.user.email ?? "Utilizador",
       });
 
-      // Incrementar número de fermentação e atualizar nome/estado
       await db
         .update(cubas)
         .set({

@@ -7,19 +7,23 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import {
   Archive,
+  AlertTriangle,
+  Bell,
   ChevronLeft,
   ChevronRight,
   Download,
   Edit2,
   FlaskConical,
+  Pencil,
   Plus,
   RefreshCw,
   Save,
   Settings,
+  Thermometer,
   Trash2,
   TrendingDown,
-  Thermometer,
   Droplets,
+  X,
   Zap,
 } from "lucide-react";
 import {
@@ -33,6 +37,13 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Link } from "wouter";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // ── Cores fixas dos gráficos ──────────────────────────────
 const CORES = {
@@ -45,6 +56,84 @@ const CORES = {
   tempL2: "#1565c0",
   tempL3: "#c62828",
 };
+
+// ── Tipos ─────────────────────────────────────────────────
+type LeituraRow = {
+  id: number;
+  dataLeitura: Date | string;
+  diaNr: number | null;
+  densL1: string | null;
+  densL2: string | null;
+  densL3: string | null;
+  tempL1: string | null;
+  tempL2: string | null;
+  tempL3: string | null;
+  o2: string | null;
+  redox: string | null;
+  userName: string | null;
+  editedAt: Date | null;
+  editedByName: string | null;
+};
+
+// ── Helpers ───────────────────────────────────────────────
+function calcularAlertasClient(params: {
+  tempPretendida: string | null | undefined;
+  desvioTempAlerta: string;
+  desvioDesnsAlerta: string;
+  leituras: LeituraRow[];
+}): { leituraId: number; mensagens: string[] }[] {
+  const desvioTemp = parseFloat(params.desvioTempAlerta) || 5;
+  const desvioDesns = parseFloat(params.desvioDesnsAlerta) || 0.010;
+  const resultado: { leituraId: number; mensagens: string[] }[] = [];
+
+  for (let i = 0; i < params.leituras.length; i++) {
+    const l = params.leituras[i];
+    const mensagens: string[] = [];
+
+    // Alerta de temperatura
+    if (params.tempPretendida) {
+      const pretendida = parseFloat(params.tempPretendida);
+      const temps = [l.tempL1, l.tempL2, l.tempL3]
+        .filter((t): t is string => t !== null && t !== undefined && t !== "")
+        .map(parseFloat);
+      for (const t of temps) {
+        if (Math.abs(t - pretendida) > desvioTemp) {
+          mensagens.push(
+            `Temp. ${t.toFixed(1)}°C desvia ${Math.abs(t - pretendida).toFixed(1)}°C da pretendida (${pretendida.toFixed(1)}°C ± ${desvioTemp}°C)`
+          );
+          break;
+        }
+      }
+    }
+
+    // Alerta de variação brusca de densidade
+    if (i > 0) {
+      const anterior = params.leituras[i - 1];
+      const pares: [string | null, string | null][] = [
+        [anterior.densL1, l.densL1],
+        [anterior.densL2, l.densL2],
+        [anterior.densL3, l.densL3],
+      ];
+      for (const [ant, atual] of pares) {
+        if (ant && atual && ant !== "" && atual !== "") {
+          const diff = Math.abs(parseFloat(ant) - parseFloat(atual));
+          if (diff > desvioDesns) {
+            mensagens.push(
+              `Variação brusca de densidade: ${diff.toFixed(3)} (limiar: ${desvioDesns.toFixed(3)})`
+            );
+            break;
+          }
+        }
+      }
+    }
+
+    if (mensagens.length > 0) {
+      resultado.push({ leituraId: l.id, mensagens });
+    }
+  }
+
+  return resultado;
+}
 
 export default function CubaPage() {
   const params = useParams<{ codigo: string }>();
@@ -81,6 +170,22 @@ export default function CubaPage() {
     produto: "", dose: "", observacoes: "",
   });
 
+  // ── Estado: modal de edição de leitura ───────────────────
+  const [editLeitura, setEditLeitura] = useState<LeituraRow | null>(null);
+  const [editForm, setEditForm] = useState({
+    densL1: "", densL2: "", densL3: "",
+    tempL1: "", tempL2: "", tempL3: "",
+    o2: "", redox: "",
+  });
+
+  // ── Estado: configurações de alerta ──────────────────────
+  const [showAlertas, setShowAlertas] = useState(false);
+  const [alertaForm, setAlertaForm] = useState({
+    tempPretendida: "",
+    desvioTempAlerta: "5.0",
+    desvioDesnsAlerta: "0.010",
+  });
+
   // ── Queries ───────────────────────────────────────────
   const { data: cuba, isLoading: loadingCuba } = trpc.cubas.get.useQuery(
     { codigo },
@@ -109,8 +214,13 @@ export default function CubaPage() {
 
   // ── Mutations ─────────────────────────────────────────
   const criarLeitura = trpc.leituras.create.useMutation({
-    onSuccess: () => {
-      toast.success("Leitura registada com sucesso!");
+    onSuccess: (data) => {
+      let msg = "Leitura registada com sucesso!";
+      if (data.fermentacaoCompleta) msg += " 🍷 Fermentação completa!";
+      toast.success(msg);
+      if (data.alertas && data.alertas.length > 0) {
+        data.alertas.forEach((a) => toast.warning("⚠️ " + a));
+      }
       setForm({ dataLeitura: new Date().toISOString().split("T")[0], densL1: "", densL2: "", densL3: "", tempL1: "", tempL2: "", tempL3: "", o2: "", redox: "" });
       utils.leituras.listByCuba.invalidate();
       utils.leituras.resumo.invalidate();
@@ -118,6 +228,20 @@ export default function CubaPage() {
       utils.cubas.get.invalidate();
     },
     onError: (e) => toast.error("Erro ao registar: " + e.message),
+  });
+
+  const editarLeitura = trpc.leituras.edit.useMutation({
+    onSuccess: (data) => {
+      toast.success("Leitura editada com sucesso!");
+      if (data.alertas && data.alertas.length > 0) {
+        data.alertas.forEach((a) => toast.warning("⚠️ " + a));
+      }
+      setEditLeitura(null);
+      utils.leituras.listByCuba.invalidate();
+      utils.leituras.resumo.invalidate();
+      utils.cubas.get.invalidate();
+    },
+    onError: (e) => toast.error("Erro ao editar: " + e.message),
   });
 
   const updateNome = trpc.cubas.updateNome.useMutation({
@@ -154,6 +278,15 @@ export default function CubaPage() {
     onError: (e) => toast.error("Erro: " + e.message),
   });
 
+  const updateAlertas = trpc.cubas.updateAlertas.useMutation({
+    onSuccess: () => {
+      toast.success("Configurações de alerta guardadas!");
+      setShowAlertas(false);
+      utils.cubas.get.invalidate();
+    },
+    onError: (e) => toast.error("Erro: " + e.message),
+  });
+
   const novaFermentacao = trpc.arquivo.novaFermentacao.useMutation({
     onSuccess: (data) => {
       toast.success(`Fermentação arquivada! Nova fermentação Nº ${data.novaFermentacaoNum} iniciada.`);
@@ -167,6 +300,17 @@ export default function CubaPage() {
     },
     onError: (e) => toast.error("Erro: " + e.message),
   });
+
+  // ── Alertas calculados no cliente ─────────────────────
+  const alertasAtivos = useMemo(() => {
+    if (!leituras || !cuba) return [];
+    return calcularAlertasClient({
+      tempPretendida: cuba.tempPretendida,
+      desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
+      desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+      leituras: leituras as LeituraRow[],
+    });
+  }, [leituras, cuba]);
 
   // ── Dados para gráficos ───────────────────────────────
   const chartData = useMemo(() => {
@@ -205,6 +349,45 @@ export default function CubaPage() {
     });
   };
 
+  const abrirEdicaoLeitura = (l: LeituraRow) => {
+    setEditLeitura(l);
+    setEditForm({
+      densL1: l.densL1 ?? "",
+      densL2: l.densL2 ?? "",
+      densL3: l.densL3 ?? "",
+      tempL1: l.tempL1 ?? "",
+      tempL2: l.tempL2 ?? "",
+      tempL3: l.tempL3 ?? "",
+      o2: l.o2 ?? "",
+      redox: l.redox ?? "",
+    });
+  };
+
+  const confirmarEdicaoLeitura = () => {
+    if (!editLeitura) return;
+    editarLeitura.mutate({
+      id: editLeitura.id,
+      densL1: editForm.densL1 || null,
+      densL2: editForm.densL2 || null,
+      densL3: editForm.densL3 || null,
+      tempL1: editForm.tempL1 || null,
+      tempL2: editForm.tempL2 || null,
+      tempL3: editForm.tempL3 || null,
+      o2: editForm.o2 || null,
+      redox: editForm.redox || null,
+    });
+  };
+
+  const abrirConfiguracaoAlertas = () => {
+    if (!cuba) return;
+    setAlertaForm({
+      tempPretendida: cuba.tempPretendida ?? "",
+      desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
+      desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+    });
+    setShowAlertas(true);
+  };
+
   if (loadingCuba) {
     return (
       <div className="p-8 flex items-center justify-center">
@@ -222,16 +405,17 @@ export default function CubaPage() {
     );
   }
 
-  const numCuba = parseInt(codigo.replace("cf", ""));
-  const prevCuba = numCuba > 1 ? `cf${numCuba - 1}` : null;
-  const nextCuba = numCuba < 84 ? `cf${numCuba + 1}` : null;
+  // Navegação entre cubas (suporta cf, lf)
+  const numCuba = parseInt(codigo.replace(/^[a-z]+/i, ""));
+  const prefixo = codigo.replace(/\d+$/, "");
+  const prevCuba = numCuba > 1 ? `${prefixo}${numCuba - 1}` : null;
+  const nextCuba = `${prefixo}${numCuba + 1}`;
 
   // ── Exportação ────────────────────────────────────────
   const exportarExcel = () => {
     if (!leituras || !cuba) return;
     const nomeFicheiro = `${cuba.codigo}${cuba.nomeLote ? "_" + cuba.nomeLote.replace(/\s+/g, "_") : ""}_ferm${cuba.fermentacaoNum}`;
 
-    // Folha de leituras
     const leiturasData = leituras.map((l) => ({
       "Data": new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
       "Dia Nº": l.diaNr ?? "",
@@ -244,13 +428,14 @@ export default function CubaPage() {
       "O₂ (mg/L)": l.o2 ?? "",
       "Redox (mV)": l.redox ?? "",
       "Registado por": l.userName ?? "",
+      "Editado em": (l as LeituraRow).editedAt ? new Date((l as LeituraRow).editedAt!).toLocaleString("pt-PT") : "",
+      "Editado por": (l as LeituraRow).editedByName ?? "",
     }));
 
     const wb = XLSX.utils.book_new();
     const wsLeituras = XLSX.utils.json_to_sheet(leiturasData);
     XLSX.utils.book_append_sheet(wb, wsLeituras, "Leituras");
 
-    // Folha de adições (se existirem)
     if (adicoes && adicoes.length > 0) {
       const adicoesData = adicoes.map((a) => ({
         "Data": new Date(a.dataAdicao).toLocaleDateString("pt-PT"),
@@ -295,6 +480,8 @@ export default function CubaPage() {
     toast.success("Ficheiro CSV exportado!");
   };
 
+  const totalAlertas = alertasAtivos.length;
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
       {/* Cabeçalho da cuba */}
@@ -309,13 +496,11 @@ export default function CubaPage() {
             </Link>
           )}
           <span className="text-xs text-gray-300">|</span>
-          {nextCuba && (
-            <Link href={`/cuba/${nextCuba}`}>
-              <button className="flex items-center gap-1 text-xs text-gray-400 hover:text-[var(--color-vinho)] transition-colors">
-                {nextCuba} <ChevronRight size={14} />
-              </button>
-            </Link>
-          )}
+          <Link href={`/cuba/${nextCuba}`}>
+            <button className="flex items-center gap-1 text-xs text-gray-400 hover:text-[var(--color-vinho)] transition-colors">
+              {nextCuba} <ChevronRight size={14} />
+            </button>
+          </Link>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
@@ -373,6 +558,12 @@ export default function CubaPage() {
                 {cuba.estado === "sem_dados" ? "Sem dados" : cuba.estado === "em_fermentacao" ? "Em fermentação" : "Fermentação completa"}
               </span>
               <span className="text-xs text-gray-400">Fermentação Nº {cuba.fermentacaoNum}</span>
+              {/* Badge de alertas */}
+              {totalAlertas > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+                  <AlertTriangle size={11} /> {totalAlertas} alerta{totalAlertas > 1 ? "s" : ""}
+                </span>
+              )}
             </div>
           </div>
 
@@ -400,9 +591,9 @@ export default function CubaPage() {
                 <Download size={12} /> CSV
               </button>
             </div>
-            {/* Configuração do limite de densidade */}
+            {/* Configurações: limite de densidade + alertas */}
             {isAuthenticated && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
                 <span className="text-xs text-gray-400">Limite de densidade:</span>
                 {editingLimite ? (
                   <div className="flex items-center gap-1">
@@ -431,11 +622,51 @@ export default function CubaPage() {
                     <Settings size={11} /> {cuba.densidadeLimite ?? "1.000"}
                   </button>
                 )}
+                {/* Botão de configuração de alertas */}
+                <button
+                  onClick={abrirConfiguracaoAlertas}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                    cuba.tempPretendida
+                      ? "border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100"
+                      : "border-gray-200 text-gray-600 hover:border-amber-400 hover:text-amber-700"
+                  }`}
+                >
+                  <Bell size={11} />
+                  {cuba.tempPretendida ? `${parseFloat(cuba.tempPretendida).toFixed(1)}°C` : "Alertas"}
+                </button>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Painel de alertas ativos */}
+      {totalAlertas > 0 && (
+        <div className="mb-5 bg-red-50 border border-red-200 rounded-2xl p-4 animate-fade-in">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle size={16} className="text-red-600" />
+            <h3 className="text-sm font-semibold text-red-700">
+              {totalAlertas} alerta{totalAlertas > 1 ? "s" : ""} ativo{totalAlertas > 1 ? "s" : ""} nesta fermentação
+            </h3>
+          </div>
+          <div className="space-y-2">
+            {alertasAtivos.map(({ leituraId, mensagens }) => {
+              const l = leituras?.find((x) => x.id === leituraId);
+              const dataStr = l ? new Date(l.dataLeitura).toLocaleDateString("pt-PT") : "—";
+              return (
+                <div key={leituraId} className="bg-white border border-red-100 rounded-xl px-3 py-2">
+                  <p className="text-xs font-medium text-red-600 mb-0.5">
+                    Dia {l?.diaNr ?? "—"} — {dataStr}
+                  </p>
+                  {mensagens.map((m, i) => (
+                    <p key={i} className="text-xs text-red-700">• {m}</p>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Formulário de entrada (só para autenticados) */}
       {isAuthenticated ? (
@@ -451,7 +682,6 @@ export default function CubaPage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-vinho)] focus:ring-1 focus:ring-[var(--color-vinho)]/20"
               />
             </div>
-            {/* Leitura 1 */}
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Dens. L1</label>
               <input type="number" step="0.001" placeholder="1.085" value={form.densL1}
@@ -466,7 +696,6 @@ export default function CubaPage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
               />
             </div>
-            {/* Leitura 2 */}
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Dens. L2</label>
               <input type="number" step="0.001" placeholder="1.082" value={form.densL2}
@@ -481,7 +710,6 @@ export default function CubaPage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
               />
             </div>
-            {/* Leitura 3 */}
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Dens. L3</label>
               <input type="number" step="0.001" placeholder="1.080" value={form.densL3}
@@ -496,7 +724,6 @@ export default function CubaPage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
               />
             </div>
-            {/* O2 e Redox */}
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: CORES.o2 }}>O₂ (mg/L)</label>
               <input type="number" step="0.01" placeholder="6.50" value={form.o2}
@@ -567,31 +794,65 @@ export default function CubaPage() {
                   <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#80deea" }}>O₂</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ce93d8" }}>Redox</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold">Utilizador</th>
+                  {isAuthenticated && <th className="px-3 py-3 text-center text-xs font-semibold">Editar</th>}
                 </tr>
               </thead>
               <tbody>
                 {loadingLeituras ? (
-                  <tr><td colSpan={11} className="text-center py-8 text-gray-400">A carregar...</td></tr>
+                  <tr><td colSpan={12} className="text-center py-8 text-gray-400">A carregar...</td></tr>
                 ) : leituras?.length === 0 ? (
-                  <tr><td colSpan={11} className="text-center py-8 text-gray-400">Sem leituras registadas</td></tr>
+                  <tr><td colSpan={12} className="text-center py-8 text-gray-400">Sem leituras registadas</td></tr>
                 ) : (
-                  leituras?.map((l, idx) => (
-                    <tr key={l.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                      <td className="px-3 py-2.5 text-xs text-gray-600 whitespace-nowrap">
-                        {new Date(l.dataLeitura).toLocaleDateString("pt-PT")}
-                      </td>
-                      <td className="px-3 py-2.5 text-center text-xs font-bold text-[var(--color-vinho)]">{l.diaNr ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL1 ? parseFloat(l.densL1).toFixed(3) : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL2 ? parseFloat(l.densL2).toFixed(3) : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL2 ? `${parseFloat(l.tempL2).toFixed(1)}°` : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL3 ? parseFloat(l.densL3).toFixed(3) : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL3 ? `${parseFloat(l.tempL3).toFixed(1)}°` : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.o2 }}>{l.o2 ? parseFloat(l.o2).toFixed(2) : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.redox }}>{l.redox ? parseFloat(l.redox).toFixed(0) : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs text-gray-400">{l.userName ?? "—"}</td>
-                    </tr>
-                  ))
+                  leituras?.map((l, idx) => {
+                    const temAlerta = alertasAtivos.some((a) => a.leituraId === l.id);
+                    const foiEditada = !!(l as LeituraRow).editedAt;
+                    return (
+                      <tr
+                        key={l.id}
+                        className={`${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} ${temAlerta ? "border-l-4 border-red-400" : ""}`}
+                      >
+                        <td className="px-3 py-2.5 text-xs text-gray-600 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            {temAlerta && <AlertTriangle size={11} className="text-red-500 shrink-0" />}
+                            {new Date(l.dataLeitura).toLocaleDateString("pt-PT")}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-center text-xs font-bold text-[var(--color-vinho)]">{l.diaNr ?? "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL1 ? parseFloat(l.densL1).toFixed(3) : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL2 ? parseFloat(l.densL2).toFixed(3) : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL2 ? `${parseFloat(l.tempL2).toFixed(1)}°` : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL3 ? parseFloat(l.densL3).toFixed(3) : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL3 ? `${parseFloat(l.tempL3).toFixed(1)}°` : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.o2 }}>{l.o2 ? parseFloat(l.o2).toFixed(2) : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.redox }}>{l.redox ? parseFloat(l.redox).toFixed(0) : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs text-gray-400">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span>{l.userName ?? "—"}</span>
+                            {foiEditada && (
+                              <span
+                                className="text-[10px] text-amber-600 font-medium cursor-help"
+                                title={`Editado por ${(l as LeituraRow).editedByName ?? "—"} em ${new Date((l as LeituraRow).editedAt!).toLocaleString("pt-PT")}`}
+                              >
+                                ✏ editado
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        {isAuthenticated && (
+                          <td className="px-3 py-2.5 text-center">
+                            <button
+                              onClick={() => abrirEdicaoLeitura(l as LeituraRow)}
+                              className="text-gray-300 hover:text-[var(--color-vinho)] transition-colors"
+                              title="Editar leitura"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -632,6 +893,9 @@ export default function CubaPage() {
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
                     <Tooltip formatter={(v: number) => `${v?.toFixed(1)}°C`} labelFormatter={(l) => `Dia ${l}`} />
                     <Legend />
+                    {cuba.tempPretendida && (
+                      <Line type="monotone" dataKey={() => parseFloat(cuba.tempPretendida!)} name="Pretendida" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
+                    )}
                     <Line type="monotone" dataKey="tempL1" name="L1" stroke={CORES.tempL1} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
                     <Line type="monotone" dataKey="tempL2" name="L2" stroke={CORES.tempL2} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
                     <Line type="monotone" dataKey="tempL3" name="L3" stroke={CORES.tempL3} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
@@ -866,6 +1130,184 @@ export default function CubaPage() {
           </div>
         </div>
       )}
+
+      {/* Modal: Edição de leitura */}
+      <Dialog open={!!editLeitura} onOpenChange={(open) => { if (!open) setEditLeitura(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--color-vinho)]" style={{ fontFamily: "var(--font-serif)" }}>
+              Editar leitura — {editLeitura ? new Date(editLeitura.dataLeitura).toLocaleDateString("pt-PT") : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-xs text-gray-500 mb-4">
+              A edição fica registada com o seu nome e a data/hora da alteração.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Dens. L1</label>
+                <input type="number" step="0.001" value={editForm.densL1}
+                  onChange={(e) => setEditForm({ ...editForm, densL1: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
+                <input type="number" step="0.1" value={editForm.tempL1}
+                  onChange={(e) => setEditForm({ ...editForm, tempL1: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Dens. L2</label>
+                <input type="number" step="0.001" value={editForm.densL2}
+                  onChange={(e) => setEditForm({ ...editForm, densL2: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
+                <input type="number" step="0.1" value={editForm.tempL2}
+                  onChange={(e) => setEditForm({ ...editForm, tempL2: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Dens. L3</label>
+                <input type="number" step="0.001" value={editForm.densL3}
+                  onChange={(e) => setEditForm({ ...editForm, densL3: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
+                <input type="number" step="0.1" value={editForm.tempL3}
+                  onChange={(e) => setEditForm({ ...editForm, tempL3: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.o2 }}>O₂ (mg/L)</label>
+                <input type="number" step="0.01" value={editForm.o2}
+                  onChange={(e) => setEditForm({ ...editForm, o2: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.redox }}>Redox (mV)</label>
+                <input type="number" step="1" value={editForm.redox}
+                  onChange={(e) => setEditForm({ ...editForm, redox: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setEditLeitura(null)}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmarEdicaoLeitura}
+              disabled={editarLeitura.isPending}
+              className="flex items-center gap-2 px-5 py-2 bg-[var(--color-vinho)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--color-vinho-light)] disabled:opacity-50"
+            >
+              {editarLeitura.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+              Guardar alterações
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Configurações de alertas */}
+      <Dialog open={showAlertas} onOpenChange={setShowAlertas}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--color-vinho)] flex items-center gap-2" style={{ fontFamily: "var(--font-serif)" }}>
+              <Bell size={18} /> Configurações de Alertas — {cuba.codigo}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-5">
+            {/* Temperatura pretendida */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Temperatura de fermentação pretendida (°C)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="ex: 18.0"
+                value={alertaForm.tempPretendida}
+                onChange={(e) => setAlertaForm({ ...alertaForm, tempPretendida: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">Deixe em branco para desativar o alerta de temperatura.</p>
+            </div>
+
+            {/* Desvio de temperatura */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Desvio máximo de temperatura (°C)
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                min="0.5"
+                value={alertaForm.desvioTempAlerta}
+                onChange={(e) => setAlertaForm({ ...alertaForm, desvioTempAlerta: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Alerta quando a temperatura registada se afastar mais de {alertaForm.desvioTempAlerta}°C da pretendida.
+              </p>
+            </div>
+
+            {/* Desvio de densidade */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Variação máxima de densidade entre leituras consecutivas
+              </label>
+              <input
+                type="number"
+                step="0.001"
+                min="0.001"
+                value={alertaForm.desvioDesnsAlerta}
+                onChange={(e) => setAlertaForm({ ...alertaForm, desvioDesnsAlerta: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Alerta quando a densidade variar mais de {alertaForm.desvioDesnsAlerta} entre dois dias consecutivos (ex: 0.010 = 10 pontos).
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setShowAlertas(false)}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                if (!cuba) return;
+                updateAlertas.mutate({
+                  id: cuba.id,
+                  tempPretendida: alertaForm.tempPretendida || null,
+                  desvioTempAlerta: alertaForm.desvioTempAlerta,
+                  desvioDesnsAlerta: alertaForm.desvioDesnsAlerta,
+                });
+              }}
+              disabled={updateAlertas.isPending}
+              className="flex items-center gap-2 px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+            >
+              {updateAlertas.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Bell size={14} />}
+              Guardar configurações
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
