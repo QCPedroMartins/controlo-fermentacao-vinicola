@@ -82,3 +82,15 @@
 - [x] Frontend: página de consulta completa /cuba/:codigo/arquivo/:fermentacaoNum (histórico, gráficos, adições, resumo)
 - [x] Frontend: navegação de volta para a cuba atual (botão Voltar)
 - [x] Testes Vitest atualizados (20 testes a passar)
+
+## Emails Automáticos (v7)
+- [ ] Instalar dependências: nodemailer, exceljs (gráficos no servidor)
+- [ ] Criar helper server/emailReport.ts: gera Excel com leituras + gráficos (chartjs-node-canvas) por cuba
+- [ ] Criar handler /api/scheduled/daily-digest: envia email diário com todas as fermentações ativas em Excel
+- [ ] Criar handler /api/scheduled/fermentacao-completa: envia email imediato com a fermentação concluída
+- [ ] Integrar envio de email no fluxo novaFermentacao (trigger ao arquivar)
+- [ ] Registar cron diário via manus-heartbeat (ex: 0 0 18 * * * = 18h UTC = 19h Lisboa)
+- [ ] Configurar email do destinatário via secret OWNER_EMAIL
+- [ ] Configurar credenciais SMTP via secrets (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS)
+- [ ] Testes Vitest para os handlers de email
+- [ ] Checkpoint, deploy e ativação do cron

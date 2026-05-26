@@ -1,0 +1,618 @@
+/**
+ * emailReport.ts
+ * Gera ficheiros Excel (.xlsx) com leituras, gráficos de linhas e adições
+ * para envio por email via Resend.
+ */
+
+import ExcelJS from "exceljs";
+import { createCanvas } from "@napi-rs/canvas";
+import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba } from "./db";
+
+// ── Constantes ────────────────────────────────────────────
+const DEST_EMAILS = [
+  "pedromartins@castelares.com",
+  "enologia1@castelares.com",
+];
+
+const CORES_HEX = {
+  densL1: "2e7d32",
+  densL2: "1565c0",
+  densL3: "c62828",
+  tempL1: "2e7d32",
+  tempL2: "1565c0",
+  tempL3: "c62828",
+  o2: "00838f",
+  redox: "6a1b9a",
+};
+
+// ── Tipos ─────────────────────────────────────────────────
+type LeituraRow = {
+  id: number;
+  dataLeitura: Date | string;
+  diaNr: number | null;
+  densL1: string | null;
+  densL2: string | null;
+  densL3: string | null;
+  tempL1: string | null;
+  tempL2: string | null;
+  tempL3: string | null;
+  o2: string | null;
+  redox: string | null;
+  userName: string | null;
+  editedAt: Date | null;
+  editedByName: string | null;
+};
+
+type AdicaoRow = {
+  id: number;
+  dataAdicao: Date | string;
+  produto: string | null;
+  dose: string | null;
+  observacoes: string | null;
+  userName: string | null;
+};
+
+type CubaInfo = {
+  id: number;
+  codigo: string;
+  nomeLote: string | null;
+  fermentacaoNum: number;
+  estado: string;
+  densidadeLimite: string | null;
+  tempPretendida: string | null;
+};
+
+// ── Gerador de gráfico PNG via canvas ─────────────────────
+function gerarGraficoLinha(params: {
+  titulo: string;
+  dados: { x: number; series: { label: string; cor: string; valor: number | null }[] }[];
+  largura?: number;
+  altura?: number;
+  unidade?: string;
+}): Buffer {
+  const W = params.largura ?? 800;
+  const H = params.altura ?? 320;
+  const PAD = { top: 40, right: 30, bottom: 50, left: 60 };
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext("2d");
+
+  // Fundo branco
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
+
+  // Título
+  ctx.fillStyle = "#5d1a2e";
+  ctx.font = "bold 14px sans-serif";
+  ctx.fillText(params.titulo, PAD.left, 24);
+
+  const plotW = W - PAD.left - PAD.right;
+  const plotH = H - PAD.top - PAD.bottom;
+
+  // Calcular domínio Y
+  const allVals = params.dados.flatMap((d) =>
+    d.series.map((s) => s.valor).filter((v): v is number => v !== null)
+  );
+  if (allVals.length === 0) {
+    ctx.fillStyle = "#999";
+    ctx.font = "12px sans-serif";
+    ctx.fillText("Sem dados", PAD.left + plotW / 2 - 30, PAD.top + plotH / 2);
+    return canvas.toBuffer("image/png");
+  }
+
+  const yMin = Math.min(...allVals) * 0.998;
+  const yMax = Math.max(...allVals) * 1.002;
+  const xMin = params.dados[0]?.x ?? 0;
+  const xMax = params.dados[params.dados.length - 1]?.x ?? 1;
+
+  const toX = (x: number) => PAD.left + ((x - xMin) / Math.max(xMax - xMin, 1)) * plotW;
+  const toY = (y: number) => PAD.top + plotH - ((y - yMin) / Math.max(yMax - yMin, 0.001)) * plotH;
+
+  // Grelha horizontal
+  ctx.strokeStyle = "#e8e8e8";
+  ctx.lineWidth = 1;
+  const nLines = 5;
+  for (let i = 0; i <= nLines; i++) {
+    const y = PAD.top + (i / nLines) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, y);
+    ctx.lineTo(PAD.left + plotW, y);
+    ctx.stroke();
+    // Label Y
+    const val = yMax - (i / nLines) * (yMax - yMin);
+    ctx.fillStyle = "#666";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(val.toFixed(3), PAD.left - 5, y + 4);
+  }
+
+  // Eixo X — labels de dia
+  ctx.fillStyle = "#666";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "center";
+  params.dados.forEach((d) => {
+    const x = toX(d.x);
+    ctx.fillText(String(d.x), x, H - PAD.bottom + 16);
+  });
+  ctx.fillStyle = "#444";
+  ctx.font = "11px sans-serif";
+  ctx.fillText("Dia de fermentação", PAD.left + plotW / 2, H - 8);
+
+  // Unidade Y
+  if (params.unidade) {
+    ctx.save();
+    ctx.translate(14, PAD.top + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#444";
+    ctx.font = "11px sans-serif";
+    ctx.fillText(params.unidade, 0, 0);
+    ctx.restore();
+  }
+
+  // Séries
+  const seriesLabels = params.dados[0]?.series.map((s) => s.label) ?? [];
+  seriesLabels.forEach((label, si) => {
+    const cor = params.dados[0]?.series[si]?.cor ?? "#888";
+    ctx.strokeStyle = "#" + cor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    params.dados.forEach((d) => {
+      const v = d.series[si]?.valor;
+      if (v === null || v === undefined) { started = false; return; }
+      const px = toX(d.x);
+      const py = toY(v);
+      if (!started) { ctx.moveTo(px, py); started = true; }
+      else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+
+    // Pontos
+    params.dados.forEach((d) => {
+      const v = d.series[si]?.valor;
+      if (v === null || v === undefined) return;
+      ctx.fillStyle = "#" + cor;
+      ctx.beginPath();
+      ctx.arc(toX(d.x), toY(v), 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Legenda
+    const lx = PAD.left + si * 90;
+    const ly = H - PAD.bottom + 32;
+    ctx.fillStyle = "#" + cor;
+    ctx.fillRect(lx, ly, 16, 3);
+    ctx.fillStyle = "#333";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(label, lx + 20, ly + 4);
+  });
+
+  return canvas.toBuffer("image/png");
+}
+
+// ── Gerador de workbook Excel para uma cuba ───────────────
+export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
+  const leituras = (await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum)) as LeituraRow[];
+  const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Controlo de Fermentação Vinícola";
+  wb.created = new Date();
+
+  // ── Folha 1: Leituras ──────────────────────────────────
+  const wsL = wb.addWorksheet("Leituras");
+
+  // Cabeçalho informativo
+  wsL.mergeCells("A1:K1");
+  const titleCell = wsL.getCell("A1");
+  titleCell.value = `${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"} — Fermentação Nº ${cuba.fermentacaoNum}`;
+  titleCell.font = { bold: true, size: 13, color: { argb: "FF5D1A2E" } };
+  titleCell.alignment = { horizontal: "center" };
+  wsL.getRow(1).height = 22;
+
+  wsL.mergeCells("A2:K2");
+  wsL.getCell("A2").value = `Gerado em: ${new Date().toLocaleString("pt-PT", { timeZone: "Europe/Lisbon" })}`;
+  wsL.getCell("A2").font = { italic: true, size: 10, color: { argb: "FF888888" } };
+  wsL.getCell("A2").alignment = { horizontal: "center" };
+
+  if (cuba.tempPretendida) {
+    wsL.mergeCells("A3:K3");
+    wsL.getCell("A3").value = `Temperatura pretendida: ${cuba.tempPretendida}°C`;
+    wsL.getCell("A3").font = { size: 10, color: { argb: "FF1565C0" } };
+    wsL.getCell("A3").alignment = { horizontal: "center" };
+  }
+
+  // Cabeçalhos da tabela
+  const headerRow = wsL.addRow([
+    "Data", "Dia Nº",
+    "Dens. L1", "Temp. L1 (°C)",
+    "Dens. L2", "Temp. L2 (°C)",
+    "Dens. L3", "Temp. L3 (°C)",
+    "O₂ (mg/L)", "Redox (mV)",
+    "Utilizador",
+  ]);
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5D1A2E" } };
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+    cell.alignment = { horizontal: "center" };
+    cell.border = {
+      bottom: { style: "thin", color: { argb: "FFDDDDDD" } },
+    };
+  });
+
+  // Dados
+  leituras.forEach((l, idx) => {
+    const row = wsL.addRow([
+      new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
+      l.diaNr ?? "",
+      l.densL1 ? parseFloat(l.densL1) : "",
+      l.tempL1 ? parseFloat(l.tempL1) : "",
+      l.densL2 ? parseFloat(l.densL2) : "",
+      l.tempL2 ? parseFloat(l.tempL2) : "",
+      l.densL3 ? parseFloat(l.densL3) : "",
+      l.tempL3 ? parseFloat(l.tempL3) : "",
+      l.o2 ? parseFloat(l.o2) : "",
+      l.redox ? parseFloat(l.redox) : "",
+      l.userName ?? "",
+    ]);
+    const bg = idx % 2 === 0 ? "FFFFFFFF" : "FFF8F4F6";
+    row.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      cell.alignment = { horizontal: "center" };
+      cell.font = { size: 10 };
+    });
+    // Nota de edição
+    if (l.editedAt && l.editedByName) {
+      const lastCell = row.getCell(11);
+      lastCell.value = `${l.userName ?? ""} ✏ editado por ${l.editedByName}`;
+      lastCell.font = { size: 9, italic: true, color: { argb: "FF888888" } };
+    }
+  });
+
+  // Larguras das colunas
+  wsL.columns = [
+    { width: 13 }, { width: 8 },
+    { width: 10 }, { width: 12 },
+    { width: 10 }, { width: 12 },
+    { width: 10 }, { width: 12 },
+    { width: 10 }, { width: 10 },
+    { width: 22 },
+  ];
+
+  // ── Folha 2: Gráficos ─────────────────────────────────
+  const wsG = wb.addWorksheet("Gráficos");
+  wsG.mergeCells("A1:J1");
+  wsG.getCell("A1").value = `Gráficos — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`;
+  wsG.getCell("A1").font = { bold: true, size: 13, color: { argb: "FF5D1A2E" } };
+  wsG.getCell("A1").alignment = { horizontal: "center" };
+
+  const chartData = leituras.map((l) => ({
+    x: l.diaNr ?? 0,
+    densL1: l.densL1 ? parseFloat(l.densL1) : null,
+    densL2: l.densL2 ? parseFloat(l.densL2) : null,
+    densL3: l.densL3 ? parseFloat(l.densL3) : null,
+    tempL1: l.tempL1 ? parseFloat(l.tempL1) : null,
+    tempL2: l.tempL2 ? parseFloat(l.tempL2) : null,
+    tempL3: l.tempL3 ? parseFloat(l.tempL3) : null,
+    o2: l.o2 ? parseFloat(l.o2) : null,
+    redox: l.redox ? parseFloat(l.redox) : null,
+  }));
+
+  // Gráfico de Densidade
+  const pngDens = gerarGraficoLinha({
+    titulo: "Densidade",
+    unidade: "Densidade",
+    dados: chartData.map((d) => ({
+      x: d.x,
+      series: [
+        { label: "L1", cor: CORES_HEX.densL1, valor: d.densL1 },
+        { label: "L2", cor: CORES_HEX.densL2, valor: d.densL2 },
+        { label: "L3", cor: CORES_HEX.densL3, valor: d.densL3 },
+      ],
+    })),
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const imgDens = (wb as any).addImage({ buffer: Buffer.from(pngDens), extension: "png" }) as number;
+  wsG.addImage(imgDens, { tl: { col: 0, row: 2 }, ext: { width: 800, height: 320 } });
+
+  // Gráfico de Temperatura
+  const pngTemp = gerarGraficoLinha({
+    titulo: "Temperatura (°C)",
+    unidade: "°C",
+    dados: chartData.map((d) => ({
+      x: d.x,
+      series: [
+        { label: "L1", cor: CORES_HEX.tempL1, valor: d.tempL1 },
+        { label: "L2", cor: CORES_HEX.tempL2, valor: d.tempL2 },
+        { label: "L3", cor: CORES_HEX.tempL3, valor: d.tempL3 },
+      ],
+    })),
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const imgTemp = (wb as any).addImage({ buffer: Buffer.from(pngTemp), extension: "png" }) as number;
+  wsG.addImage(imgTemp, { tl: { col: 0, row: 20 }, ext: { width: 800, height: 320 } });
+
+  // Gráfico O₂ (se tiver dados)
+  const hasO2 = chartData.some((d) => d.o2 !== null);
+  if (hasO2) {
+    const pngO2 = gerarGraficoLinha({
+      titulo: "O₂ Dissolvido (mg/L)",
+      unidade: "mg/L",
+      dados: chartData.map((d) => ({
+        x: d.x,
+        series: [{ label: "O₂", cor: CORES_HEX.o2, valor: d.o2 }],
+      })),
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imgO2 = (wb as any).addImage({ buffer: Buffer.from(pngO2), extension: "png" }) as number;
+    wsG.addImage(imgO2, { tl: { col: 0, row: 38 }, ext: { width: 800, height: 280 } });
+  }
+
+  // Gráfico Redox (se tiver dados)
+  const hasRedox = chartData.some((d) => d.redox !== null);
+  if (hasRedox) {
+    const rowOffset = hasO2 ? 56 : 38;
+    const pngRedox = gerarGraficoLinha({
+      titulo: "Potencial Redox (mV)",
+      unidade: "mV",
+      dados: chartData.map((d) => ({
+        x: d.x,
+        series: [{ label: "Redox", cor: CORES_HEX.redox, valor: d.redox }],
+      })),
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imgRedox = (wb as any).addImage({ buffer: Buffer.from(pngRedox), extension: "png" }) as number;
+    wsG.addImage(imgRedox, { tl: { col: 0, row: rowOffset }, ext: { width: 800, height: 280 } });
+  }
+
+  // ── Folha 3: Adições ──────────────────────────────────
+  if (adicoes.length > 0) {
+    const wsA = wb.addWorksheet("Adições e Notas");
+    wsA.mergeCells("A1:E1");
+    wsA.getCell("A1").value = `Adições e Notas — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`;
+    wsA.getCell("A1").font = { bold: true, size: 12, color: { argb: "FF5D1A2E" } };
+    wsA.getCell("A1").alignment = { horizontal: "center" };
+
+    const hdrA = wsA.addRow(["Data", "Produto / Adição", "Dose", "Observações", "Registado por"]);
+    hdrA.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5D1A2E" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      cell.alignment = { horizontal: "center" };
+    });
+
+    adicoes.forEach((a, idx) => {
+      const row = wsA.addRow([
+        new Date(a.dataAdicao).toLocaleDateString("pt-PT"),
+        a.produto ?? "",
+        a.dose ?? "",
+        a.observacoes ?? "",
+        a.userName ?? "",
+      ]);
+      const bg = idx % 2 === 0 ? "FFFFFFFF" : "FFF8F4F6";
+      row.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+        cell.font = { size: 10 };
+      });
+    });
+
+    wsA.columns = [
+      { width: 13 }, { width: 28 }, { width: 16 }, { width: 40 }, { width: 20 },
+    ];
+  }
+
+  return wb.xlsx.writeBuffer();
+}
+
+// ── Gerador do digest diário (todas as cubas ativas) ──────
+export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
+  const todasCubas = await getAllCubas() as CubaInfo[];
+  const cubasAtivas = todasCubas.filter((c) => c.estado === "em_fermentacao");
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Controlo de Fermentação Vinícola";
+  wb.created = new Date();
+
+  // Folha de resumo
+  const wsResumo = wb.addWorksheet("Resumo");
+  wsResumo.mergeCells("A1:G1");
+  wsResumo.getCell("A1").value = `Digest Diário — ${new Date().toLocaleDateString("pt-PT", { timeZone: "Europe/Lisbon" })}`;
+  wsResumo.getCell("A1").font = { bold: true, size: 14, color: { argb: "FF5D1A2E" } };
+  wsResumo.getCell("A1").alignment = { horizontal: "center" };
+  wsResumo.getRow(1).height = 24;
+
+  wsResumo.mergeCells("A2:G2");
+  wsResumo.getCell("A2").value = `${cubasAtivas.length} cuba(s) em fermentação`;
+  wsResumo.getCell("A2").font = { size: 11, color: { argb: "FF666666" } };
+  wsResumo.getCell("A2").alignment = { horizontal: "center" };
+
+  const hdrR = wsResumo.addRow(["Cuba", "Lote", "Fermentação Nº", "Estado", "Dens. Limite", "Temp. Pretendida", "Nº Leituras"]);
+  hdrR.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5D1A2E" } };
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+    cell.alignment = { horizontal: "center" };
+  });
+
+  for (const cuba of cubasAtivas) {
+    const leituras = await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum);
+    const row = wsResumo.addRow([
+      cuba.codigo.toUpperCase(),
+      cuba.nomeLote ?? "—",
+      cuba.fermentacaoNum,
+      "Em fermentação",
+      cuba.densidadeLimite ?? "—",
+      cuba.tempPretendida ? `${cuba.tempPretendida}°C` : "—",
+      leituras.length,
+    ]);
+    row.eachCell((cell) => {
+      cell.alignment = { horizontal: "center" };
+      cell.font = { size: 10 };
+    });
+  }
+
+  wsResumo.columns = [
+    { width: 10 }, { width: 28 }, { width: 14 }, { width: 16 }, { width: 14 }, { width: 16 }, { width: 12 },
+  ];
+
+  // Uma folha por cuba ativa
+  for (const cuba of cubasAtivas) {
+    const leituras = (await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum)) as LeituraRow[];
+    const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
+
+    const nomeFolha = cuba.codigo.toUpperCase().substring(0, 28); // Excel: max 31 chars
+    const wsC = wb.addWorksheet(nomeFolha);
+
+    // Cabeçalho
+    wsC.mergeCells("A1:K1");
+    wsC.getCell("A1").value = `${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"} — Fermentação Nº ${cuba.fermentacaoNum}`;
+    wsC.getCell("A1").font = { bold: true, size: 12, color: { argb: "FF5D1A2E" } };
+    wsC.getCell("A1").alignment = { horizontal: "center" };
+
+    // Tabela de leituras
+    const hdr = wsC.addRow([
+      "Data", "Dia Nº",
+      "Dens. L1", "Temp. L1",
+      "Dens. L2", "Temp. L2",
+      "Dens. L3", "Temp. L3",
+      "O₂", "Redox", "Utilizador",
+    ]);
+    hdr.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5D1A2E" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 9 };
+      cell.alignment = { horizontal: "center" };
+    });
+
+    leituras.forEach((l, idx) => {
+      const row = wsC.addRow([
+        new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
+        l.diaNr ?? "",
+        l.densL1 ? parseFloat(l.densL1) : "",
+        l.tempL1 ? parseFloat(l.tempL1) : "",
+        l.densL2 ? parseFloat(l.densL2) : "",
+        l.tempL2 ? parseFloat(l.tempL2) : "",
+        l.densL3 ? parseFloat(l.densL3) : "",
+        l.tempL3 ? parseFloat(l.tempL3) : "",
+        l.o2 ? parseFloat(l.o2) : "",
+        l.redox ? parseFloat(l.redox) : "",
+        l.userName ?? "",
+      ]);
+      const bg = idx % 2 === 0 ? "FFFFFFFF" : "FFF8F4F6";
+      row.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+        cell.alignment = { horizontal: "center" };
+        cell.font = { size: 9 };
+      });
+    });
+
+    wsC.columns = [
+      { width: 12 }, { width: 7 },
+      { width: 9 }, { width: 10 },
+      { width: 9 }, { width: 10 },
+      { width: 9 }, { width: 10 },
+      { width: 8 }, { width: 8 }, { width: 18 },
+    ];
+
+    // Gráfico de densidade inline
+    if (leituras.length > 1) {
+      const chartData = leituras.map((l) => ({
+        x: l.diaNr ?? 0,
+        series: [
+          { label: "L1", cor: CORES_HEX.densL1, valor: l.densL1 ? parseFloat(l.densL1) : null },
+          { label: "L2", cor: CORES_HEX.densL2, valor: l.densL2 ? parseFloat(l.densL2) : null },
+          { label: "L3", cor: CORES_HEX.densL3, valor: l.densL3 ? parseFloat(l.densL3) : null },
+        ],
+      }));
+      const pngDens = gerarGraficoLinha({ titulo: `Densidade — ${cuba.codigo.toUpperCase()}`, dados: chartData, unidade: "Densidade" });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const imgId = (wb as any).addImage({ buffer: Buffer.from(pngDens), extension: "png" }) as number;
+      const startRow = leituras.length + 4;
+      wsC.addImage(imgId, { tl: { col: 0, row: startRow }, ext: { width: 700, height: 280 } });
+
+      // Gráfico de temperatura
+      const chartDataT = leituras.map((l) => ({
+        x: l.diaNr ?? 0,
+        series: [
+          { label: "L1", cor: CORES_HEX.tempL1, valor: l.tempL1 ? parseFloat(l.tempL1) : null },
+          { label: "L2", cor: CORES_HEX.tempL2, valor: l.tempL2 ? parseFloat(l.tempL2) : null },
+          { label: "L3", cor: CORES_HEX.tempL3, valor: l.tempL3 ? parseFloat(l.tempL3) : null },
+        ],
+      }));
+      const pngTemp = gerarGraficoLinha({ titulo: `Temperatura — ${cuba.codigo.toUpperCase()}`, dados: chartDataT, unidade: "°C" });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const imgTId = (wb as any).addImage({ buffer: Buffer.from(pngTemp), extension: "png" }) as number;
+      wsC.addImage(imgTId, { tl: { col: 0, row: startRow + 18 }, ext: { width: 700, height: 280 } });
+    }
+
+    // Adições no final da folha (se existirem)
+    if (adicoes.length > 0) {
+      const addRow = leituras.length + 40;
+      const hdrA = wsC.getRow(addRow);
+      const addRowData = ["Data", "Produto / Adição", "Dose", "Observações", "Por"];
+      addRowData.forEach((v, i) => {
+        const cell = hdrA.getCell(i + 1);
+        cell.value = v;
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5D1A2E" } };
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 9 };
+        cell.alignment = { horizontal: "center" };
+      });
+      adicoes.forEach((a, idx) => {
+        const r = wsC.getRow(addRow + 1 + idx);
+        [
+          new Date(a.dataAdicao).toLocaleDateString("pt-PT"),
+          a.produto ?? "",
+          a.dose ?? "",
+          a.observacoes ?? "",
+          a.userName ?? "",
+        ].forEach((v, i) => {
+          const cell = r.getCell(i + 1);
+          cell.value = v;
+          cell.font = { size: 9 };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: idx % 2 === 0 ? "FFFFFFFF" : "FFF8F4F6" } };
+        });
+      });
+    }
+  }
+
+  return wb.xlsx.writeBuffer();
+}
+
+// ── Envio via Resend ──────────────────────────────────────
+export async function enviarEmailComExcel(params: {
+  assunto: string;
+  htmlBody: string;
+  nomeAnexo: string;
+  bufferExcel: ArrayBuffer | Buffer;
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error("[Email] RESEND_API_KEY não configurada — email não enviado");
+    return;
+  }
+
+  const { Resend } = await import("resend");
+  const resend = new Resend(apiKey);
+
+  const { error } = await resend.emails.send({
+    from: "Controlo Fermentação <fermentacao@castelares.com>",
+    to: DEST_EMAILS,
+    subject: params.assunto,
+    html: params.htmlBody,
+    attachments: [
+      {
+        filename: params.nomeAnexo,
+        content: Buffer.isBuffer(params.bufferExcel)
+          ? params.bufferExcel
+          : Buffer.from(params.bufferExcel as ArrayBuffer),
+      },
+    ],
+  });
+
+  if (error) {
+    console.error("[Email] Erro ao enviar via Resend:", error);
+    throw new Error(`Resend error: ${JSON.stringify(error)}`);
+  }
+
+  console.log(`[Email] Enviado com sucesso: ${params.assunto} → ${DEST_EMAILS.join(", ")}`);
+}

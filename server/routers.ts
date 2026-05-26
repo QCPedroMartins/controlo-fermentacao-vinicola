@@ -535,6 +535,38 @@ const arquivoRouter = router({
         })
         .where(eq(cubas.id, input.cubaId));
 
+      // Enviar email de fim de fermentação em background (não bloqueia a resposta)
+      import("../server/emailReport").then(async ({ gerarExcelCuba, enviarEmailComExcel }) => {
+        try {
+          const cubaParaRelatorio = {
+            id: cuba[0].id,
+            codigo: cuba[0].codigo,
+            nomeLote: cuba[0].nomeLote,
+            fermentacaoNum: fermentacaoAtual,
+            estado: cuba[0].estado,
+            densidadeLimite: cuba[0].densidadeLimite,
+            tempPretendida: cuba[0].tempPretendida,
+          };
+          const adicoesArquivadas = await import("./db").then(m => m.getAdicoesByCuba(input.cubaId, fermentacaoAtual));
+          const bufferExcel = Buffer.from(await gerarExcelCuba(cubaParaRelatorio));
+          const dataHoje = new Date().toLocaleDateString("pt-PT", { timeZone: "Europe/Lisbon" });
+          const nomeLoteSafe = (cuba[0].nomeLote ?? "sem_nome").replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
+          const nomeFicheiro = `${cuba[0].codigo}_ferm${fermentacaoAtual}_${nomeLoteSafe}_${dataHoje.replace(/\//g, "-")}.xlsx`;
+          const htmlBody = `<!DOCTYPE html><html lang="pt"><head><meta charset="UTF-8"><style>body{font-family:Georgia,serif;color:#333;max-width:600px;margin:0 auto;padding:20px}h1{color:#5d1a2e;font-size:22px;border-bottom:2px solid #5d1a2e;padding-bottom:8px}.highlight{background:#fdf6f8;border-left:4px solid #5d1a2e;padding:12px 16px;margin:16px 0;border-radius:4px}p{font-size:14px;line-height:1.6}.stat{display:inline-block;margin-right:20px}.stat strong{font-size:22px;color:#5d1a2e;display:block}.stat span{font-size:11px;color:#888}.footer{margin-top:30px;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:12px}</style></head><body><h1>\u2705 Fermenta\u00e7\u00e3o Conclu\u00edda \u2014 ${cuba[0].codigo.toUpperCase()}</h1><p>A fermenta\u00e7\u00e3o da cuba <strong>${cuba[0].codigo.toUpperCase()}</strong> foi conclu\u00edda e arquivada.</p><div class="highlight"><strong style="font-size:16px;color:#5d1a2e">${cuba[0].nomeLote ?? "Sem nome"}</strong><br><span style="font-size:12px;color:#888">Fermenta\u00e7\u00e3o N\u00ba ${fermentacaoAtual}</span></div><div style="margin:20px 0"><div class="stat"><strong>${rows.length}</strong><span>leituras registadas</span></div><div class="stat"><strong>${adicoesArquivadas.length}</strong><span>adi\u00e7\u00f5es / notas</span></div></div><p>O relat\u00f3rio completo com gr\u00e1ficos de densidade, temperatura e todas as adi\u00e7\u00f5es segue em anexo.</p><div class="footer">Este email foi gerado automaticamente ao arquivar a fermenta\u00e7\u00e3o no sistema de Controlo de Fermenta\u00e7\u00e3o Vin\u00edcola \u2014 Castelares.</div></body></html>`;
+          await enviarEmailComExcel({
+            assunto: `\u2705 Fermenta\u00e7\u00e3o Conclu\u00edda \u2014 ${cuba[0].codigo.toUpperCase()} \u2014 ${cuba[0].nomeLote ?? "Sem nome"} (N\u00ba${fermentacaoAtual})`,
+            htmlBody,
+            nomeAnexo: nomeFicheiro,
+            bufferExcel,
+          });
+          console.log(`[Email] Fim de fermenta\u00e7\u00e3o enviado: ${cuba[0].codigo} N\u00ba${fermentacaoAtual}`);
+        } catch (emailErr) {
+          console.error("[Email] Erro ao enviar email de fim de fermenta\u00e7\u00e3o:", emailErr);
+        }
+      }).catch((importErr) => {
+        console.error("[Email] Erro ao importar emailReport:", importErr);
+      });
+
       return { success: true, novaFermentacaoNum: fermentacaoAtual + 1 };
     }),
 });
