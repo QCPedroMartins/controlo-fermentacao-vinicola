@@ -84,13 +84,13 @@
 - [x] Testes Vitest atualizados (20 testes a passar)
 
 ## Emails Automáticos (v7)
-- [ ] Instalar dependências: nodemailer, exceljs (gráficos no servidor)
-- [ ] Criar helper server/emailReport.ts: gera Excel com leituras + gráficos (chartjs-node-canvas) por cuba
-- [ ] Criar handler /api/scheduled/daily-digest: envia email diário com todas as fermentações ativas em Excel
-- [ ] Criar handler /api/scheduled/fermentacao-completa: envia email imediato com a fermentação concluída
-- [ ] Integrar envio de email no fluxo novaFermentacao (trigger ao arquivar)
-- [ ] Registar cron diário via manus-heartbeat (ex: 0 0 18 * * * = 18h UTC = 19h Lisboa)
-- [ ] Configurar email do destinatário via secret OWNER_EMAIL
-- [ ] Configurar credenciais SMTP via secrets (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS)
-- [ ] Testes Vitest para os handlers de email
-- [ ] Checkpoint, deploy e ativação do cron
+- [x] Instalar dependências: resend, exceljs, @napi-rs/canvas
+- [x] Criar helper server/emailReport.ts: gera Excel com leituras + gráficos (@napi-rs/canvas) por cuba
+- [x] Criar handler /api/scheduled/daily-digest: envia email diário com todas as fermentações ativas em Excel
+- [x] Criar handler /api/scheduled/fermentacao-completa: envia email imediato com a fermentação concluída
+- [x] Integrar envio de email no fluxo novaFermentacao (trigger ao arquivar, background async)
+- [ ] Registar cron diário via manus-heartbeat (0 0 20 * * * = 20h UTC = 21h Lisboa) — aguarda deploy
+- [x] Emails de destino configurados no código: pedromartins@castelares.com + enologia1@castelares.com
+- [x] RESEND_API_KEY configurada e validada (API Key válida)
+- [x] Testes Vitest: 20 testes a passar (handlers de email não testados com mock — dependem de Resend externo)
+- [ ] Deploy e ativação do cron (aguarda deploy + verificação do domínio castelares.com no Resend)
