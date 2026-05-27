@@ -8,6 +8,7 @@ import {
   decimal,
   date,
   smallint,
+  boolean,
 } from "drizzle-orm/mysql-core";
 
 // ── Utilizadores ──────────────────────────────────────────
@@ -25,6 +26,20 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+// ── Campanhas / Anos de Vindima ───────────────────────────
+export const campanhas = mysqlTable("campanhas", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Ex: "2025", "2026", "Campanha Especial 2025" */
+  nome: varchar("nome", { length: 60 }).notNull(),
+  descricao: text("descricao"),
+  /** Campanha atualmente ativa (só uma pode estar ativa) */
+  ativa: boolean("ativa").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Campanha = typeof campanhas.$inferSelect;
+export type InsertCampanha = typeof campanhas.$inferInsert;
 
 // ── Cubas de Fermentação ───────────────────────────────────
 export const cubas = mysqlTable("cubas", {
@@ -60,6 +75,8 @@ export const leituras = mysqlTable("leituras", {
   cubaId: int("cuba_id").notNull(),
   /** Número da fermentação a que esta leitura pertence */
   fermentacaoNum: int("fermentacao_num").default(1).notNull(),
+  /** Campanha a que esta leitura pertence */
+  campanhaId: int("campanha_id"),
   /** Data da leitura (apenas data, sem hora) */
   dataLeitura: date("data_leitura").notNull(),
   /** Dia de fermentação calculado (1, 2, 3...) */
@@ -95,6 +112,8 @@ export const adicoes = mysqlTable("adicoes", {
   id: int("id").autoincrement().primaryKey(),
   cubaId: int("cuba_id").notNull(),
   fermentacaoNum: int("fermentacao_num").default(1).notNull(),
+  /** Campanha a que esta adição pertence */
+  campanhaId: int("campanha_id"),
   dataAdicao: date("data_adicao").notNull(),
   produto: varchar("produto", { length: 200 }),
   dose: varchar("dose", { length: 100 }),
@@ -112,6 +131,8 @@ export const fermentacoesArquivo = mysqlTable("fermentacoes_arquivo", {
   id: int("id").autoincrement().primaryKey(),
   cubaId: int("cuba_id").notNull(),
   fermentacaoNum: int("fermentacao_num").notNull(),
+  /** Campanha a que esta fermentação pertence */
+  campanhaId: int("campanha_id"),
   nomeLote: varchar("nome_lote", { length: 120 }),
   dataInicio: date("data_inicio"),
   dataFim: date("data_fim"),

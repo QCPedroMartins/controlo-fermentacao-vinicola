@@ -8,6 +8,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
   adicoes,
+  campanhas,
   cubas,
   fermentacoesArquivo,
   leituras,
@@ -376,4 +377,64 @@ export async function getDashboardCubas() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(cubas).orderBy(asc(cubas.id));
+}
+
+// ── Campanhas ─────────────────────────────────────────────
+export async function getAllCampanhas() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(campanhas).orderBy(desc(campanhas.id));
+}
+
+export async function getCampanhaAtiva() {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(campanhas).where(eq(campanhas.ativa, true)).limit(1);
+  return result[0];
+}
+
+export async function createCampanha(data: { nome: string; descricao?: string }) {
+  const db = await getDb();
+  if (!db) return;
+  // Desativar todas as campanhas existentes
+  await db.update(campanhas).set({ ativa: false });
+  // Criar nova campanha ativa
+  await db.insert(campanhas).values({
+    nome: data.nome,
+    descricao: data.descricao ?? null,
+    ativa: true,
+  });
+}
+
+export async function ativarCampanha(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(campanhas).set({ ativa: false });
+  await db.update(campanhas).set({ ativa: true }).where(eq(campanhas.id, id));
+}
+
+/** Ao arquivar uma fermentação, associa-a à campanha ativa */
+export async function associarCampanhaArquivo(fermentacaoArquivoId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const campanha = await getCampanhaAtiva();
+  if (!campanha) return;
+  await db
+    .update(fermentacoesArquivo)
+    .set({ campanhaId: campanha.id })
+    .where(eq(fermentacoesArquivo.id, fermentacaoArquivoId));
+}
+
+/** Retorna arquivo de uma cuba filtrado por campanha */
+export async function getArquivoByCubaCampanha(cubaId: number, campanhaId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = campanhaId !== undefined
+    ? and(eq(fermentacoesArquivo.cubaId, cubaId), eq(fermentacoesArquivo.campanhaId, campanhaId))
+    : eq(fermentacoesArquivo.cubaId, cubaId);
+  return db
+    .select()
+    .from(fermentacoesArquivo)
+    .where(conditions)
+    .orderBy(desc(fermentacoesArquivo.fermentacaoNum));
 }

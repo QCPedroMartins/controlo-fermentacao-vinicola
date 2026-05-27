@@ -212,6 +212,16 @@ export default function CubaPage() {
     { enabled: !!cuba?.id }
   );
 
+  // Campanhas para filtro no arquivo
+  const { data: todasCampanhas } = trpc.campanhas.list.useQuery();
+  const { data: campanhaAtiva } = trpc.campanhas.ativa.useQuery();
+  const [filtroCampanhaId, setFiltroCampanhaId] = useState<number | undefined>(undefined);
+  const { data: arquivoCampanha } = trpc.campanhas.arquivoByCuba.useQuery(
+    { cubaId: cuba?.id ?? 0, campanhaId: filtroCampanhaId },
+    { enabled: !!cuba?.id }
+  );
+  const arquivoExibido = filtroCampanhaId !== undefined ? arquivoCampanha : arquivo;
+
   // ── Mutations ─────────────────────────────────────────
   const criarLeitura = trpc.leituras.create.useMutation({
     onSuccess: (data) => {
@@ -285,6 +295,14 @@ export default function CubaPage() {
       utils.cubas.get.invalidate();
     },
     onError: (e) => toast.error("Erro: " + e.message),
+  });
+
+  // ── Envio de relatório por email ────────────────────────────────────
+  const enviarRelatorio = trpc.relatorio.enviarCuba.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Relatório enviado para ${data.destinatario}!`);
+    },
+    onError: (e) => toast.error("Erro ao enviar relatório: " + e.message),
   });
 
   const novaFermentacao = trpc.arquivo.novaFermentacao.useMutation({
@@ -575,7 +593,7 @@ export default function CubaPage() {
               <ResumoCard icon={<Thermometer size={14} />} label="Temp. máx." value={resumo?.tempMax ? `${resumo.tempMax.toFixed(1)}°` : "—"} color="text-red-600" />
             </div>
             {/* Botões de exportação */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap justify-end">
               <button
                 onClick={exportarExcel}
                 disabled={!leituras || leituras.length === 0}
@@ -590,6 +608,20 @@ export default function CubaPage() {
               >
                 <Download size={12} /> CSV
               </button>
+              {isAuthenticated && (
+                <button
+                  onClick={() => enviarRelatorio.mutate({ codigo: cuba.codigo })}
+                  disabled={enviarRelatorio.isPending || !leituras || leituras.length === 0}
+                  title="Envia o relatório Excel com gráficos para geral@castelares.com"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-vinho)] text-white rounded-lg text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+                >
+                  {enviarRelatorio.isPending ? (
+                    <><RefreshCw size={12} className="animate-spin" /> A enviar...</>
+                  ) : (
+                    <><Zap size={12} /> Enviar relatório</>
+                  )}
+                </button>
+              )}
             </div>
             {/* Configurações: limite de densidade + alertas */}
             {isAuthenticated && (
@@ -1035,25 +1067,52 @@ export default function CubaPage() {
       {/* Tab: Arquivo */}
       {activeTab === "arquivo" && (
         <div className="space-y-4 animate-fade-in">
-          {isAuthenticated && (
-            <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Filtro por campanha */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs text-gray-500 font-medium">Campanha:</span>
+              <button
+                onClick={() => setFiltroCampanhaId(undefined)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium border transition-all ${
+                  filtroCampanhaId === undefined
+                    ? "bg-[var(--color-vinho)] text-white border-[var(--color-vinho)]"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                Todas
+              </button>
+              {todasCampanhas?.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setFiltroCampanhaId(c.id)}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium border transition-all ${
+                    filtroCampanhaId === c.id
+                      ? "bg-[var(--color-vinho)] text-white border-[var(--color-vinho)]"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  {c.nome}{c.ativa ? " ★" : ""}
+                </button>
+              ))}
+            </div>
+            {isAuthenticated && (
               <button
                 onClick={() => setShowNovaFerm(true)}
                 className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 transition-colors"
               >
                 <RefreshCw size={14} /> Nova Fermentação
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
-          {arquivo?.length === 0 ? (
+          {arquivoExibido?.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
               <Archive size={40} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">Sem fermentações arquivadas</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {arquivo?.map((arq) => (
+              {arquivoExibido?.map((arq) => (
                 <div key={arq.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div>
@@ -1088,9 +1147,16 @@ export default function CubaPage() {
                       <p className="text-xs text-gray-400">temp. máx.</p>
                     </div>
                   </div>
-                  {arq.archivedBy && (
-                    <p className="text-xs text-gray-400 mt-2">Arquivado por: {arq.archivedBy}</p>
-                  )}
+                  <div className="flex items-center justify-between mt-2">
+                    {arq.archivedBy && (
+                      <p className="text-xs text-gray-400">Arquivado por: {arq.archivedBy}</p>
+                    )}
+                    {arq.campanhaId && todasCampanhas && (
+                      <span className="text-xs bg-[var(--color-vinho)]/10 text-[var(--color-vinho)] px-2 py-0.5 rounded-full font-medium">
+                        {todasCampanhas.find((c) => c.id === arq.campanhaId)?.nome ?? `Campanha #${arq.campanhaId}`}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

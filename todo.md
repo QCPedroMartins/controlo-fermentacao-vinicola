@@ -94,3 +94,23 @@
 - [x] RESEND_API_KEY configurada e validada (API Key válida)
 - [x] Testes Vitest: 20 testes a passar (handlers de email não testados com mock — dependem de Resend externo)
 - [x] Deploy concluído (fermenta84-csbhypgs.manus.space) + cron ativo
+
+## Envio Manual de Relatório (v8)
+- [x] Backend: procedimento tRPC `relatorio.enviarCuba` para gerar e enviar Excel de uma cuba por email
+- [x] Frontend: botão "Enviar relatório" na página de cada cuba com spinner e toast de confirmação
+- [x] Digest diário confirmado: filtra cubas com estado=em_fermentacao em scheduledHandlers.ts e emailReport.ts
+- [x] Testes Vitest atualizados (28 testes a passar, mock corrigido para geral@castelares.com)
+- [ ] Checkpoint e deploy
+
+## Campanhas/Anos e Correção de Bugs (v9)
+- [x] BUG: estado da cuba após arquivar corrigido para 'completa' (era 'sem_dados')
+- [x] BUG: CF1 atualizada na BD para 'completa' + lógica corrigida no novaFermentacao
+- [x] Schema: tabela `campanhas` (id, nome ex:"2025", descricao, ativa, createdAt)
+- [x] Schema: campo `campanhaId` nas tabelas `fermentacoes_arquivo`, `leituras`, `adicoes`
+- [x] Backend: campanhasRouter com list, ativa, criar, ativar, arquivoByCuba
+- [x] Backend: ao arquivar fermentação, associa automaticamente à campanha ativa
+- [x] Frontend: botão de campanha ativa no Dashboard (link para /campanhas)
+- [x] Frontend: filtro por campanha no separador Arquivo de cada cuba + badge de campanha
+- [x] Frontend: página /campanhas com lista, campanha ativa e criar nova
+- [x] Testes Vitest: 28 testes a passar
+- [ ] Checkpoint e deploy

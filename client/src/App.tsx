@@ -10,6 +10,7 @@ import LoginPage from "./pages/LoginPage";
 import AppLayout from "./components/AppLayout";
 import RegistoRapido from "./pages/RegistoRapido";
 import ArquivoDetalhe from "./pages/ArquivoDetalhe";
+import Campanhas from "./pages/Campanhas";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/cuba/:codigo/arquivo/:fermentacaoNum" component={ArquivoDetalhe} />
       <Route path="/cuba/:codigo" component={CubaPage} />
       <Route path="/registo-rapido" component={RegistoRapido} />
+      <Route path="/campanhas" component={Campanhas} />
       <Route path="/login" component={LoginPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

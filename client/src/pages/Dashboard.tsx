@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, BarChart3, CheckCircle2, Circle, ClipboardList, FlaskConical } from "lucide-react";
+import { AlertTriangle, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, FlaskConical } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 
@@ -79,6 +79,7 @@ export default function Dashboard() {
   const [filtro, setFiltro] = useState<Estado>("todos");
   const { data: cubas, isLoading } = trpc.cubas.dashboard.useQuery();
   const { data: todasLeituras, isLoading: loadingAlertas } = trpc.leituras.listAllDashboard.useQuery();
+  const { data: campanhaAtiva } = trpc.campanhas.ativa.useQuery();
 
   const semDados = cubas?.filter((c) => c.estado === "sem_dados").length ?? 0;
   const emFermentacao = cubas?.filter((c) => c.estado === "em_fermentacao").length ?? 0;
@@ -119,12 +120,20 @@ export default function Dashboard() {
           </div>
           <p className="text-gray-500 text-sm">Estado geral das 57 cubas de fermentação</p>
         </div>
-        <Link href="/registo-rapido">
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-vinho)] text-white text-sm font-semibold shadow hover:bg-[var(--color-vinho)]/90 transition-colors">
-            <ClipboardList size={16} />
-            Registo Rápido
-          </button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/campanhas">
+            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-vinho)] text-[var(--color-vinho)] text-sm font-semibold hover:bg-[var(--color-vinho)]/5 transition-colors">
+              <Calendar size={16} />
+              {campanhaAtiva ? campanhaAtiva.nome : "Campanhas"}
+            </button>
+          </Link>
+          <Link href="/registo-rapido">
+            <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-vinho)] text-white text-sm font-semibold shadow hover:bg-[var(--color-vinho)]/90 transition-colors">
+              <ClipboardList size={16} />
+              Registo Rápido
+            </button>
+          </Link>
+        </div>
       </div>
 
       {/* Estatísticas */}

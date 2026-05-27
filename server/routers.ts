@@ -8,6 +8,7 @@ import {
   getAllCubas,
   getAdicoesByCuba,
   getArquivoByCuba,
+  getArquivoByCubaCampanha,
   getCubaByCodigo,
   getDashboardCubas,
   getLeiturasByCuba,
@@ -23,11 +24,16 @@ import {
   createAdicao,
   deleteAdicao,
   createArquivo,
+  associarCampanhaArquivo,
+  getAllCampanhas,
+  getCampanhaAtiva,
+  createCampanha,
+  ativarCampanha,
   getDb,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
-import { eq } from "drizzle-orm";
-import { cubas, leituras, adicoes } from "../drizzle/schema";
+import { desc, eq } from "drizzle-orm";
+import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas } from "../drizzle/schema";
 
 // ── Router de Cubas ───────────────────────────────────────
 const cubasRouter = router({
@@ -526,12 +532,32 @@ const arquivoRouter = router({
         archivedBy: ctx.user.name ?? ctx.user.email ?? "Utilizador",
       });
 
+      // Associar a fermentação arquivada à campanha ativa (se existir)
+      try {
+        const db2 = await getDb();
+        if (db2) {
+          const arquivoInserido = await db2
+            .select()
+            .from(fermentacoesArquivo)
+            .where(eq(fermentacoesArquivo.cubaId, input.cubaId))
+            .orderBy(desc(fermentacoesArquivo.id))
+            .limit(1);
+          if (arquivoInserido[0]) {
+            await associarCampanhaArquivo(arquivoInserido[0].id);
+          }
+        }
+      } catch (campErr) {
+        console.warn("[Campanhas] Erro ao associar campanha ao arquivo:", campErr);
+      }
+
+      // A cuba fica com estado 'completa' após arquivar (mostra no dashboard).
+      // Só volta a 'sem_dados' quando a nova fermentação tiver a primeira leitura registada.
       await db
         .update(cubas)
         .set({
           fermentacaoNum: fermentacaoAtual + 1,
           nomeLote: input.nomeLoteNovo ?? null,
-          estado: "sem_dados",
+          estado: "completa",
         })
         .where(eq(cubas.id, input.cubaId));
 
@@ -610,6 +636,86 @@ const arquivoDetalheRouter = router({
     }),
 });
 
+// ── Router de Relatórios ────────────────────────────────────
+const relatorioRouter = router({
+  // Envia o Excel de uma cuba específica por email imediatamente
+  enviarCuba: protectedProcedure
+    .input(z.object({ codigo: z.string() }))
+    .mutation(async ({ input }) => {
+      const cuba = await getCubaByCodigo(input.codigo);
+      if (!cuba) throw new Error("Cuba não encontrada");
+
+      const { gerarExcelCuba, enviarEmailComExcel } = await import("./emailReport");
+      const buffer = await gerarExcelCuba(cuba);
+
+      const nomeLote = cuba.nomeLote ?? cuba.codigo.toUpperCase();
+      const dataHoje = new Date().toLocaleDateString("pt-PT");
+
+      await enviarEmailComExcel({
+        assunto: `Relatório ${cuba.codigo.toUpperCase()} — ${nomeLote} (${dataHoje})`,
+        htmlBody: `
+          <h2>Relatório de Fermentação — ${cuba.codigo.toUpperCase()}</h2>
+          <p><strong>Lote:</strong> ${nomeLote}</p>
+          <p><strong>Estado:</strong> ${cuba.estado === "em_fermentacao" ? "Em fermentação" : cuba.estado}</p>
+          <p><strong>Data:</strong> ${dataHoje}</p>
+          <p>Em anexo encontra o Excel com o histórico completo de leituras, gráficos e adições.</p>
+        `,
+        nomeAnexo: `relatorio_${cuba.codigo}_${dataHoje.replace(/\//g, "-")}.xlsx`,
+        bufferExcel: buffer as unknown as Buffer,
+      });
+
+      return { ok: true, destinatario: "geral@castelares.com" };
+    }),
+
+  // Envia o digest diário com todas as cubas ativas por email
+  enviarDigestDiario: protectedProcedure
+    .mutation(async () => {
+      const { gerarExcelDigestDiario, enviarEmailComExcel } = await import("./emailReport");
+      const buffer = await gerarExcelDigestDiario();
+
+      const dataHoje = new Date().toLocaleDateString("pt-PT");
+      const cubas = await getAllCubas();
+      const ativas = cubas.filter(c => c.estado === "em_fermentacao");
+
+      await enviarEmailComExcel({
+        assunto: `Digest Diário — ${ativas.length} cuba${ativas.length !== 1 ? "s" : ""} ativa${ativas.length !== 1 ? "s" : ""} (${dataHoje})`,
+        htmlBody: `
+          <h2>Digest Diário de Fermentação</h2>
+          <p><strong>Data:</strong> ${dataHoje}</p>
+          <p><strong>Cubas ativas:</strong> ${ativas.length}</p>
+          ${ativas.length > 0 ? `<p>Cubas: ${ativas.map(c => c.codigo.toUpperCase()).join(", ")}</p>` : "<p>Não há cubas em fermentação neste momento.</p>"}
+          <p>Em anexo encontra o Excel com o estado atual de todas as cubas ativas.</p>
+        `,
+        nomeAnexo: `digest_diario_${dataHoje.replace(/\//g, "-")}.xlsx`,
+        bufferExcel: buffer as unknown as Buffer,
+      });
+
+      return { ok: true, cubasAtivas: ativas.length, destinatario: "geral@castelares.com" };
+    }),
+});
+
+
+// ── Campanhas Router ─────────────────────────────────────
+const campanhasRouter = router({
+  list: publicProcedure.query(async () => getAllCampanhas()),
+  ativa: publicProcedure.query(async () => (await getCampanhaAtiva()) ?? null),
+  criar: protectedProcedure
+    .input(z.object({ nome: z.string().min(1).max(60), descricao: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      await createCampanha({ nome: input.nome, descricao: input.descricao });
+      return { success: true };
+    }),
+  ativar: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await ativarCampanha(input.id);
+      return { success: true };
+    }),
+  arquivoByCuba: publicProcedure
+    .input(z.object({ cubaId: z.number(), campanhaId: z.number().optional() }))
+    .query(async ({ input }) => getArquivoByCubaCampanha(input.cubaId, input.campanhaId)),
+});
+
 // ── App Router ────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -626,6 +732,8 @@ export const appRouter = router({
   adicoes: adicoesRouter,
   arquivo: arquivoRouter,
   arquivoDetalhe: arquivoDetalheRouter,
+  relatorio: relatorioRouter,
+  campanhas: campanhasRouter,
 });
 
 export type AppRouter = typeof appRouter;

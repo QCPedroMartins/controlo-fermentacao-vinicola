@@ -136,7 +136,7 @@ describe("enviarEmailComExcel", () => {
     expect(instance?.emails.send).toHaveBeenCalledWith(
       expect.objectContaining({
         subject: "Teste de email",
-        to: expect.arrayContaining(["pedromartins@castelares.com", "enologia1@castelares.com"]),
+        to: "geral@castelares.com",
         attachments: expect.arrayContaining([
           expect.objectContaining({ filename: "teste.xlsx" }),
         ]),
