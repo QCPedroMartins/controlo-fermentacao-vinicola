@@ -89,8 +89,8 @@
 - [x] Criar handler /api/scheduled/daily-digest: envia email diário com todas as fermentações ativas em Excel
 - [x] Criar handler /api/scheduled/fermentacao-completa: envia email imediato com a fermentação concluída
 - [x] Integrar envio de email no fluxo novaFermentacao (trigger ao arquivar, background async)
-- [ ] Registar cron diário via manus-heartbeat (0 0 20 * * * = 20h UTC = 21h Lisboa) — aguarda deploy
+- [x] Cron diário registado via manus-heartbeat: 0 0 20 * * * (21h Lisboa) — task_uid: gZiQCrbGLGbiAYja6r4JM2
 - [x] Emails de destino configurados no código: pedromartins@castelares.com + enologia1@castelares.com
 - [x] RESEND_API_KEY configurada e validada (API Key válida)
 - [x] Testes Vitest: 20 testes a passar (handlers de email não testados com mock — dependem de Resend externo)
-- [ ] Deploy e ativação do cron (aguarda deploy + verificação do domínio castelares.com no Resend)
+- [x] Deploy concluído (fermenta84-csbhypgs.manus.space) + cron ativo

@@ -9,10 +9,8 @@ import { createCanvas } from "@napi-rs/canvas";
 import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba } from "./db";
 
 // ── Constantes ────────────────────────────────────────────
-const DEST_EMAILS = [
-  "pedromartins@castelares.com",
-  "enologia1@castelares.com",
-];
+// Destinatário: geral@castelares.com (verificado no Resend)
+const TO_EMAIL = "geral@castelares.com";
 
 const CORES_HEX = {
   densL1: "2e7d32",
@@ -595,8 +593,8 @@ export async function enviarEmailComExcel(params: {
   const resend = new Resend(apiKey);
 
   const { error } = await resend.emails.send({
-    from: "Controlo Fermentação <fermentacao@castelares.com>",
-    to: DEST_EMAILS,
+    from: "Controlo Fermentação <onboarding@resend.dev>",
+    to: TO_EMAIL,
     subject: params.assunto,
     html: params.htmlBody,
     attachments: [
@@ -614,5 +612,5 @@ export async function enviarEmailComExcel(params: {
     throw new Error(`Resend error: ${JSON.stringify(error)}`);
   }
 
-  console.log(`[Email] Enviado com sucesso: ${params.assunto} → ${DEST_EMAILS.join(", ")}`);
+  console.log(`[Email] Enviado com sucesso: ${params.assunto} → ${TO_EMAIL}`);
 }
