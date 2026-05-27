@@ -576,6 +576,13 @@ export default function CubaPage() {
                 {cuba.estado === "sem_dados" ? "Sem dados" : cuba.estado === "em_fermentacao" ? "Em fermentação" : "Fermentação completa"}
               </span>
               <span className="text-xs text-gray-400">Fermentação Nº {cuba.fermentacaoNum}</span>
+              {/* Badge de campanha ativa */}
+              {campanhaAtiva && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--color-vinho)]/10 text-[var(--color-vinho)] border border-[var(--color-vinho)]/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  {campanhaAtiva.nome}
+                </span>
+              )}
               {/* Badge de alertas */}
               {totalAlertas > 0 && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">

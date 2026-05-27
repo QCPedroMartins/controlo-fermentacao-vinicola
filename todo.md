@@ -100,7 +100,7 @@
 - [x] Frontend: botão "Enviar relatório" na página de cada cuba com spinner e toast de confirmação
 - [x] Digest diário confirmado: filtra cubas com estado=em_fermentacao em scheduledHandlers.ts e emailReport.ts
 - [x] Testes Vitest atualizados (28 testes a passar, mock corrigido para geral@castelares.com)
-- [ ] Checkpoint e deploy
+- [x] Checkpoint e deploy (v8: e3de77b4)
 
 ## Campanhas/Anos e Correção de Bugs (v9)
 - [x] BUG: estado da cuba após arquivar corrigido para 'completa' (era 'sem_dados')
@@ -113,4 +113,4 @@
 - [x] Frontend: filtro por campanha no separador Arquivo de cada cuba + badge de campanha
 - [x] Frontend: página /campanhas com lista, campanha ativa e criar nova
 - [x] Testes Vitest: 28 testes a passar
-- [ ] Checkpoint e deploy
+- [x] Checkpoint e deploy (v9: d6a8e5f7)

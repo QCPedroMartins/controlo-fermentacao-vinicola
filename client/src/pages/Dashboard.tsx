@@ -122,9 +122,18 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           <Link href="/campanhas">
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-vinho)] text-[var(--color-vinho)] text-sm font-semibold hover:bg-[var(--color-vinho)]/5 transition-colors">
+            <button className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              campanhaAtiva
+                ? "bg-[var(--color-vinho)] text-white hover:bg-[var(--color-vinho)]/90 shadow"
+                : "border border-[var(--color-vinho)] text-[var(--color-vinho)] hover:bg-[var(--color-vinho)]/5"
+            }`}>
               <Calendar size={16} />
-              {campanhaAtiva ? campanhaAtiva.nome : "Campanhas"}
+              {campanhaAtiva ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                  {campanhaAtiva.nome}
+                </span>
+              ) : "Campanhas"}
             </button>
           </Link>
           <Link href="/registo-rapido">
