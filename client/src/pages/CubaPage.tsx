@@ -1615,6 +1615,72 @@ export default function CubaPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal: Ficha Inicial */}
+      <Dialog open={showFichaInicial} onOpenChange={setShowFichaInicial}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--color-vinho)]" style={{ fontFamily: "var(--font-serif)" }}>
+              Ficha Inicial — {cuba.codigo.toUpperCase()}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 grid grid-cols-2 gap-4">
+            {([
+              { key: "fichaKilos", label: "Kilos", placeholder: "ex: 15000" },
+              { key: "fichaLitros", label: "Litros", placeholder: "ex: 12000" },
+              { key: "fichaPh", label: "pH", placeholder: "ex: 3.45" },
+              { key: "fichaAt", label: "AT (g/L)", placeholder: "ex: 6.5" },
+              { key: "fichaAv", label: "AV (g/L)", placeholder: "ex: 0.35" },
+              { key: "fichaNfa", label: "NFA (mg/L)", placeholder: "ex: 180" },
+              { key: "fichaNtu", label: "NTU", placeholder: "ex: 120" },
+              { key: "fichaGluconico", label: "Glucónico (g/L)", placeholder: "ex: 0.5" },
+              { key: "fichaAlcoolProvavel", label: "Alcool Provável (%)", placeholder: "ex: 13.5" },
+            ] as { key: keyof typeof fichaForm; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
+              <div key={key} className={key === "fichaAlcoolProvavel" ? "col-span-2" : ""}>
+                <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder={placeholder}
+                  value={fichaForm[key]}
+                  onChange={(e) => setFichaForm({ ...fichaForm, [key]: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-vinho)]"
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setShowFichaInicial(false)}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                if (!cuba) return;
+                updateFichaInicial.mutate({
+                  id: cuba.id,
+                  fichaKilos: fichaForm.fichaKilos || null,
+                  fichaLitros: fichaForm.fichaLitros || null,
+                  fichaPh: fichaForm.fichaPh || null,
+                  fichaAt: fichaForm.fichaAt || null,
+                  fichaAv: fichaForm.fichaAv || null,
+                  fichaNfa: fichaForm.fichaNfa || null,
+                  fichaNtu: fichaForm.fichaNtu || null,
+                  fichaGluconico: fichaForm.fichaGluconico || null,
+                  fichaAlcoolProvavel: fichaForm.fichaAlcoolProvavel || null,
+                });
+              }}
+              disabled={updateFichaInicial.isPending}
+              className="flex items-center gap-2 px-5 py-2 bg-[var(--color-vinho)] text-white rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+            >
+              {updateFichaInicial.isPending ? <RefreshCw size={14} className="animate-spin" /> : <ClipboardList size={14} />}
+              Guardar ficha
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
