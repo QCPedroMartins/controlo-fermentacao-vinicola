@@ -362,6 +362,22 @@ export default function CubaPage() {
     onError: (e) => toast.error("Erro ao exportar Excel: " + e.message),
   });
 
+  // Exportar PDF via servidor
+  const exportarPdfServidor = trpc.relatorio.exportarPdfCuba.useMutation({
+    onSuccess: (data) => {
+      const bytes = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.nomeFicheiro;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("PDF exportado!");
+    },
+    onError: (e) => toast.error("Erro ao exportar PDF: " + e.message),
+  });
+
   // Terminar fermentação (arquivar + email automático)
   const terminarFermentacao = trpc.arquivo.novaFermentacao.useMutation({
     onSuccess: (data) => {
@@ -704,6 +720,15 @@ export default function CubaPage() {
               >
                 {exportarExcelServidor.isPending ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
                 Excel
+              </button>
+              <button
+                onClick={() => cuba && exportarPdfServidor.mutate({ codigo: cuba.codigo })}
+                disabled={!leituras || leituras.length === 0 || exportarPdfServidor.isPending}
+                title="Exporta PDF com ficha inicial, leituras e adições"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-700 text-white rounded-lg text-xs font-medium hover:bg-red-800 transition-colors disabled:opacity-40"
+              >
+                {exportarPdfServidor.isPending ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
+                PDF
               </button>
               <button
                 onClick={exportarCSV}
@@ -1075,7 +1100,7 @@ export default function CubaPage() {
                     <Legend />
                     {adicaoMarkers.map((m, i) => (
                       <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
-                        label={{ value: m.label, position: "insideTopRight", fontSize: 9, fill: "#7c3aed", angle: -60 }}
+                        label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
                     <Line type="monotone" dataKey="densL1" name="L1" stroke={CORES.densL1} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
@@ -1095,7 +1120,7 @@ export default function CubaPage() {
                     <Legend />
                     {adicaoMarkers.map((m, i) => (
                       <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
-                        label={{ value: m.label, position: "insideTopRight", fontSize: 9, fill: "#7c3aed", angle: -60 }}
+                        label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
                     {cuba.tempPretendida && (
@@ -1117,7 +1142,7 @@ export default function CubaPage() {
                     <Tooltip formatter={(v: number) => `${v?.toFixed(2)} mg/L`} labelFormatter={(l) => `Dia ${l}`} />
                     {adicaoMarkers.map((m, i) => (
                       <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
-                        label={{ value: m.label, position: "insideTopRight", fontSize: 9, fill: "#7c3aed", angle: -60 }}
+                        label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
                     <Line type="monotone" dataKey="o2" name="O₂ Dissolvido" stroke={CORES.o2} strokeWidth={2.5} dot={{ r: 5, fill: CORES.o2 }} connectNulls={false} />
@@ -1134,13 +1159,33 @@ export default function CubaPage() {
                     <Tooltip formatter={(v: number) => `${v?.toFixed(0)} mV`} labelFormatter={(l) => `Dia ${l}`} />
                     {adicaoMarkers.map((m, i) => (
                       <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
-                        label={{ value: m.label, position: "insideTopRight", fontSize: 9, fill: "#7c3aed", angle: -60 }}
+                        label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
                     <Line type="monotone" dataKey="redox" name="Potencial Redox" stroke={CORES.redox} strokeWidth={2.5} dot={{ r: 5, fill: CORES.redox }} connectNulls={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </ChartCard>
+              {/* Legenda de adições */}
+              {adicaoMarkers.length > 0 && (
+                <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 mt-2">
+                  <p className="text-xs font-semibold text-purple-700 mb-2 flex items-center gap-1">
+                    <span className="text-purple-500">&#9660;</span> Adições / Notas registadas
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {adicaoMarkers.map((m, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs text-purple-800">
+                        <span className="font-bold text-purple-600 min-w-[20px]">▼{i + 1}</span>
+                        <span>
+                          <span className="font-medium">Dia {m.dia}</span>
+                          {" — "}
+                          <span>{m.full}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

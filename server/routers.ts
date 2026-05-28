@@ -713,6 +713,20 @@ const relatorioRouter = router({
       return { base64, nomeFicheiro };
     }),
 
+  // Exporta o PDF de uma cuba (devolve base64)
+  exportarPdfCuba: publicProcedure
+    .input(z.object({ codigo: z.string() }))
+    .mutation(async ({ input }) => {
+      const cuba = await getCubaByCodigo(input.codigo);
+      if (!cuba) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba não encontrada" });
+      const { gerarPdfCuba } = await import("./pdfReport");
+      const buffer = await gerarPdfCuba(cuba);
+      const base64 = buffer.toString("base64");
+      const nomeLote = cuba.nomeLote ?? cuba.codigo.toUpperCase();
+      const nomeFicheiro = `${cuba.codigo}_${nomeLote.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "")}_ferm${cuba.fermentacaoNum}.pdf`;
+      return { base64, nomeFicheiro };
+    }),
+
   // Envia o digest diário com todas as cubas ativas por email
   enviarDigestDiario: protectedProcedure
     .mutation(async () => {

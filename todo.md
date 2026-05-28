@@ -138,3 +138,16 @@
 - [x] Excel: marcadores de adições nos gráficos (linhas verticais roxas com etiqueta em todos os 4 gráficos)
 - [x] Testes Vitest: 33 testes a passar
 - [x] Checkpoint (v12: bf5084ba)
+
+## PDF, Marcadores e Legendas (v13)
+- [x] BUG: texto dos marcadores de adições ilegível nos gráficos do browser — substituídos por ▼1, ▼2... com legenda numerada abaixo
+- [x] BUG: gráficos Excel sem etiqueta nas linhas roxas de adições — corrigido para ▼N + tabela de legenda na folha Gráficos
+- [x] BUG: botão PDF em falta na CubaPage — adicionado botão vermelho "PDF"
+- [x] Frontend: marcadores de adições com ▼N (bold, roxo) nos gráficos do browser
+- [x] Frontend: legenda de adições abaixo dos gráficos (lista numerada com produto/dose/observação)
+- [x] Excel: ▼N nas linhas verticais de adições (legível, sem rotação)
+- [x] Excel: tabela de legenda na folha "Gráficos" com Nº, Dia, Produto, Dose, Observações, Data
+- [x] Backend: endpoint tRPC relatorio.exportarPdfCuba que gera PDF com ficha inicial, leituras e adições
+- [x] Frontend: botão "PDF" (vermelho) na CubaPage ao lado do Excel e CSV
+- [x] Testes Vitest: 33 testes a passar
+- [x] Checkpoint e deploy

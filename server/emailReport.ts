@@ -76,7 +76,7 @@ function gerarGraficoLinha(params: {
   largura?: number;
   altura?: number;
   unidade?: string;
-  marcadores?: { dia: number; label: string }[];
+  marcadores?: { dia: number; label: string; index: number }[];
 }): Buffer {
   const W = params.largura ?? 800;
   const H = params.altura ?? 320;
@@ -170,15 +170,11 @@ function gerarGraficoLinha(params: {
       ctx.lineTo(mx, PAD.top + plotH);
       ctx.stroke();
       ctx.setLineDash([]);
-      // Label rotacionado
+      // Número do marcador (▼N)
       ctx.fillStyle = "#7c3aed";
-      ctx.font = "9px sans-serif";
-      ctx.textAlign = "left";
-      ctx.save();
-      ctx.translate(mx + 3, PAD.top + 10);
-      ctx.rotate(-Math.PI / 4);
-      ctx.fillText(m.label.substring(0, 14), 0, 0);
-      ctx.restore();
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`\u25BC${m.index}`, mx, PAD.top + 14);
       ctx.restore();
     });
   }
@@ -374,7 +370,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   }));
 
   // Calcular marcadores de adições para os gráficos
-  const marcadoresGrafico: { dia: number; label: string }[] = adicoes.map((a) => {
+  const marcadoresGrafico: { dia: number; label: string; index: number }[] = adicoes.map((a, idx) => {
     const dataAdicao = new Date(a.dataAdicao).getTime();
     let diaProximo = 0;
     let menorDiff = Infinity;
@@ -383,7 +379,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       if (diff < menorDiff) { menorDiff = diff; diaProximo = l.diaNr ?? 0; }
     });
     const label = a.produto ?? a.observacoes ?? "Adição";
-    return { dia: diaProximo, label: label.substring(0, 18) };
+    return { dia: diaProximo, label, index: idx + 1 };
   });
 
   // Gráfico de Densidade
@@ -457,6 +453,52 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const imgRedox = (wb as any).addImage({ buffer: Buffer.from(pngRedox), extension: "png" }) as number;
     wsG.addImage(imgRedox, { tl: { col: 0, row: rowOffset }, ext: { width: 800, height: 280 } });
+  }
+
+  // ── Legenda de adições na folha Gráficos ────────────────
+  if (marcadoresGrafico.length > 0) {
+    const legendaRowStart = hasO2 && hasRedox ? 75 : hasO2 || hasRedox ? 57 : 39;
+    const legendaTitulo = wsG.getRow(legendaRowStart);
+    const tituloCell = legendaTitulo.getCell(1);
+    tituloCell.value = "ADIÇÕES / NOTAS";
+    tituloCell.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+    tituloCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5D1A2E" } };
+    tituloCell.alignment = { horizontal: "center" };
+    wsG.mergeCells(legendaRowStart, 1, legendaRowStart, 6);
+
+    const hdrLeg = wsG.getRow(legendaRowStart + 1);
+    ["Nº", "Dia", "Produto / Adição", "Dose", "Observações", "Data"].forEach((h, i) => {
+      const cell = hdrLeg.getCell(i + 1);
+      cell.value = h;
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF7C3AED" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      cell.alignment = { horizontal: "center" };
+    });
+
+    adicoes.forEach((a, idx) => {
+      const r = wsG.getRow(legendaRowStart + 2 + idx);
+      [
+        `\u25BC${idx + 1}`,
+        marcadoresGrafico[idx]?.dia ?? "",
+        a.produto ?? "",
+        a.dose ?? "",
+        a.observacoes ?? "",
+        new Date(a.dataAdicao).toLocaleDateString("pt-PT"),
+      ].forEach((v, i) => {
+        const cell = r.getCell(i + 1);
+        cell.value = v;
+        cell.font = { size: 10, color: i === 0 ? { argb: "FF7C3AED" } : undefined, bold: i === 0 };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: idx % 2 === 0 ? "FFFFFFFF" : "FFF3EEFF" } };
+        cell.alignment = { horizontal: i === 0 ? "center" : "left" };
+      });
+    });
+
+    wsG.getColumn(1).width = 6;
+    wsG.getColumn(2).width = 8;
+    wsG.getColumn(3).width = 30;
+    wsG.getColumn(4).width = 16;
+    wsG.getColumn(5).width = 40;
+    wsG.getColumn(6).width = 13;
   }
 
   // ── Folha 3: Adições ──────────────────────────────────
