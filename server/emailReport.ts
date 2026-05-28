@@ -58,6 +58,15 @@ type CubaInfo = {
   estado: string;
   densidadeLimite: string | null;
   tempPretendida: string | null;
+  fichaKilos: string | null;
+  fichaLitros: string | null;
+  fichaPh: string | null;
+  fichaAt: string | null;
+  fichaAv: string | null;
+  fichaNfa: string | null;
+  fichaNtu: string | null;
+  fichaGluconico: string | null;
+  fichaAlcoolProvavel: string | null;
 };
 
 // ── Gerador de gráfico PNG via canvas ─────────────────────
@@ -67,6 +76,7 @@ function gerarGraficoLinha(params: {
   largura?: number;
   altura?: number;
   unidade?: string;
+  marcadores?: { dia: number; label: string }[];
 }): Buffer {
   const W = params.largura ?? 800;
   const H = params.altura ?? 320;
@@ -147,6 +157,32 @@ function gerarGraficoLinha(params: {
     ctx.restore();
   }
 
+  // Marcadores de adições (linhas verticais roxas)
+  if (params.marcadores && params.marcadores.length > 0) {
+    params.marcadores.forEach((m) => {
+      const mx = toX(m.dia);
+      ctx.save();
+      ctx.strokeStyle = "#7c3aed";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(mx, PAD.top);
+      ctx.lineTo(mx, PAD.top + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Label rotacionado
+      ctx.fillStyle = "#7c3aed";
+      ctx.font = "9px sans-serif";
+      ctx.textAlign = "left";
+      ctx.save();
+      ctx.translate(mx + 3, PAD.top + 10);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillText(m.label.substring(0, 14), 0, 0);
+      ctx.restore();
+      ctx.restore();
+    });
+  }
+
   // Séries
   const seriesLabels = params.dados[0]?.series.map((s) => s.label) ?? [];
   seriesLabels.forEach((label, si) => {
@@ -219,6 +255,46 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     wsL.getCell("A3").value = `Temperatura pretendida: ${cuba.tempPretendida}°C`;
     wsL.getCell("A3").font = { size: 10, color: { argb: "FF1565C0" } };
     wsL.getCell("A3").alignment = { horizontal: "center" };
+  }
+
+  // ── Ficha Inicial ──────────────────────────────────────────────
+  const temFicha = cuba.fichaKilos || cuba.fichaLitros || cuba.fichaPh || cuba.fichaAt ||
+    cuba.fichaAv || cuba.fichaNfa || cuba.fichaNtu || cuba.fichaGluconico || cuba.fichaAlcoolProvavel;
+  if (temFicha) {
+    wsL.mergeCells("A4:K4");
+    wsL.getCell("A4").value = "FICHA INICIAL";
+    wsL.getCell("A4").font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+    wsL.getCell("A4").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5D1A2E" } };
+    wsL.getCell("A4").alignment = { horizontal: "center" };
+    wsL.getRow(4).height = 18;
+
+    const fichaFields: [string, string | null][] = [
+      ["Kilos", cuba.fichaKilos],
+      ["Litros", cuba.fichaLitros],
+      ["pH", cuba.fichaPh],
+      ["AT (g/L)", cuba.fichaAt],
+      ["AV (g/L)", cuba.fichaAv],
+      ["NFA (mg/L)", cuba.fichaNfa],
+      ["NTU", cuba.fichaNtu],
+      ["Glucónico (g/L)", cuba.fichaGluconico],
+      ["Alcool Provável (%)", cuba.fichaAlcoolProvavel],
+    ];
+
+    const fichaRow = wsL.addRow(fichaFields.map(([label]) => label));
+    fichaRow.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDF0F3" } };
+      cell.font = { bold: true, size: 9, color: { argb: "FF5D1A2E" } };
+      cell.alignment = { horizontal: "center" };
+    });
+
+    const fichaValRow = wsL.addRow(fichaFields.map(([, val]) => val ?? "—"));
+    fichaValRow.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFDF0F3" } };
+      cell.font = { size: 10 };
+      cell.alignment = { horizontal: "center" };
+    });
+
+    wsL.addRow([]);
   }
 
   // Cabeçalhos da tabela
@@ -297,10 +373,24 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     redox: l.redox ? parseFloat(l.redox) : null,
   }));
 
+  // Calcular marcadores de adições para os gráficos
+  const marcadoresGrafico: { dia: number; label: string }[] = adicoes.map((a) => {
+    const dataAdicao = new Date(a.dataAdicao).getTime();
+    let diaProximo = 0;
+    let menorDiff = Infinity;
+    leituras.forEach((l) => {
+      const diff = Math.abs(new Date(l.dataLeitura).getTime() - dataAdicao);
+      if (diff < menorDiff) { menorDiff = diff; diaProximo = l.diaNr ?? 0; }
+    });
+    const label = a.produto ?? a.observacoes ?? "Adição";
+    return { dia: diaProximo, label: label.substring(0, 18) };
+  });
+
   // Gráfico de Densidade
   const pngDens = gerarGraficoLinha({
     titulo: "Densidade",
     unidade: "Densidade",
+    marcadores: marcadoresGrafico,
     dados: chartData.map((d) => ({
       x: d.x,
       series: [
@@ -319,6 +409,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   const pngTemp = gerarGraficoLinha({
     titulo: "Temperatura (°C)",
     unidade: "°C",
+    marcadores: marcadoresGrafico,
     dados: chartData.map((d) => ({
       x: d.x,
       series: [
@@ -339,6 +430,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     const pngO2 = gerarGraficoLinha({
       titulo: "O₂ Dissolvido (mg/L)",
       unidade: "mg/L",
+      marcadores: marcadoresGrafico,
       dados: chartData.map((d) => ({
         x: d.x,
         series: [{ label: "O₂", cor: CORES_HEX.o2, valor: d.o2 }],
@@ -356,6 +448,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     const pngRedox = gerarGraficoLinha({
       titulo: "Potencial Redox (mV)",
       unidade: "mV",
+      marcadores: marcadoresGrafico,
       dados: chartData.map((d) => ({
         x: d.x,
         series: [{ label: "Redox", cor: CORES_HEX.redox, valor: d.redox }],

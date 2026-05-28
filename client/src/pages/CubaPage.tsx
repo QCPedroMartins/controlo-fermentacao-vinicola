@@ -26,6 +26,7 @@ import {
   Droplets,
   X,
   Zap,
+  ClipboardList,
 } from "lucide-react";
 import {
   LineChart,
@@ -36,6 +37,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 import { Link } from "wouter";
 import {
@@ -183,6 +185,15 @@ export default function CubaPage() {
     o2: "", redox: "",
   });
 
+  // ── Estado: ficha inicial ─────────────────────────────────
+  const [showFichaInicial, setShowFichaInicial] = useState(false);
+  const [fichaForm, setFichaForm] = useState({
+    fichaKilos: "", fichaLitros: "",
+    fichaPh: "", fichaAt: "", fichaAv: "",
+    fichaNfa: "", fichaNtu: "",
+    fichaGluconico: "", fichaAlcoolProvavel: "",
+  });
+
   // ── Estado: configurações de alerta ──────────────────────
   const [showAlertas, setShowAlertas] = useState(false);
   const [alertaForm, setAlertaForm] = useState({
@@ -293,6 +304,31 @@ export default function CubaPage() {
     onError: (e) => toast.error("Erro: " + e.message),
   });
 
+  const updateFichaInicial = trpc.cubas.updateFichaInicial.useMutation({
+    onSuccess: () => {
+      toast.success("Ficha inicial guardada!");
+      setShowFichaInicial(false);
+      utils.cubas.get.invalidate();
+    },
+    onError: (e) => toast.error("Erro: " + e.message),
+  });
+
+  const abrirFichaInicial = () => {
+    if (!cuba) return;
+    setFichaForm({
+      fichaKilos: cuba.fichaKilos ?? "",
+      fichaLitros: cuba.fichaLitros ?? "",
+      fichaPh: cuba.fichaPh ?? "",
+      fichaAt: cuba.fichaAt ?? "",
+      fichaAv: cuba.fichaAv ?? "",
+      fichaNfa: cuba.fichaNfa ?? "",
+      fichaNtu: cuba.fichaNtu ?? "",
+      fichaGluconico: cuba.fichaGluconico ?? "",
+      fichaAlcoolProvavel: cuba.fichaAlcoolProvavel ?? "",
+    });
+    setShowFichaInicial(true);
+  };
+
   const updateAlertas = trpc.cubas.updateAlertas.useMutation({
     onSuccess: () => {
       toast.success("Configurações de alerta guardadas!");
@@ -365,6 +401,29 @@ export default function CubaPage() {
       leituras: leituras as LeituraRow[],
     });
   }, [leituras, cuba]);
+
+  // ── Marcadores de adições nos gráficos ────────────────────────
+  const adicaoMarkers = useMemo(() => {
+    if (!adicoes || !leituras) return [];
+    // Para cada adição, encontrar o dia mais próximo nas leituras
+    return adicoes.map((a) => {
+      const dataAdicao = new Date(a.dataAdicao).getTime();
+      let closestDia = 1;
+      let minDiff = Infinity;
+      for (const l of leituras) {
+        const diff = Math.abs(new Date(l.dataLeitura).getTime() - dataAdicao);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestDia = l.diaNr ?? 1;
+        }
+      }
+      return {
+        dia: closestDia,
+        label: a.produto ? a.produto.substring(0, 12) : "Nota",
+        full: a.produto ? `${a.produto}${a.dose ? " " + a.dose : ""}` : (a.observacoes?.substring(0, 30) ?? "Nota"),
+      };
+    });
+  }, [adicoes, leituras]);
 
   // ── Dados para gráficos ───────────────────────────────
   const chartData = useMemo(() => {
@@ -711,11 +770,58 @@ export default function CubaPage() {
                   <Bell size={11} />
                   {cuba.tempPretendida ? `${parseFloat(cuba.tempPretendida).toFixed(1)}°C` : "Alertas"}
                 </button>
+                {/* Botão de ficha inicial */}
+                <button
+                  onClick={abrirFichaInicial}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                    cuba.fichaKilos || cuba.fichaLitros || cuba.fichaPh
+                      ? "border-[var(--color-vinho)]/40 text-[var(--color-vinho)] bg-[var(--color-vinho)]/5 hover:bg-[var(--color-vinho)]/10"
+                      : "border-gray-200 text-gray-600 hover:border-[var(--color-vinho)] hover:text-[var(--color-vinho)]"
+                  }`}
+                >
+                  <ClipboardList size={11} /> Ficha inicial
+                </button>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Painel de ficha inicial (mostra quando há dados preenchidos) */}
+      {(cuba.fichaKilos || cuba.fichaLitros || cuba.fichaPh || cuba.fichaAt || cuba.fichaAv || cuba.fichaNfa || cuba.fichaNtu || cuba.fichaGluconico || cuba.fichaAlcoolProvavel) && (
+        <div className="mb-5 bg-[var(--color-vinho)]/5 border border-[var(--color-vinho)]/20 rounded-2xl p-4 animate-fade-in">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-[var(--color-vinho)] flex items-center gap-2">
+              <ClipboardList size={15} /> Ficha Inicial da Fermentação
+            </h3>
+            {isAuthenticated && (
+              <button onClick={abrirFichaInicial} className="text-xs text-[var(--color-vinho)] hover:underline flex items-center gap-1">
+                <Pencil size={11} /> Editar
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-3">
+            {[
+              { label: "Kg", value: cuba.fichaKilos },
+              { label: "Litros", value: cuba.fichaLitros },
+              { label: "pH", value: cuba.fichaPh },
+              { label: "AT (g/L)", value: cuba.fichaAt },
+              { label: "AV (g/L)", value: cuba.fichaAv },
+              { label: "NFA", value: cuba.fichaNfa },
+              { label: "NTU", value: cuba.fichaNtu },
+              { label: "Glucónico", value: cuba.fichaGluconico },
+              { label: "Alc. Prov.", value: cuba.fichaAlcoolProvavel },
+            ].map(({ label, value }) =>
+              value ? (
+                <div key={label} className="bg-white rounded-xl border border-[var(--color-vinho)]/10 px-3 py-2 text-center">
+                  <p className="text-[10px] text-gray-400 mb-0.5">{label}</p>
+                  <p className="text-sm font-bold text-[var(--color-vinho)]">{value}</p>
+                </div>
+              ) : null
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Painel de alertas ativos */}
       {totalAlertas > 0 && (
@@ -961,12 +1067,17 @@ export default function CubaPage() {
             <>
               <ChartCard title="Densidade (g/L)">
                 <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
                     <Tooltip formatter={(v: number) => v?.toFixed(3)} labelFormatter={(l) => `Dia ${l}`} />
                     <Legend />
+                    {adicaoMarkers.map((m, i) => (
+                      <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                        label={{ value: m.label, position: "insideTopRight", fontSize: 9, fill: "#7c3aed", angle: -60 }}
+                      />
+                    ))}
                     <Line type="monotone" dataKey="densL1" name="L1" stroke={CORES.densL1} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
                     <Line type="monotone" dataKey="densL2" name="L2" stroke={CORES.densL2} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
                     <Line type="monotone" dataKey="densL3" name="L3" stroke={CORES.densL3} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
@@ -976,12 +1087,17 @@ export default function CubaPage() {
 
               <ChartCard title="Temperatura (°C)">
                 <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
                     <Tooltip formatter={(v: number) => `${v?.toFixed(1)}°C`} labelFormatter={(l) => `Dia ${l}`} />
                     <Legend />
+                    {adicaoMarkers.map((m, i) => (
+                      <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                        label={{ value: m.label, position: "insideTopRight", fontSize: 9, fill: "#7c3aed", angle: -60 }}
+                      />
+                    ))}
                     {cuba.tempPretendida && (
                       <Line type="monotone" dataKey={() => parseFloat(cuba.tempPretendida!)} name="Pretendida" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
                     )}
@@ -994,11 +1110,16 @@ export default function CubaPage() {
 
               <ChartCard title="O₂ Dissolvido (mg/L)">
                 <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(v: number) => `${v?.toFixed(2)} mg/L`} labelFormatter={(l) => `Dia ${l}`} />
+                    {adicaoMarkers.map((m, i) => (
+                      <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                        label={{ value: m.label, position: "insideTopRight", fontSize: 9, fill: "#7c3aed", angle: -60 }}
+                      />
+                    ))}
                     <Line type="monotone" dataKey="o2" name="O₂ Dissolvido" stroke={CORES.o2} strokeWidth={2.5} dot={{ r: 5, fill: CORES.o2 }} connectNulls={false} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -1006,11 +1127,16 @@ export default function CubaPage() {
 
               <ChartCard title="Potencial Redox (mV)">
                 <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(v: number) => `${v?.toFixed(0)} mV`} labelFormatter={(l) => `Dia ${l}`} />
+                    {adicaoMarkers.map((m, i) => (
+                      <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                        label={{ value: m.label, position: "insideTopRight", fontSize: 9, fill: "#7c3aed", angle: -60 }}
+                      />
+                    ))}
                     <Line type="monotone" dataKey="redox" name="Potencial Redox" stroke={CORES.redox} strokeWidth={2.5} dot={{ r: 5, fill: CORES.redox }} connectNulls={false} />
                   </LineChart>
                 </ResponsiveContainer>

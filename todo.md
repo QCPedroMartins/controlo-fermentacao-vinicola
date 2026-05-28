@@ -123,4 +123,18 @@
 - [x] Endpoint tRPC relatorio.exportarExcelCuba que retorna base64 do Excel com gráficos
 - [x] Botão Exportar Excel chama o servidor e descarrega o ficheiro com gráficos
 - [x] Testes Vitest: 28 testes a passar
+- [x] Checkpoint e deploy (v11: 00616461)
+
+## Ficha Inicial e Marcadores nos Gráficos (v12)
+- [ ] Schema: adicionar campos fichaInicial à tabela cubas (kilos, litros, ph, at, av, nfa, ntu, gluconico, alcoolProvavel)
+- [ ] Migração SQL aplicada na BD
+- [ ] Backend: helper updateFichaInicial + procedimento tRPC cubas.updateFichaInicial
+- [ ] Backend: procedimento tRPC cubas.getFichaInicial
+- [ ] Frontend: painel "Ficha Inicial" no topo da CubaPage com visualização e botão de edição
+- [ ] Frontend: modal de edição da ficha inicial com todos os campos
+- [ ] Frontend: marcadores verticais de adições/notas em todos os gráficos (densidade, temperatura, O₂, redox)
+- [ ] Frontend: tooltip nos marcadores com produto/dose/observação
+- [ ] Excel: folha "Ficha Inicial" no início do relatório com todos os parâmetros
+- [ ] Excel: marcadores de adições nos gráficos (linhas verticais com etiqueta)
+- [ ] Testes Vitest atualizados
 - [ ] Checkpoint e deploy

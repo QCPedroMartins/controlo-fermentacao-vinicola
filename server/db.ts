@@ -123,6 +123,36 @@ export async function updateCubaAlertas(
   }
 }
 
+/** Atualiza a ficha inicial de uma cuba (kg, litros, análises iniciais) */
+export async function updateFichaInicial(
+  id: number,
+  data: {
+    fichaKilos?: string | null;
+    fichaLitros?: string | null;
+    fichaPh?: string | null;
+    fichaAt?: string | null;
+    fichaAv?: string | null;
+    fichaNfa?: string | null;
+    fichaNtu?: string | null;
+    fichaGluconico?: string | null;
+    fichaAlcoolProvavel?: string | null;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+  const set: Record<string, unknown> = {};
+  const fields = [
+    "fichaKilos", "fichaLitros", "fichaPh", "fichaAt", "fichaAv",
+    "fichaNfa", "fichaNtu", "fichaGluconico", "fichaAlcoolProvavel",
+  ] as const;
+  for (const f of fields) {
+    if (data[f] !== undefined) set[f] = data[f] === "" ? null : data[f];
+  }
+  if (Object.keys(set).length > 0) {
+    await db.update(cubas).set(set).where(eq(cubas.id, id));
+  }
+}
+
 /** Verifica se alguma densidade da leitura atingiu o limite e atualiza estado da cuba */
 export async function verificarFermentacaoCompleta(
   cubaId: number,

@@ -62,6 +62,25 @@ export const cubas = mysqlTable("cubas", {
   desvioTempAlerta: decimal("desvio_temp_alerta", { precision: 5, scale: 1 }).default("5.0").notNull(),
   /** Limiar de variação brusca de densidade entre leituras consecutivas (padrão: 10 pontos = 0.010) */
   desvioDesnsAlerta: decimal("desvio_desns_alerta", { precision: 7, scale: 3 }).default("0.010").notNull(),
+  // ── Ficha Inicial ────────────────────────────────────────
+  /** Quantidade em quilogramas */
+  fichaKilos: decimal("ficha_kilos", { precision: 10, scale: 1 }),
+  /** Quantidade em litros */
+  fichaLitros: decimal("ficha_litros", { precision: 10, scale: 1 }),
+  /** pH inicial */
+  fichaPh: decimal("ficha_ph", { precision: 4, scale: 2 }),
+  /** Acidez Total (g/L) */
+  fichaAt: decimal("ficha_at", { precision: 6, scale: 2 }),
+  /** Acidez Volátil (g/L) */
+  fichaAv: decimal("ficha_av", { precision: 6, scale: 2 }),
+  /** Azoto Facilmente Assimilável (mg/L) */
+  fichaNfa: decimal("ficha_nfa", { precision: 7, scale: 1 }),
+  /** Turbidez NTU */
+  fichaNtu: decimal("ficha_ntu", { precision: 8, scale: 1 }),
+  /** Ácido Glucónico (g/L) */
+  fichaGluconico: decimal("ficha_gluconico", { precision: 6, scale: 2 }),
+  /** Álcool Provável (% vol) */
+  fichaAlcoolProvavel: decimal("ficha_alcool_provavel", { precision: 5, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

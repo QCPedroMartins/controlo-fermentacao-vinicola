@@ -17,6 +17,7 @@ import {
   updateCubaEstado,
   updateCubaDensidadeLimite,
   updateCubaAlertas,
+  updateFichaInicial,
   verificarFermentacaoCompleta,
   calcularAlertas,
   createLeitura,
@@ -79,6 +80,28 @@ const cubasRouter = router({
         desvioTempAlerta: input.desvioTempAlerta,
         desvioDesnsAlerta: input.desvioDesnsAlerta,
       });
+      return { success: true };
+    }),
+
+  /** Atualizar ficha inicial: kg, litros, pH, AT, AV, NFA, NTU, Glucónico, Álcool Provável */
+  updateFichaInicial: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        fichaKilos: z.string().nullable().optional(),
+        fichaLitros: z.string().nullable().optional(),
+        fichaPh: z.string().nullable().optional(),
+        fichaAt: z.string().nullable().optional(),
+        fichaAv: z.string().nullable().optional(),
+        fichaNfa: z.string().nullable().optional(),
+        fichaNtu: z.string().nullable().optional(),
+        fichaGluconico: z.string().nullable().optional(),
+        fichaAlcoolProvavel: z.string().nullable().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await updateFichaInicial(id, data);
       return { success: true };
     }),
 
@@ -572,6 +595,15 @@ const arquivoRouter = router({
             estado: cuba[0].estado,
             densidadeLimite: cuba[0].densidadeLimite,
             tempPretendida: cuba[0].tempPretendida,
+            fichaKilos: cuba[0].fichaKilos ?? null,
+            fichaLitros: cuba[0].fichaLitros ?? null,
+            fichaPh: cuba[0].fichaPh ?? null,
+            fichaAt: cuba[0].fichaAt ?? null,
+            fichaAv: cuba[0].fichaAv ?? null,
+            fichaNfa: cuba[0].fichaNfa ?? null,
+            fichaNtu: cuba[0].fichaNtu ?? null,
+            fichaGluconico: cuba[0].fichaGluconico ?? null,
+            fichaAlcoolProvavel: cuba[0].fichaAlcoolProvavel ?? null,
           };
           const adicoesArquivadas = await import("./db").then(m => m.getAdicoesByCuba(input.cubaId, fermentacaoAtual));
           const bufferExcel = Buffer.from(await gerarExcelCuba(cubaParaRelatorio));
