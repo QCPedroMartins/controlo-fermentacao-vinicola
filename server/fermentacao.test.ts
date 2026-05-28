@@ -337,3 +337,61 @@ describe("leituras.listAllDashboard", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 });
+
+// ── Testes de relatorio.exportarExcelCuba ─────────────────
+describe("relatorio.exportarExcelCuba", () => {
+  // Mock do módulo emailReport para evitar geração real de Excel
+  vi.mock("./emailReport", () => ({
+    gerarExcelCuba: vi.fn().mockResolvedValue(new ArrayBuffer(1024)),
+    enviarEmailComExcel: vi.fn().mockResolvedValue(undefined),
+    gerarExcelDigestDiario: vi.fn().mockResolvedValue(new ArrayBuffer(512)),
+  }));
+
+  it("retorna base64 e nomeFicheiro para cuba existente", async () => {
+    const caller = appRouter.createCaller(makeCtx(false));
+    const result = await caller.relatorio.exportarExcelCuba({ codigo: "cf1" });
+    expect(result).toHaveProperty("base64");
+    expect(typeof result.base64).toBe("string");
+    expect(result.base64.length).toBeGreaterThan(0);
+    expect(result).toHaveProperty("nomeFicheiro");
+    expect(result.nomeFicheiro).toContain("cf1");
+    expect(result.nomeFicheiro).toContain(".xlsx");
+  });
+
+  it("lança erro NOT_FOUND para cuba inexistente", async () => {
+    const { getCubaByCodigo } = await import("./db");
+    (getCubaByCodigo as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    const caller = appRouter.createCaller(makeCtx(false));
+    await expect(
+      caller.relatorio.exportarExcelCuba({ codigo: "cf999" })
+    ).rejects.toThrow();
+  });
+});
+
+// ── Testes de arquivo.novaFermentacao ─────────────────────
+describe("arquivo.novaFermentacao (terminar fermentação)", () => {
+  it("rejeita utilizadores não autenticados", async () => {
+    const caller = appRouter.createCaller(makeCtx(false));
+    await expect(
+      caller.arquivo.novaFermentacao({ cubaId: 1 })
+    ).rejects.toThrow();
+  });
+
+  it("aceita utilizadores autenticados e retorna novaFermentacaoNum", async () => {
+    const caller = appRouter.createCaller(makeCtx(true));
+    const result = await caller.arquivo.novaFermentacao({ cubaId: 1 });
+    expect(result).toHaveProperty("success", true);
+    expect(result).toHaveProperty("novaFermentacaoNum");
+    expect(typeof result.novaFermentacaoNum).toBe("number");
+    expect(result.novaFermentacaoNum).toBeGreaterThan(0);
+  });
+
+  it("aceita nome de lote opcional", async () => {
+    const caller = appRouter.createCaller(makeCtx(true));
+    const result = await caller.arquivo.novaFermentacao({
+      cubaId: 1,
+      nomeLoteNovo: "Tinto Reserva 2025",
+    });
+    expect(result).toHaveProperty("success", true);
+  });
+});

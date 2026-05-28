@@ -9,6 +9,7 @@ import {
   Archive,
   AlertTriangle,
   Bell,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -157,6 +158,10 @@ export default function CubaPage() {
   const [showNovaFerm, setShowNovaFerm] = useState(false);
   const [nomeLoteNovo, setNomeLoteNovo] = useState("");
 
+  // Estado modal Terminar Fermentação
+  const [showTerminarFerm, setShowTerminarFerm] = useState(false);
+  const [nomeLoteTerminar, setNomeLoteTerminar] = useState("");
+
   // Estado edição densidade limite
   const [editingLimite, setEditingLimite] = useState(false);
   const [limiteTemp, setLimiteTemp] = useState("");
@@ -303,6 +308,37 @@ export default function CubaPage() {
       toast.success(`Relatório enviado para ${data.destinatario}!`);
     },
     onError: (e) => toast.error("Erro ao enviar relatório: " + e.message),
+  });
+
+  // Exportar Excel com gráficos via servidor
+  const exportarExcelServidor = trpc.relatorio.exportarExcelCuba.useMutation({
+    onSuccess: (data) => {
+      const bytes = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.nomeFicheiro;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Excel com gráficos exportado!");
+    },
+    onError: (e) => toast.error("Erro ao exportar Excel: " + e.message),
+  });
+
+  // Terminar fermentação (arquivar + email automático)
+  const terminarFermentacao = trpc.arquivo.novaFermentacao.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Fermentação terminada e arquivada! Email enviado para geral@castelares.com. Nova fermentação Nº ${data.novaFermentacaoNum} iniciada.`);
+      setShowTerminarFerm(false);
+      setNomeLoteTerminar("");
+      utils.cubas.get.invalidate();
+      utils.leituras.listByCuba.invalidate();
+      utils.leituras.resumo.invalidate();
+      utils.arquivo.listByCuba.invalidate();
+      utils.cubas.dashboard.invalidate();
+    },
+    onError: (e) => toast.error("Erro: " + e.message),
   });
 
   const novaFermentacao = trpc.arquivo.novaFermentacao.useMutation({
@@ -602,11 +638,13 @@ export default function CubaPage() {
             {/* Botões de exportação */}
             <div className="flex gap-2 flex-wrap justify-end">
               <button
-                onClick={exportarExcel}
-                disabled={!leituras || leituras.length === 0}
+                onClick={() => cuba && exportarExcelServidor.mutate({ codigo: cuba.codigo })}
+                disabled={!leituras || leituras.length === 0 || exportarExcelServidor.isPending}
+                title="Exporta Excel completo com gráficos (gerado no servidor)"
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-green-700 text-white rounded-lg text-xs font-medium hover:bg-green-800 transition-colors disabled:opacity-40"
               >
-                <Download size={12} /> Excel
+                {exportarExcelServidor.isPending ? <RefreshCw size={12} className="animate-spin" /> : <Download size={12} />}
+                Excel
               </button>
               <button
                 onClick={exportarCSV}
@@ -795,6 +833,18 @@ export default function CubaPage() {
           <FlaskConical size={16} />
           <span>Inicie sessão para registar leituras.</span>
           <a href={getLoginUrl()} className="ml-auto font-semibold underline">Entrar</a>
+        </div>
+      )}
+
+      {/* Botão Terminar Fermentação — só visível quando em fermentação */}
+      {isAuthenticated && cuba.estado === "em_fermentacao" && (
+        <div className="mb-5 flex justify-end">
+          <button
+            onClick={() => { setNomeLoteTerminar(cuba.nomeLote ?? ""); setShowTerminarFerm(true); }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-xl text-sm font-semibold hover:bg-green-800 transition-colors shadow-sm"
+          >
+            <CheckCircle2 size={16} /> Terminar Fermentação
+          </button>
         </div>
       )}
 
@@ -1168,6 +1218,57 @@ export default function CubaPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal Terminar Fermentação */}
+      {showTerminarFerm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md animate-fade-in">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle2 size={20} className="text-green-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-green-800" style={{ fontFamily: "var(--font-serif)" }}>
+                  Terminar Fermentação
+                </h2>
+                <p className="text-xs text-gray-500">{cuba.codigo.toUpperCase()}</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              A fermentação será <strong>arquivada permanentemente</strong> e um email com o relatório completo (gráficos, leituras e adições) será enviado automaticamente para <strong>geral@castelares.com</strong>.
+            </p>
+            <div className="mb-4">
+              <label className="block text-xs text-gray-500 mb-1">Nome / Lote desta fermentação (para o arquivo)</label>
+              <input
+                type="text"
+                placeholder="ex: Tinto Reserva 2025"
+                value={nomeLoteTerminar}
+                onChange={(e) => setNomeLoteTerminar(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-600"
+              />
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <p className="text-xs text-amber-700">⚠️ Esta ação não pode ser revertida. Certifique-se de que todos os dados estão registados.</p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowTerminarFerm(false)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => terminarFermentacao.mutate({ cubaId: cuba.id, nomeLoteNovo: nomeLoteTerminar || undefined })}
+                disabled={terminarFermentacao.isPending}
+                className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 disabled:opacity-50"
+              >
+                {terminarFermentacao.isPending ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                Confirmar e terminar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

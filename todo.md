@@ -114,3 +114,13 @@
 - [x] Frontend: página /campanhas com lista, campanha ativa e criar nova
 - [x] Testes Vitest: 28 testes a passar
 - [x] Checkpoint e deploy (v9: d6a8e5f7)
+
+## Terminar Fermentação e Excel Completo (v11)
+- [x] BUG: botão "Terminar Fermentação" adicionado na CubaPage (visível quando em fermentação)
+- [x] BUG: exportação Excel agora usa o servidor (exceljs + canvas) com gráficos completos
+- [x] Modal de confirmação com campo de nome/lote e aviso de irreversibilidade
+- [x] Ao terminar: arquivar, estado completa, email automático com Excel+gráficos
+- [x] Endpoint tRPC relatorio.exportarExcelCuba que retorna base64 do Excel com gráficos
+- [x] Botão Exportar Excel chama o servidor e descarrega o ficheiro com gráficos
+- [x] Testes Vitest: 28 testes a passar
+- [ ] Checkpoint e deploy
