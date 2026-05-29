@@ -79,7 +79,8 @@ export async function getAllCubas() {
 export async function getCubaByCodigo(codigo: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(cubas).where(eq(cubas.codigo, codigo)).limit(1);
+  // Normalizar para maiúsculas para suportar URLs como /cuba/vp01 e /cuba/VP01
+  const result = await db.select().from(cubas).where(eq(cubas.codigo, codigo.toUpperCase())).limit(1);
   return result[0];
 }
 
