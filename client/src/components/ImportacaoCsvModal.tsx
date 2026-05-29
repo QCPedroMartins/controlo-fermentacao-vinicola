@@ -92,13 +92,9 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
   const processarMutation = trpc.importacao.processarCsv.useMutation({
     onSuccess: (data) => {
       setPreview(data);
-      // Seleccionar apenas as linhas não-duplicadas por defeito
-      const novasSelecionadas = new Set(
-        data.linhasValidas
-          .map((l, i) => ({ l, i }))
-          .filter(({ l }) => !l.duplicado)
-          .map(({ i }) => i)
-      );
+        // Seleccionar todas as linhas novas por defeito (por índice dentro de linhasNovas)
+      const linhasNovasArr = data.linhasValidas.filter((l) => !l.duplicado);
+      const novasSelecionadas = new Set(linhasNovasArr.map((_, i) => i));
       setLinhasSelecionadas(novasSelecionadas);
       setEtapa("preview");
     },
@@ -131,7 +127,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
   }
 
   function toggleLinha(idx: number) {
-    if (preview?.linhasValidas[idx]?.duplicado) return;
+    // idx é o índice dentro de linhasNovas (não do array original)
     setLinhasSelecionadas((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx);
@@ -142,22 +138,19 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
 
   function toggleTodas() {
     if (!preview) return;
-    const novas = preview.linhasValidas
-      .map((l, i) => ({ l, i }))
-      .filter(({ l }) => !l.duplicado)
-      .map(({ i }) => i);
-    if (linhasSelecionadas.size === novas.length) {
+    const todosNovasIdx = linhasNovas.map((_, i) => i);
+    if (linhasSelecionadas.size === todosNovasIdx.length) {
       setLinhasSelecionadas(new Set());
     } else {
-      setLinhasSelecionadas(new Set(novas));
+      setLinhasSelecionadas(new Set(todosNovasIdx));
     }
   }
 
   function handleIrParaRegistoRapido() {
     if (!preview) return;
 
-    // Recolher as linhas seleccionadas (não duplicadas)
-    const linhasSel = preview.linhasValidas.filter((_, i) => linhasSelecionadas.has(i));
+    // Recolher as linhas seleccionadas de linhasNovas (por índice dentro de linhasNovas)
+    const linhasSel = linhasNovas.filter((_, i) => linhasSelecionadas.has(i));
 
     if (linhasSel.length === 0) {
       toast.error("Seleccione pelo menos uma leitura para continuar.");
@@ -202,10 +195,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
 
   const linhasNovas = preview?.linhasValidas.filter((l) => !l.duplicado) ?? [];
   const linhasDuplicadas = preview?.linhasValidas.filter((l) => l.duplicado) ?? [];
-  const novasIndexes = preview?.linhasValidas
-    .map((l, i) => ({ l, i }))
-    .filter(({ l }) => !l.duplicado)
-    .map(({ i }) => i) ?? [];
+
 
   return (
     <Dialog open={open} onOpenChange={handleFechar}>
@@ -288,7 +278,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-semibold text-green-700">Leituras a pré-preencher no Registo Rápido</h4>
                   <Button variant="ghost" size="sm" onClick={toggleTodas} className="text-xs h-7">
-                    {linhasSelecionadas.size === novasIndexes.length ? "Desseleccionar todas" : "Seleccionar todas"}
+                    {linhasSelecionadas.size === linhasNovas.length ? "Desseleccionar todas" : "Seleccionar todas"}
                   </Button>
                 </div>
                 <div className="border rounded-lg overflow-hidden">
@@ -304,33 +294,30 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.linhasValidas.map((linha, i) => {
-                        if (linha.duplicado) return null;
-                        return (
-                          <tr
-                            key={i}
-                            className={`border-t cursor-pointer hover:bg-muted/30 transition-colors ${
-                              linhasSelecionadas.has(i) ? "" : "opacity-40"
-                            }`}
-                            onClick={() => toggleLinha(i)}
-                          >
-                            <td className="p-2">
-                              <input
-                                type="checkbox"
-                                checked={linhasSelecionadas.has(i)}
-                                onChange={() => toggleLinha(i)}
-                                onClick={(e) => e.stopPropagation()}
-                                className="rounded"
-                              />
-                            </td>
-                            <td className="p-2 font-medium">{linha.cubaCodigo}</td>
-                            <td className="p-2">{linha.data}</td>
-                            <td className="p-2 text-muted-foreground">{linha.hora}</td>
-                            <td className="p-2 text-right font-mono">{linha.densidade.toFixed(4)}</td>
-                            <td className="p-2 text-right font-mono">{linha.temperatura.toFixed(1)}</td>
-                          </tr>
-                        );
-                      })}
+                      {linhasNovas.map((linha, i) => (
+                        <tr
+                          key={i}
+                          className={`border-t cursor-pointer hover:bg-muted/30 transition-colors ${
+                            linhasSelecionadas.has(i) ? "" : "opacity-40"
+                          }`}
+                          onClick={() => toggleLinha(i)}
+                        >
+                          <td className="p-2">
+                            <input
+                              type="checkbox"
+                              checked={linhasSelecionadas.has(i)}
+                              onChange={() => toggleLinha(i)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded"
+                            />
+                          </td>
+                          <td className="p-2 font-medium">{linha.cubaCodigo}</td>
+                          <td className="p-2">{linha.data}</td>
+                          <td className="p-2 text-muted-foreground">{linha.hora}</td>
+                          <td className="p-2 text-right font-mono">{linha.densidade.toFixed(4)}</td>
+                          <td className="p-2 text-right font-mono">{linha.temperatura.toFixed(1)}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
