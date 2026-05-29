@@ -86,9 +86,10 @@ function gerarGraficoPng(params: {
   const nSeries = params.dados[0]?.series.length ?? 0;
   // Cada série ocupa 140px; máx 4 por linha
   const nLinhasLegenda = Math.ceil(nSeries / 4);
-  const altLegenda = nLinhasLegenda * 22 + (params.linhaRef ? 20 : 0) + 16;
-  const H = (params.altura ?? 200) + altLegenda;
-  const PAD = { top: 36, right: 20, bottom: 14 + altLegenda, left: 62 };
+  const altLegenda = nLinhasLegenda * 22 + (params.linhaRef ? 24 : 0) + 16;
+  // bottom: 16px para labels X + 8px espaço + altLegenda
+  const H = (params.altura ?? 200) + 24 + altLegenda;
+  const PAD = { top: 36, right: 20, bottom: 24 + altLegenda, left: 62 };
 
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
@@ -216,7 +217,8 @@ function gerarGraficoPng(params: {
   }
 
   // Legenda das séries (maior e mais visível)
-  const legendaY = PAD.top + plotH + 20;
+  // +24 para dar espaço aos labels X que ficam em plotH + 10
+  const legendaY = PAD.top + plotH + 32;
   for (let si = 0; si < nSeries; si++) {
     const label = params.dados[0]?.series[si]?.label ?? "";
     const cor = params.dados[0]?.series[si]?.cor ?? "888888";
