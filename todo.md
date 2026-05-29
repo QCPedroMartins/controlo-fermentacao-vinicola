@@ -239,3 +239,10 @@
 - [x] Backend: em confirmarCsv, ignorar linhas duplicadas (não criar leitura)
 - [x] Frontend: mostrar duplicados no preview com badge "Já existe" (cor âmbar), separados das linhas normais
 - [x] Frontend: duplicados não têm checkbox (são sempre ignorados)
+
+## Fluxo CSV → Registo Rápido (v22)
+- [x] Frontend: ImportacaoCsvModal ao processar CSV redireciona para /registo-rapido com dados pré-preenchidos (via localStorage ou estado global)
+- [x] Frontend: RegistoRapido.tsx lê dados do CSV ao montar (localStorage) e pré-preenche os campos correspondentes
+- [x] Frontend: banner no Registo Rápido a indicar que os dados foram importados do CSV (com data e nº de cubas)
+- [x] Frontend: densidade do CSV com 4 casas decimais nos inputs do Registo Rápido
+- [x] Frontend: ao registar com sucesso, limpar os dados CSV do localStorage

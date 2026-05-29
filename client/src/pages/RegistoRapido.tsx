@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Save, RotateCcw, CheckCircle2, XCircle, Loader2, LogIn } from "lucide-react";
+import { Save, RotateCcw, CheckCircle2, XCircle, Loader2, LogIn, FileText, X } from "lucide-react";
+import { lerDadosCsvDoStorage, limparDadosCsvDoStorage } from "@/components/ImportacaoCsvModal";
 
 const CUBAS_VINHO = [
   'CF1','CF2','CF3','CF4','CF5','CF6','CF7','CF8','CF9','CF10',
@@ -58,6 +59,7 @@ export default function RegistoRapido() {
   );
   const [estados, setEstados] = useState<Record<string, EstadoLinha>>({});
   const [mostrarSemDados, setMostrarSemDados] = useState(true);
+  const [dadosCsvInfo, setDadosCsvInfo] = useState<{ nCubas: number; importadoEm: string } | null>(null);
 
   const { data: cubasData } = trpc.cubas.list.useQuery();
   const registarLote = trpc.leituras.registarLote.useMutation();
@@ -66,6 +68,47 @@ export default function RegistoRapido() {
     if (!cubasData) return {};
     return Object.fromEntries(cubasData.map((c) => [c.codigo.toUpperCase(), c]));
   }, [cubasData]);
+
+  // Ao montar, verificar se há dados CSV no localStorage para pré-preencher
+  useEffect(() => {
+    const dadosCsv = lerDadosCsvDoStorage();
+    if (!dadosCsv) return;
+
+    // Pré-preencher a data
+    setData(dadosCsv.data);
+
+    // Pré-preencher as linhas com os dados do CSV
+    setLinhas((prev) => {
+      const novo = { ...prev };
+      for (const cuba of dadosCsv.cubas) {
+        const codigoUpper = cuba.cubaCodigo.toUpperCase();
+        if (codigoUpper in novo) {
+          if (cuba.isPorto) {
+            novo[codigoUpper] = {
+              ...linhaVazia(),
+              baumeL1: cuba.densidade,   // para VP, densidade do CSV vai para baumeL1
+              tempL1: cuba.temperatura,
+            };
+          } else {
+            novo[codigoUpper] = {
+              ...linhaVazia(),
+              densL1: cuba.densidade,    // 4 casas decimais
+              tempL1: cuba.temperatura,
+            };
+          }
+        }
+      }
+      return novo;
+    });
+
+    setDadosCsvInfo({
+      nCubas: dadosCsv.cubas.length,
+      importadoEm: dadosCsv.importadoEm,
+    });
+
+    // Mostrar apenas as cubas com dados ao pré-preencher via CSV
+    setMostrarSemDados(false);
+  }, []);
 
   const cubasComDados = TODAS_CUBAS.filter((c) => temDados(linhas[c]));
   const cubasSemDados = TODAS_CUBAS.filter((c) => !temDados(linhas[c]));
@@ -78,6 +121,16 @@ export default function RegistoRapido() {
   function limparTudo() {
     setLinhas(Object.fromEntries(TODAS_CUBAS.map((c) => [c, linhaVazia()])));
     setEstados({});
+    limparDadosCsvDoStorage();
+    setDadosCsvInfo(null);
+  }
+
+  function descartarCsv() {
+    limparDadosCsvDoStorage();
+    setDadosCsvInfo(null);
+    setLinhas(Object.fromEntries(TODAS_CUBAS.map((c) => [c, linhaVazia()])));
+    setEstados({});
+    setMostrarSemDados(true);
   }
 
   async function registar() {
@@ -121,6 +174,9 @@ export default function RegistoRapido() {
       });
       setEstados(novosEstados);
       toast.success(`${resultado.sucesso} de ${resultado.total} cubas registadas com sucesso!`);
+      // Limpar dados CSV do localStorage após registo com sucesso
+      limparDadosCsvDoStorage();
+      setDadosCsvInfo(null);
       setLinhas((prev) => {
         const novo = { ...prev };
         resultado.resultados.forEach((r) => {
@@ -166,6 +222,28 @@ export default function RegistoRapido() {
           Preencha as leituras de várias cubas de uma só vez e clique em "Registar Tudo".
         </p>
       </div>
+
+      {/* Banner de dados CSV pré-preenchidos */}
+      {dadosCsvInfo && (
+        <div className="mb-4 flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+          <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+          <div className="flex-1">
+            <span className="font-semibold">Dados importados do CSV</span>
+            {" — "}
+            <span>{dadosCsvInfo.nCubas} cuba{dadosCsvInfo.nCubas !== 1 ? "s" : ""} pré-preenchida{dadosCsvInfo.nCubas !== 1 ? "s" : ""}.</span>
+            <span className="text-blue-600 ml-1 text-xs">
+              Reveja os valores, complete os campos em falta e clique em "Registar Tudo".
+            </span>
+          </div>
+          <button
+            onClick={descartarCsv}
+            className="shrink-0 text-blue-400 hover:text-blue-700 transition-colors"
+            title="Descartar dados do CSV"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Barra de controlo */}
       <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-white rounded-xl border border-[var(--color-dourado)]/30 shadow-sm">
@@ -217,11 +295,11 @@ export default function RegistoRapido() {
               <thead>
                 <tr className="bg-[var(--color-vinho)] text-white">
                   <th className="sticky left-0 z-10 bg-[var(--color-vinho)] px-3 py-3 text-left font-semibold w-20">Cuba</th>
-                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Dens. L1</th>
+                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-24">Dens. L1</th>
                   <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Temp. L1</th>
-                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Dens. L2</th>
+                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-24">Dens. L2</th>
                   <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Temp. L2</th>
-                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Dens. L3</th>
+                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-24">Dens. L3</th>
                   <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Temp. L3</th>
                   <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
                   <th className="px-2 py-3 text-center font-semibold text-purple-300 w-20">Redox (mV)</th>
@@ -240,7 +318,7 @@ export default function RegistoRapido() {
                         <span className="font-bold text-[var(--color-vinho)] text-xs">{codigo}</span>
                       </td>
                       <td className="px-1 py-1">
-                        <Input type="number" step="0.001" placeholder="—" value={linha.densL1}
+                        <Input type="number" step="0.0001" placeholder="—" value={linha.densL1}
                           onChange={(e) => updateCampo(codigo, "densL1", e.target.value)}
                           className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1" />
                       </td>
@@ -250,7 +328,7 @@ export default function RegistoRapido() {
                           className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1" />
                       </td>
                       <td className="px-1 py-1">
-                        <Input type="number" step="0.001" placeholder="—" value={linha.densL2}
+                        <Input type="number" step="0.0001" placeholder="—" value={linha.densL2}
                           onChange={(e) => updateCampo(codigo, "densL2", e.target.value)}
                           className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
                       </td>
@@ -260,7 +338,7 @@ export default function RegistoRapido() {
                           className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
                       </td>
                       <td className="px-1 py-1">
-                        <Input type="number" step="0.001" placeholder="—" value={linha.densL3}
+                        <Input type="number" step="0.0001" placeholder="—" value={linha.densL3}
                           onChange={(e) => updateCampo(codigo, "densL3", e.target.value)}
                           className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1" />
                       </td>

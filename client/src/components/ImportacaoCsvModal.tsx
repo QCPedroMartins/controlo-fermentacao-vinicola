@@ -1,10 +1,11 @@
 import { useState, useRef } from "react";
-import { Upload, FileText, CheckCircle2, AlertTriangle, X, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { Upload, FileText, CheckCircle2, AlertTriangle, X, ChevronDown, ChevronUp, Copy, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 interface LinhaPreview {
   measNo: string;
@@ -31,6 +32,47 @@ interface ResultadoPreview {
   totalLinhas: number;
 }
 
+/** Estrutura guardada no localStorage para pré-preencher o Registo Rápido */
+export interface DadosCsvParaRegistoRapido {
+  data: string;           // YYYY-MM-DD
+  cubas: {
+    cubaCodigo: string;   // ex: CF1, VP01
+    densidade: string;    // 4 casas decimais, ex: "1.0523"
+    temperatura: string;  // 1 casa decimal, ex: "18.5"
+    isPorto: boolean;
+  }[];
+  importadoEm: string;    // ISO timestamp
+}
+
+const LS_KEY = "csv_registo_rapido";
+
+export function guardarDadosCsvNoStorage(dados: DadosCsvParaRegistoRapido) {
+  localStorage.setItem(LS_KEY, JSON.stringify(dados));
+}
+
+export function lerDadosCsvDoStorage(): DadosCsvParaRegistoRapido | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as DadosCsvParaRegistoRapido;
+  } catch {
+    return null;
+  }
+}
+
+export function limparDadosCsvDoStorage() {
+  localStorage.removeItem(LS_KEY);
+}
+
+const CUBAS_PORTO = new Set(["VP01", "VP02", "VP03", "VP04", "VP05"]);
+
+/** Converte data DD.MM.YYYY → YYYY-MM-DD */
+function ddmmyyyyParaIso(dataStr: string): string {
+  const m = dataStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!m) return new Date().toISOString().split("T")[0];
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -38,13 +80,13 @@ interface Props {
 }
 
 export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props) {
+  const [, navigate] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [etapa, setEtapa] = useState<"upload" | "preview" | "sucesso">("upload");
+  const [etapa, setEtapa] = useState<"upload" | "preview">("upload");
   const [preview, setPreview] = useState<ResultadoPreview | null>(null);
   const [linhasSelecionadas, setLinhasSelecionadas] = useState<Set<number>>(new Set());
   const [mostrarIgnoradas, setMostrarIgnoradas] = useState(false);
   const [mostrarDuplicadas, setMostrarDuplicadas] = useState(false);
-  const [resultadoFinal, setResultadoFinal] = useState<{ criadas: number; ignoradas: number; erros: string[] } | null>(null);
 
   const processarMutation = trpc.importacao.processarCsv.useMutation({
     onSuccess: (data) => {
@@ -61,19 +103,6 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
     },
     onError: (err) => {
       toast.error("Erro ao processar CSV: " + err.message);
-    },
-  });
-
-  const confirmarMutation = trpc.importacao.confirmarCsv.useMutation({
-    onSuccess: (data) => {
-      setResultadoFinal(data);
-      setEtapa("sucesso");
-      if (data.criadas > 0) {
-        onImportado?.();
-      }
-    },
-    onError: (err) => {
-      toast.error("Erro ao importar: " + err.message);
     },
   });
 
@@ -101,7 +130,6 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
   }
 
   function toggleLinha(idx: number) {
-    // Não permitir seleccionar duplicados
     if (preview?.linhasValidas[idx]?.duplicado) return;
     setLinhasSelecionadas((prev) => {
       const next = new Set(prev);
@@ -113,7 +141,6 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
 
   function toggleTodas() {
     if (!preview) return;
-    // Apenas as não-duplicadas
     const novas = preview.linhasValidas
       .map((l, i) => ({ l, i }))
       .filter(({ l }) => !l.duplicado)
@@ -125,33 +152,51 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
     }
   }
 
-  function handleConfirmar() {
+  function handleIrParaRegistoRapido() {
     if (!preview) return;
-    const linhas = preview.linhasValidas
-      .filter((_, i) => linhasSelecionadas.has(i))
-      .map((l) => ({
-        cubaId: l.cubaId,
+
+    // Recolher as linhas seleccionadas (não duplicadas)
+    const linhasSel = preview.linhasValidas.filter((_, i) => linhasSelecionadas.has(i));
+
+    if (linhasSel.length === 0) {
+      toast.error("Seleccione pelo menos uma leitura para continuar.");
+      return;
+    }
+
+    // Determinar a data: usar a data da primeira linha seleccionada
+    const dataIso = ddmmyyyyParaIso(linhasSel[0].data);
+
+    // Construir payload para o Registo Rápido
+    const dadosCsv: DadosCsvParaRegistoRapido = {
+      data: dataIso,
+      cubas: linhasSel.map((l) => ({
         cubaCodigo: l.cubaCodigo,
-        data: l.data,
-        hora: l.hora,
-        densidade: l.densidade,
-        temperatura: l.temperatura,
-      }));
-    confirmarMutation.mutate({ linhas });
+        // 4 casas decimais para densidade
+        densidade: l.densidade.toFixed(4),
+        // 1 casa decimal para temperatura
+        temperatura: l.temperatura.toFixed(1),
+        isPorto: CUBAS_PORTO.has(l.cubaCodigo.toUpperCase()),
+      })),
+      importadoEm: new Date().toISOString(),
+    };
+
+    guardarDadosCsvNoStorage(dadosCsv);
+    onImportado?.();
+    handleFechar();
+    navigate("/registo-rapido");
+    toast.success(`${linhasSel.length} leitura${linhasSel.length !== 1 ? "s" : ""} pré-preenchida${linhasSel.length !== 1 ? "s" : ""} no Registo Rápido.`);
   }
 
   function handleFechar() {
     setEtapa("upload");
     setPreview(null);
     setLinhasSelecionadas(new Set());
-    setResultadoFinal(null);
     setMostrarIgnoradas(false);
     setMostrarDuplicadas(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
     onClose();
   }
 
-  // Separar linhas novas das duplicadas
   const linhasNovas = preview?.linhasValidas.filter((l) => !l.duplicado) ?? [];
   const linhasDuplicadas = preview?.linhasValidas.filter((l) => l.duplicado) ?? [];
   const novasIndexes = preview?.linhasValidas
@@ -176,6 +221,9 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
               Seleccione o ficheiro <strong>measureLog_export.csv</strong> exportado pela máquina de densimetria.
               O sistema irá ler as colunas: <strong>Data (B)</strong>, <strong>Cuba (E)</strong>,{" "}
               <strong>Densidade SG 20/20 (L)</strong> e <strong>Temperatura (O)</strong>.
+            </p>
+            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              Os dados serão pré-preenchidos no <strong>Registo Rápido</strong> para revisão antes de serem guardados.
             </p>
 
             <div
@@ -235,7 +283,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
             {linhasNovas.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold text-green-700">Leituras novas a criar</h4>
+                  <h4 className="text-sm font-semibold text-green-700">Leituras a pré-preencher no Registo Rápido</h4>
                   <Button variant="ghost" size="sm" onClick={toggleTodas} className="text-xs h-7">
                     {linhasSelecionadas.size === novasIndexes.length ? "Desseleccionar todas" : "Seleccionar todas"}
                   </Button>
@@ -248,9 +296,8 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                         <th className="p-2 text-left">Cuba</th>
                         <th className="p-2 text-left">Data</th>
                         <th className="p-2 text-left">Hora</th>
-                        <th className="p-2 text-right">Densidade</th>
+                        <th className="p-2 text-right">Densidade (4 dec.)</th>
                         <th className="p-2 text-right">Temp. (°C)</th>
-                        <th className="p-2 text-right">Dia Ferm.</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -278,7 +325,6 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                             <td className="p-2 text-muted-foreground">{linha.hora}</td>
                             <td className="p-2 text-right font-mono">{linha.densidade.toFixed(4)}</td>
                             <td className="p-2 text-right font-mono">{linha.temperatura.toFixed(1)}</td>
-                            <td className="p-2 text-right text-muted-foreground">{linha.diaFermentacao ?? "—"}</td>
                           </tr>
                         );
                       })}
@@ -384,30 +430,6 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
           </div>
         )}
 
-        {/* ── Etapa 3: Sucesso ─────────────────────────────────────── */}
-        {etapa === "sucesso" && resultadoFinal && (
-          <div className="text-center py-6 space-y-3">
-            <CheckCircle2 className="w-12 h-12 mx-auto text-green-500" />
-            <h3 className="text-lg font-semibold">Importação concluída</h3>
-            <p className="text-sm text-muted-foreground">
-              <strong>{resultadoFinal.criadas}</strong> leitura{resultadoFinal.criadas !== 1 ? "s" : ""} criada{resultadoFinal.criadas !== 1 ? "s" : ""} com sucesso.
-            </p>
-            {resultadoFinal.ignoradas > 0 && (
-              <p className="text-sm text-amber-600">
-                <strong>{resultadoFinal.ignoradas}</strong> leitura{resultadoFinal.ignoradas !== 1 ? "s" : ""} ignorada{resultadoFinal.ignoradas !== 1 ? "s" : ""} (já existia{resultadoFinal.ignoradas !== 1 ? "m" : ""} na BD).
-              </p>
-            )}
-            {resultadoFinal.erros.length > 0 && (
-              <div className="text-left mt-3 p-3 bg-red-50 rounded-lg">
-                <p className="text-xs font-semibold text-red-700 mb-1">Erros ({resultadoFinal.erros.length}):</p>
-                {resultadoFinal.erros.map((e, i) => (
-                  <p key={i} className="text-xs text-red-600">{e}</p>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         <DialogFooter className="gap-2">
           {etapa === "upload" && (
             <Button variant="outline" onClick={handleFechar}>Cancelar</Button>
@@ -418,22 +440,14 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                 <X className="w-4 h-4 mr-1" /> Voltar
               </Button>
               <Button
-                onClick={handleConfirmar}
-                disabled={linhasSelecionadas.size === 0 || confirmarMutation.isPending}
+                onClick={handleIrParaRegistoRapido}
+                disabled={linhasSelecionadas.size === 0}
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
-                {confirmarMutation.isPending ? (
-                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />A importar…</>
-                ) : (
-                  <><CheckCircle2 className="w-4 h-4 mr-1" />Confirmar Importação ({linhasSelecionadas.size})</>
-                )}
+                <ArrowRight className="w-4 h-4 mr-1" />
+                Ir para Registo Rápido ({linhasSelecionadas.size})
               </Button>
             </>
-          )}
-          {etapa === "sucesso" && (
-            <Button onClick={handleFechar} className="bg-green-600 hover:bg-green-700 text-white">
-              Fechar
-            </Button>
           )}
         </DialogFooter>
       </DialogContent>
