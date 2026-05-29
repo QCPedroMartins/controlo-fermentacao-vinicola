@@ -1137,12 +1137,12 @@ export default function CubaPage() {
             <>
               <ChartCard title={cuba.tipoCuba === "porto" ? "Baumé (°)" : "Densidade (g/L)"}>
                 <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
                     <Tooltip formatter={(v: number) => cuba.tipoCuba === "porto" ? `${v?.toFixed(2)}°` : v?.toFixed(4)} labelFormatter={(l) => `Dia ${l}`} />
-                    <Legend />
+                    <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, fontSize: 12 }} />
                     {adicaoMarkers.map((m, i) => (
                       <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
                         label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
@@ -1164,12 +1164,12 @@ export default function CubaPage() {
 
               <ChartCard title="Temperatura (°C)">
                 <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
                     <Tooltip formatter={(v: number) => `${v?.toFixed(1)}°C`} labelFormatter={(l) => `Dia ${l}`} />
-                    <Legend />
+                    <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, fontSize: 12 }} />
                     {adicaoMarkers.map((m, i) => (
                       <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
                         label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}

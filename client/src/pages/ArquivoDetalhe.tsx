@@ -277,12 +277,12 @@ export default function ArquivoDetalhe() {
 
           <ChartCard title="Densidade">
             <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+              <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -10, fontSize: 11 }} tick={{ fontSize: 11 }} />
                 <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v: number) => v?.toFixed(4)} labelFormatter={(l) => `Dia ${l}`} />
-                <Legend verticalAlign="top" height={24} />
+                <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, fontSize: 12 }} />
                 {resumo?.densMin && (
                   <ReferenceLine y={parseFloat(resumo.densMin)} stroke="#999" strokeDasharray="4 4" label={{ value: `Mín: ${parseFloat(resumo.densMin).toFixed(4)}`, fontSize: 10, fill: "#999" }} />
                 )}
@@ -293,12 +293,12 @@ export default function ArquivoDetalhe() {
 
           <ChartCard title="Temperatura (°C)">
             <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
+              <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -10, fontSize: 11 }} tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v: number) => `${v?.toFixed(1)}°C`} labelFormatter={(l) => `Dia ${l}`} />
-                <Legend verticalAlign="top" height={24} />
+                <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, fontSize: 12 }} />
                 {resumo?.tempMax && (
                   <ReferenceLine y={parseFloat(resumo.tempMax)} stroke="#ef5350" strokeDasharray="4 4" label={{ value: `Máx: ${parseFloat(resumo.tempMax).toFixed(1)}°C`, fontSize: 10, fill: "#ef5350" }} />
                 )}
