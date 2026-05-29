@@ -537,3 +537,57 @@ export async function getArquivoByCubaCampanha(cubaId: number, campanhaId?: numb
     .where(conditions)
     .orderBy(desc(fermentacoesArquivo.fermentacaoNum));
 }
+
+// ── Cálculo de Baumé de Envasilhamento (Vinho do Porto) ───
+import { baumeCalculo } from "../drizzle/schema";
+
+/** Devolve o último cálculo de Baumé guardado para uma cuba VP */
+export async function getBaumeCalculo(cubaId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(baumeCalculo)
+    .where(eq(baumeCalculo.cubaId, cubaId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Guarda (insert ou update) o cálculo de Baumé para uma cuba VP */
+export async function upsertBaumeCalculo(data: {
+  cubaId: number;
+  mostoFresco: number;
+  beLagrima: number;
+  alcool: number;
+  beActual: number;
+  grauVinica: number;
+  beAbafar: number;
+  beLagrimaPretendido: number;
+  adNecessaria: number;
+  adPorPipa: number;
+  volumeFinal: number;
+  pipasFinals: number;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await getBaumeCalculo(data.cubaId);
+  const row = {
+    cubaId: data.cubaId,
+    mostoFresco: String(data.mostoFresco),
+    beLagrima: String(data.beLagrima),
+    alcool: String(data.alcool),
+    beActual: String(data.beActual),
+    grauVinica: String(data.grauVinica),
+    beAbafar: String(data.beAbafar),
+    beLagrimaPretendido: String(data.beLagrimaPretendido),
+    adNecessaria: String(data.adNecessaria),
+    adPorPipa: String(data.adPorPipa),
+    volumeFinal: String(data.volumeFinal),
+    pipasFinals: String(data.pipasFinals),
+  };
+  if (existing) {
+    await db.update(baumeCalculo).set(row).where(eq(baumeCalculo.cubaId, data.cubaId));
+  } else {
+    await db.insert(baumeCalculo).values(row);
+  }
+}

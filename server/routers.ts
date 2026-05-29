@@ -30,6 +30,8 @@ import {
   getCampanhaAtiva,
   createCampanha,
   ativarCampanha,
+  getBaumeCalculo,
+  upsertBaumeCalculo,
   getDb,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
@@ -114,6 +116,36 @@ const cubasRouter = router({
   dashboard: publicProcedure.query(async () => {
     return getDashboardCubas();
   }),
+
+  /** Obter último cálculo de Baumé guardado para uma cuba VP */
+  getBaumeCalculo: publicProcedure
+    .input(z.object({ cubaId: z.number() }))
+    .query(async ({ input }) => {
+      return getBaumeCalculo(input.cubaId);
+    }),
+
+  /** Guardar (upsert) o cálculo de Baumé para uma cuba VP */
+  saveBaumeCalculo: protectedProcedure
+    .input(
+      z.object({
+        cubaId: z.number(),
+        mostoFresco: z.number(),
+        beLagrima: z.number(),
+        alcool: z.number(),
+        beActual: z.number(),
+        grauVinica: z.number(),
+        beAbafar: z.number(),
+        beLagrimaPretendido: z.number(),
+        adNecessaria: z.number(),
+        adPorPipa: z.number(),
+        volumeFinal: z.number(),
+        pipasFinals: z.number(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await upsertBaumeCalculo(input);
+      return { success: true };
+    }),
 });
 
 // ── Função auxiliar: verificar alertas e notificar ────────

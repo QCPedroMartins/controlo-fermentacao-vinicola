@@ -206,3 +206,14 @@
 - [x] Visível apenas nas cubas VP (tipoCuba === 'porto')
 - [x] Testes Vitest: 33 testes a passar
 - [x] Checkpoint e deploy
+
+## Persistência da Calculadora Baumé VP (v19)
+- [x] Schema: tabela `baume_calculo` com cubaId, todos os inputs e resultados, updatedAt
+- [x] Migração SQL aplicada
+- [x] Backend: helper getBaumeCalculo(cubaId) e upsertBaumeCalculo(...) no db.ts
+- [x] Backend: procedimento tRPC cubas.getBaumeCalculo (query) e cubas.saveBaumeCalculo (mutation)
+- [x] Frontend: ao abrir cuba VP, carrega automaticamente os últimos inputs e resultados guardados
+- [x] Frontend: guarda automaticamente com debounce de 1s após alterar qualquer campo
+- [x] Frontend: indicador "A guardar…" / "Guardado às HH:MM" no cabeçalho da calculadora
+- [x] Testes Vitest: 33 testes a passar
+- [x] Checkpoint e deploy

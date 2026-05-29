@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wine } from "lucide-react";
+import { Wine, CheckCircle2, Clock } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 // ── Fórmulas (extraídas do Excel "bédeenvasilhamento.xlsx") ───────────────────
 //
@@ -26,17 +27,55 @@ import { Wine } from "lucide-react";
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface CalculadoraBaumeEnvasilhamentoProps {
+  cubaId: number;
   volumeCuba?: number;
 }
 
 export default function CalculadoraBaumeEnvasilhamento({
+  cubaId,
   volumeCuba,
 }: CalculadoraBaumeEnvasilhamentoProps) {
-  const [mostoFresco, setMostoFresco] = useState(volumeCuba ? String(volumeCuba) : "");
+  const [mostoFresco, setMostoFresco] = useState("");
   const [beLagrima, setBeLagrima] = useState("");
   const [alcool, setAlcool] = useState("");
   const [beActual, setBeActual] = useState("");
   const [grauVinica, setGrauVinica] = useState("77");
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [saving, setSaving] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initializedRef = useRef(false);
+
+  // Carregar últimos valores guardados da BD
+  const { data: saved } = trpc.cubas.getBaumeCalculo.useQuery(
+    { cubaId },
+    { enabled: !!cubaId }
+  );
+
+  // Pré-preencher campos com os últimos valores guardados (ou volume da cuba)
+  useEffect(() => {
+    if (initializedRef.current) return;
+    if (saved) {
+      initializedRef.current = true;
+      setMostoFresco(saved.mostoFresco ?? (volumeCuba ? String(volumeCuba) : ""));
+      setBeLagrima(saved.beLagrima ?? "");
+      setAlcool(saved.alcool ?? "");
+      setBeActual(saved.beActual ?? "");
+      setGrauVinica(saved.grauVinica ?? "77");
+      setSavedAt(new Date(saved.updatedAt));
+    } else if (saved === null) {
+      // Sem dados guardados — usar volume da cuba como default
+      initializedRef.current = true;
+      if (volumeCuba) setMostoFresco(String(volumeCuba));
+    }
+  }, [saved, volumeCuba]);
+
+  const saveMutation = trpc.cubas.saveBaumeCalculo.useMutation({
+    onSuccess: () => {
+      setSaving(false);
+      setSavedAt(new Date());
+    },
+    onError: () => setSaving(false),
+  });
 
   // Calcular em tempo real
   const C = parseFloat(mostoFresco);
@@ -82,6 +121,33 @@ export default function CalculadoraBaumeEnvasilhamento({
     }
   }
 
+  // Guardar automaticamente com debounce de 1s quando há resultado válido
+  useEffect(() => {
+    if (beAbafar === null || !initializedRef.current) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setSaving(true);
+    debounceRef.current = setTimeout(() => {
+      saveMutation.mutate({
+        cubaId,
+        mostoFresco: C,
+        beLagrima: D,
+        alcool: E,
+        beActual: F,
+        grauVinica: G,
+        beAbafar: beAbafar!,
+        beLagrimaPretendido: beLagrimaPretendido!,
+        adNecessaria: adNecessaria!,
+        adPorPipa: adPorPipa!,
+        volumeFinal: volumeFinal!,
+        pipasFinals: pipasFinals!,
+      });
+    }, 1000);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mostoFresco, beLagrima, alcool, beActual, grauVinica]);
+
   const inputClass = (cor: string) => {
     const map: Record<string, string> = {
       azul: "border-2 border-blue-400",
@@ -92,26 +158,38 @@ export default function CalculadoraBaumeEnvasilhamento({
     return `h-9 text-sm text-right ${map[cor] ?? ""}`;
   };
 
-  const badgeClass = (cor: string) => {
-    const map: Record<string, string> = {
-      azul: "bg-blue-100 text-blue-700",
-      laranja: "bg-orange-100 text-orange-700",
-      amarelo: "bg-yellow-100 text-yellow-700",
-      verde: "bg-green-100 text-green-700",
-    };
-    return `inline-block w-3 h-3 rounded-full mr-1.5 ${map[cor] ?? ""}`;
-  };
+  const formatHora = (d: Date) =>
+    d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
 
   return (
     <Card className="border-amber-300/60 bg-gradient-to-br from-amber-50/40 to-white">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base text-[var(--color-vinho)] flex items-center gap-2">
-          <Wine size={18} />
-          Baumé de Envasilhamento — Vinho do Porto
-        </CardTitle>
-        <p className="text-xs text-gray-500">
-          Preencha os dados para calcular o Bé a abafar, a aguardente necessária e o volume final.
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="text-base text-[var(--color-vinho)] flex items-center gap-2">
+              <Wine size={18} />
+              Baumé de Envasilhamento — Vinho do Porto
+            </CardTitle>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Preencha os dados para calcular o Bé a abafar, a aguardente necessária e o volume final.
+            </p>
+          </div>
+          {/* Indicador de estado de gravação */}
+          <div className="shrink-0 ml-4 mt-0.5">
+            {saving && (
+              <span className="flex items-center gap-1 text-[10px] text-amber-600">
+                <Clock size={11} className="animate-spin" />
+                A guardar…
+              </span>
+            )}
+            {!saving && savedAt && (
+              <span className="flex items-center gap-1 text-[10px] text-green-600">
+                <CheckCircle2 size={11} />
+                Guardado às {formatHora(savedAt)}
+              </span>
+            )}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -120,78 +198,48 @@ export default function CalculadoraBaumeEnvasilhamento({
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Dados de entrada</p>
 
             <div className="space-y-1">
-              <Label className="text-xs text-gray-600 flex items-center">
-                <span className={badgeClass("azul")} style={{ backgroundColor: "#bfdbfe" }} />
+              <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-full bg-blue-200 border border-blue-400" />
                 Mosto Fresco (L)
               </Label>
-              <Input
-                type="number"
-                step="1"
-                placeholder="ex: 34400"
-                value={mostoFresco}
-                onChange={(e) => setMostoFresco(e.target.value)}
-                className={inputClass("azul")}
-              />
+              <Input type="number" step="1" placeholder="ex: 34400" value={mostoFresco}
+                onChange={(e) => setMostoFresco(e.target.value)} className={inputClass("azul")} />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-gray-600 flex items-center">
-                <span className={badgeClass("laranja")} style={{ backgroundColor: "#fed7aa" }} />
+              <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-full bg-orange-200 border border-orange-400" />
                 Bé Lágrima Mosto Fresco (°Bé)
               </Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="ex: 4.85"
-                value={beLagrima}
-                onChange={(e) => setBeLagrima(e.target.value)}
-                className={inputClass("laranja")}
-              />
+              <Input type="number" step="0.01" placeholder="ex: 4.85" value={beLagrima}
+                onChange={(e) => setBeLagrima(e.target.value)} className={inputClass("laranja")} />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-gray-600 flex items-center">
-                <span className={badgeClass("amarelo")} style={{ backgroundColor: "#fef08a" }} />
+              <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-full bg-yellow-200 border border-yellow-400" />
                 Álcool V/V (%)
               </Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="ex: 18.5"
-                value={alcool}
-                onChange={(e) => setAlcool(e.target.value)}
-                className={inputClass("amarelo")}
-              />
+              <Input type="number" step="0.01" placeholder="ex: 18.5" value={alcool}
+                onChange={(e) => setAlcool(e.target.value)} className={inputClass("amarelo")} />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-gray-600 flex items-center">
-                <span className={badgeClass("verde")} style={{ backgroundColor: "#bbf7d0" }} />
+              <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-full bg-green-200 border border-green-500" />
                 Bé actual (°Bé)
               </Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="ex: 3.5"
-                value={beActual}
-                onChange={(e) => setBeActual(e.target.value)}
-                className={inputClass("verde")}
-              />
+              <Input type="number" step="0.01" placeholder="ex: 3.5" value={beActual}
+                onChange={(e) => setBeActual(e.target.value)} className={inputClass("verde")} />
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-gray-600 flex items-center">
-                <span className={badgeClass("azul")} style={{ backgroundColor: "#bfdbfe" }} />
+              <Label className="text-xs text-gray-600 flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-full bg-blue-200 border border-blue-400" />
                 Grau Vínica — aguardente (%)
               </Label>
-              <Input
-                type="number"
-                step="0.1"
-                placeholder="77"
-                value={grauVinica}
-                onChange={(e) => setGrauVinica(e.target.value)}
-                className={inputClass("azul")}
-              />
+              <Input type="number" step="0.1" placeholder="77" value={grauVinica}
+                onChange={(e) => setGrauVinica(e.target.value)} className={inputClass("azul")} />
             </div>
           </div>
 
@@ -219,12 +267,12 @@ export default function CalculadoraBaumeEnvasilhamento({
                     Bé a Abafar
                   </p>
                   <p className="text-3xl font-bold text-[var(--color-vinho)]">
-                    {beAbafar!.toFixed(2)}
+                    {beAbafar.toFixed(2)}
                     <span className="text-base font-normal ml-1">°Bé</span>
                   </p>
                   {beLagrimaPretendido !== null && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Bé Lágrima Pretendido: <strong>{beLagrimaPretendido!.toFixed(2)} °Bé</strong>
+                      Bé Lágrima Pretendido: <strong>{beLagrimaPretendido.toFixed(2)} °Bé</strong>
                     </p>
                   )}
                 </div>
@@ -240,7 +288,7 @@ export default function CalculadoraBaumeEnvasilhamento({
                   </p>
                   {adPorPipa !== null && (
                     <p className="text-xs text-amber-600 mt-1">
-                      Por pipa (550 L): <strong>{adPorPipa!.toFixed(1)} L/pipa</strong>
+                      Por pipa (550 L): <strong>{adPorPipa.toFixed(1)} L/pipa</strong>
                     </p>
                   )}
                 </div>
@@ -256,7 +304,7 @@ export default function CalculadoraBaumeEnvasilhamento({
                   </p>
                   {pipasFinals !== null && (
                     <p className="text-xs text-green-600 mt-1">
-                      Pipas finais (550 L): <strong>{pipasFinals!.toFixed(1)} pipas</strong>
+                      Pipas finais (550 L): <strong>{pipasFinals.toFixed(1)} pipas</strong>
                     </p>
                   )}
                 </div>

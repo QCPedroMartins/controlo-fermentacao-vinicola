@@ -50,6 +50,13 @@
       "when": 1780046939875,
       "tag": "0006_smart_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1780058330993,
+      "tag": "0007_huge_unicorn",
+      "breakpoints": true
     }
   ]
 }

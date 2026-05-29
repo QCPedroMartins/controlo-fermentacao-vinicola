@@ -1368,8 +1368,9 @@ export default function CubaPage() {
       <CalculadoraCorrecao volumeCuba={cuba?.fichaLitros ? Number(cuba.fichaLitros) : undefined} />
 
       {/* Calculadora de Baumé de Envasilhamento — apenas cubas VP (Vinho do Porto) */}
-      {cuba?.tipoCuba === "porto" && (
+      {cuba?.tipoCuba === "porto" && cuba?.id && (
         <CalculadoraBaumeEnvasilhamento
+          cubaId={cuba.id}
           volumeCuba={cuba?.fichaLitros ? Number(cuba.fichaLitros) : undefined}
         />
       )}

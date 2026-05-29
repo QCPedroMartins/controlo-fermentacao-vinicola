@@ -178,3 +178,26 @@ export const fermentacoesArquivo = mysqlTable("fermentacoes_arquivo", {
 
 export type FermentacaoArquivo = typeof fermentacoesArquivo.$inferSelect;
 export type InsertFermentacaoArquivo = typeof fermentacoesArquivo.$inferInsert;
+
+// ── Cálculo de Baumé de Envasilhamento (Vinho do Porto) ───
+export const baumeCalculo = mysqlTable("baume_calculo", {
+  id: int("id").autoincrement().primaryKey(),
+  cubaId: int("cuba_id").notNull().unique(),
+  // Inputs
+  mostoFresco: decimal("mosto_fresco", { precision: 10, scale: 1 }),
+  beLagrima: decimal("be_lagrima", { precision: 5, scale: 2 }),
+  alcool: decimal("alcool", { precision: 5, scale: 2 }),
+  beActual: decimal("be_actual", { precision: 5, scale: 2 }),
+  grauVinica: decimal("grau_vinica", { precision: 5, scale: 2 }).default("77.00"),
+  // Resultados
+  beAbafar: decimal("be_abafar", { precision: 5, scale: 2 }),
+  beLagrimaPretendido: decimal("be_lagrima_pretendido", { precision: 5, scale: 2 }),
+  adNecessaria: decimal("ad_necessaria", { precision: 10, scale: 1 }),
+  adPorPipa: decimal("ad_por_pipa", { precision: 8, scale: 2 }),
+  volumeFinal: decimal("volume_final", { precision: 10, scale: 1 }),
+  pipasFinals: decimal("pipas_finals", { precision: 8, scale: 2 }),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BaumeCalculo = typeof baumeCalculo.$inferSelect;
+export type InsertBaumeCalculo = typeof baumeCalculo.$inferInsert;
