@@ -184,3 +184,15 @@
 - [x] Dashboard: cubas VP01-VP05 já incluídas na query (select all), badge VP visível no grid
 - [x] Testes Vitest: 33 testes a passar
 - [x] Checkpoint e deploy
+
+## Calculadoras de Correcção de Álcool (v17)
+- [x] Componente CalculadoraCorrecao.tsx com duas abas: "Correcção com Água/AD" e "Correcção com Adjuvante"
+- [x] Fórmula Água/AD: Litros = ((Álcool actual - Álcool pretendido) × Volume) / (Álcool pretendido - Álcool água/AD)
+- [x] Fórmula Adjuvante: Litros = ((Álcool actual - Álcool pretendido) × Volume) / (Álcool pretendido - Álcool adjuvante)
+- [x] Campos: Álcool actual (%), Álcool pretendido (%), Volume (L), Álcool da água/AD ou adjuvante (%) com valores por defeito (77% e 39%)
+- [x] Resultado em litros com 2 casas decimais, com indicação se é para adicionar água/adjuvante
+- [x] Volume pré-preenchido com o valor de "Litros" da ficha inicial da cuba (se existir)
+- [x] Integrada na CubaPage abaixo dos gráficos (visível em todas as tabs)
+- [x] Valores negativos/inválidos tratados com mensagem de aviso
+- [x] Testes Vitest: 33 testes a passar
+- [x] Checkpoint e deploy

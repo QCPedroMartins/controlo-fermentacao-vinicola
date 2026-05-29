@@ -48,6 +48,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
+import CalculadoraCorrecao from "@/components/CalculadoraCorrecao";
+
 // ── Cores fixas dos gráficos ──────────────────────────────
 const CORES = {
   densL1: "#2e7d32",
@@ -1360,6 +1362,9 @@ export default function CubaPage() {
           )}
         </div>
       )}
+
+      {/* Calculadoras de Correcção de Álcool — visíveis em todas as tabs */}
+      <CalculadoraCorrecao volumeCuba={cuba?.fichaLitros ? Number(cuba.fichaLitros) : undefined} />
 
       {/* Tab: Adições e Notas */}
       {activeTab === "adicoes" && (
