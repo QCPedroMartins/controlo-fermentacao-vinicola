@@ -83,9 +83,11 @@ function gerarGraficoPng(params: {
 }): Buffer {
   const W = params.largura ?? 760;
   const nSeries = params.dados[0]?.series.length ?? 0;
-  const altLegenda = 28 + (params.linhaRef ? 18 : 0);
+  // Cada série ocupa 140px; máx 4 por linha
+  const nLinhasLegenda = Math.ceil(nSeries / 4);
+  const altLegenda = nLinhasLegenda * 22 + (params.linhaRef ? 20 : 0) + 16;
   const H = (params.altura ?? 200) + altLegenda;
-  const PAD = { top: 32, right: 20, bottom: 12 + altLegenda, left: 58 };
+  const PAD = { top: 36, right: 20, bottom: 14 + altLegenda, left: 62 };
 
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
@@ -117,8 +119,17 @@ function gerarGraficoPng(params: {
     return canvas.toBuffer("image/png");
   }
 
-  const yMin = Math.min(...allVals) * 0.997;
-  const yMax = Math.max(...allVals) * 1.003;
+  const rawMin = Math.min(...allVals);
+  const rawMax = Math.max(...allVals);
+  // Garantir escala mínima para que 1 único ponto seja visível
+  const rangeMin = params.unidade === "m°C" || params.unidade === "°C" ? 2 :
+    params.unidade === "mg/L" ? 0.5 :
+    params.unidade === "mV" ? 20 :
+    params.unidade === "°" ? 0.5 : 0.005;
+  const mid = (rawMin + rawMax) / 2;
+  const halfRange = Math.max((rawMax - rawMin) / 2, rangeMin);
+  const yMin = mid - halfRange * 1.15;
+  const yMax = mid + halfRange * 1.15;
   const xMin = params.dados[0]?.x ?? 0;
   const xMax = params.dados[params.dados.length - 1]?.x ?? 1;
 
@@ -126,7 +137,7 @@ function gerarGraficoPng(params: {
   const toY = (y: number) => PAD.top + plotH - ((y - yMin) / Math.max(yMax - yMin, 0.001)) * plotH;
 
   // Grelha e labels Y
-  const decimais = params.unidade === "°C" || params.unidade === "mg/L" || params.unidade === "mV" || params.unidade === "°" ? 1 : 3;
+  const decimais = params.unidade === "°C" || params.unidade === "mg/L" || params.unidade === "mV" || params.unidade === "°" ? 1 : 4;
   ctx.strokeStyle = "#e8e8e8";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
@@ -198,32 +209,39 @@ function gerarGraficoPng(params: {
     });
   }
 
-  // Legenda das séries
-  const legendaY = PAD.top + plotH + 18;
+  // Legenda das séries (maior e mais visível)
+  const legendaY = PAD.top + plotH + 20;
   for (let si = 0; si < nSeries; si++) {
     const label = params.dados[0]?.series[si]?.label ?? "";
     const cor = params.dados[0]?.series[si]?.cor ?? "888888";
-    const lx = PAD.left + si * 110;
-    ctx.strokeStyle = "#" + cor; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(lx, legendaY); ctx.lineTo(lx + 16, legendaY); ctx.stroke();
+    const linhaIdx = Math.floor(si / 4);
+    const colIdx = si % 4;
+    const lx = PAD.left + colIdx * 140;
+    const ly = legendaY + linhaIdx * 22;
+    // Linha colorida
+    ctx.strokeStyle = "#" + cor; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 22, ly); ctx.stroke();
+    // Ponto central
     ctx.fillStyle = "#" + cor;
-    ctx.beginPath(); ctx.arc(lx + 8, legendaY, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#222"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "left";
-    ctx.fillText(label, lx + 20, legendaY + 3);
+    ctx.beginPath(); ctx.arc(lx + 11, ly, 5, 0, Math.PI * 2); ctx.fill();
+    // Texto
+    ctx.fillStyle = "#111"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "left";
+    ctx.fillText(label, lx + 30, ly + 4);
   }
 
   // Legenda da linha de referência
   if (params.linhaRef) {
-    const lx = PAD.left + nSeries * 110;
-    const ly = legendaY;
+    const nLinhasUsadas = Math.ceil(nSeries / 4);
+    const lx = PAD.left;
+    const ly = legendaY + nLinhasUsadas * 22;
     ctx.save();
-    ctx.strokeStyle = params.linhaRef.cor; ctx.lineWidth = 1.2;
-    ctx.setLineDash([5, 4]);
-    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 16, ly); ctx.stroke();
+    ctx.strokeStyle = params.linhaRef.cor; ctx.lineWidth = 1.8;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 22, ly); ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
-    ctx.fillStyle = "#222"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "left";
-    ctx.fillText(params.linhaRef.label, lx + 20, ly + 3);
+    ctx.fillStyle = "#111"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "left";
+    ctx.fillText(params.linhaRef.label, lx + 30, ly + 4);
   }
 
   return canvas.toBuffer("image/png");

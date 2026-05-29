@@ -267,3 +267,8 @@
 - [x] Frontend: ImportacaoCsvModal passa hora no payload de confirmação
 - [x] Frontend: RegistoRapido passa hora (do CSV) ao registarLote
 - [x] Frontend: tabela histórico da cuba mostra coluna Hora
+
+## Legendas e Títulos nos Gráficos das Exportações (v27)
+- [x] Excel: corrigir escala Y com 1 ponto, legenda visível, 4 casas decimais
+- [x] PDF: corrigir escala Y com 1 ponto, legenda maior (11px bold), 4 casas decimais
+- [x] Email: corrigir escala Y com 1 ponto, 4 casas decimais na densidade

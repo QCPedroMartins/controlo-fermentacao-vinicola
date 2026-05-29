@@ -109,8 +109,17 @@ function gerarGraficoLinha(params: {
     return { buffer: canvas.toBuffer("image/png"), height: H };
   }
 
-  const yMin = Math.min(...allVals) * 0.998;
-  const yMax = Math.max(...allVals) * 1.002;
+  const rawMin2 = Math.min(...allVals);
+  const rawMax2 = Math.max(...allVals);
+  // Garantir escala mínima para que 1 único ponto seja visível
+  const rangeMin2 = params.unidade === "°C" ? 2 :
+    params.unidade === "mg/L" ? 0.5 :
+    params.unidade === "mV" ? 20 :
+    params.unidade === "°" ? 0.5 : 0.005;
+  const mid2 = (rawMin2 + rawMax2) / 2;
+  const halfRange2 = Math.max((rawMax2 - rawMin2) / 2, rangeMin2);
+  const yMin = mid2 - halfRange2 * 1.15;
+  const yMax = mid2 + halfRange2 * 1.15;
   const xMin = params.dados[0]?.x ?? 0;
   const xMax = params.dados[params.dados.length - 1]?.x ?? 1;
 
@@ -132,7 +141,7 @@ function gerarGraficoLinha(params: {
     ctx.fillStyle = "#666";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "right";
-    // Formatar com casas decimais adequadas à unidade
+    // Formatar com casas decimais adequadas à unidade (densidade sempre com 4 casas)
     const decimais = params.unidade === "mg/L" || params.unidade === "°C" || params.unidade === "mV" || params.unidade === "°" ? 1 : 4;
     ctx.fillText(val.toFixed(decimais), PAD.left - 5, y + 4);
   }
