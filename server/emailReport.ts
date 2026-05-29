@@ -80,7 +80,7 @@ function gerarGraficoLinha(params: {
   unidade?: string;
   marcadores?: { dia: number; label: string; index: number }[];
   linhaRef?: { valor: number; label: string; cor: string }; // linha horizontal de referência (ex: temp pretendida, aguardentação)
-}): Buffer {
+}): { buffer: Buffer; height: number } {
   const W = params.largura ?? 800;
   // Calcular altura necessária para a legenda: cada série ocupa 90px na horizontal, máx 3 por linha
   const nSeries = params.dados[0]?.series.length ?? 0;
@@ -111,7 +111,7 @@ function gerarGraficoLinha(params: {
     ctx.fillStyle = "#999";
     ctx.font = "12px sans-serif";
     ctx.fillText("Sem dados", PAD.left + plotW / 2 - 30, PAD.top + plotH / 2);
-    return canvas.toBuffer("image/png");
+    return { buffer: canvas.toBuffer("image/png"), height: H };
   }
 
   const yMin = Math.min(...allVals) * 0.998;
@@ -280,7 +280,7 @@ function gerarGraficoLinha(params: {
   ctx.textAlign = "center";
   ctx.fillText("Dia de fermentação", PAD.left + plotW / 2, legendaY + (params.linhaRef ? 22 : 18));
 
-  return canvas.toBuffer("image/png");
+  return { buffer: canvas.toBuffer("image/png"), height: H };
 }
 
 // ── Gerador de workbook Excel para uma cuba ───────────────
@@ -485,8 +485,8 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const imgDens = (wb as any).addImage({ buffer: Buffer.from(pngDens), extension: "png" }) as number;
-  wsG.addImage(imgDens, { tl: { col: 0, row: 2 }, ext: { width: 800, height: CHART_H } });
+  const imgDens = (wb as any).addImage({ buffer: pngDens.buffer, extension: "png" }) as number;
+  wsG.addImage(imgDens, { tl: { col: 0, row: 2 }, ext: { width: 800, height: pngDens.height } });
 
   // Gráfico 2: Temperatura
   const pngTemp = gerarGraficoLinha({
@@ -507,8 +507,8 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const imgTemp = (wb as any).addImage({ buffer: Buffer.from(pngTemp), extension: "png" }) as number;
-  wsG.addImage(imgTemp, { tl: { col: 0, row: 2 + CHART_ROWS }, ext: { width: 800, height: CHART_H } });
+  const imgTemp = (wb as any).addImage({ buffer: pngTemp.buffer, extension: "png" }) as number;
+  wsG.addImage(imgTemp, { tl: { col: 0, row: 2 + CHART_ROWS }, ext: { width: 800, height: pngTemp.height } });
 
   // Gráfico 3: O₂ (se tiver dados)
   const hasO2 = chartData.some((d) => d.o2 !== null);
@@ -523,8 +523,8 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       })),
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const imgO2 = (wb as any).addImage({ buffer: Buffer.from(pngO2), extension: "png" }) as number;
-    wsG.addImage(imgO2, { tl: { col: 0, row: 2 + CHART_ROWS * 2 }, ext: { width: 800, height: CHART_H } });
+    const imgO2 = (wb as any).addImage({ buffer: pngO2.buffer, extension: "png" }) as number;
+    wsG.addImage(imgO2, { tl: { col: 0, row: 2 + CHART_ROWS * 2 }, ext: { width: 800, height: pngO2.height } });
   }
 
   // Gráfico 4: Redox (se tiver dados)
@@ -541,8 +541,8 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       })),
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const imgRedox = (wb as any).addImage({ buffer: Buffer.from(pngRedox), extension: "png" }) as number;
-    wsG.addImage(imgRedox, { tl: { col: 0, row: rowOffset }, ext: { width: 800, height: CHART_H } });
+    const imgRedox = (wb as any).addImage({ buffer: pngRedox.buffer, extension: "png" }) as number;
+    wsG.addImage(imgRedox, { tl: { col: 0, row: rowOffset }, ext: { width: 800, height: pngRedox.height } });
   }
 
   // ── Legenda de adições na folha Gráficos ────────────────
@@ -750,23 +750,23 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
       }));
       const pngDens = gerarGraficoLinha({ titulo: `Densidade — ${cuba.codigo.toUpperCase()}`, dados: chartData, unidade: "Densidade" });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const imgId = (wb as any).addImage({ buffer: Buffer.from(pngDens), extension: "png" }) as number;
+      const imgId = (wb as any).addImage({ buffer: pngDens.buffer, extension: "png" }) as number;
       const startRow = leituras.length + 4;
-      wsC.addImage(imgId, { tl: { col: 0, row: startRow }, ext: { width: 700, height: 280 } });
+      wsC.addImage(imgId, { tl: { col: 0, row: startRow }, ext: { width: 700, height: pngDens.height } });
 
       // Gráfico de temperatura
       const chartDataT = leituras.map((l) => ({
         x: l.diaNr ?? 0,
         series: [
-          { label: "L1", cor: CORES_HEX.tempL1, valor: l.tempL1 ? parseFloat(l.tempL1) : null },
-          { label: "L2", cor: CORES_HEX.tempL2, valor: l.tempL2 ? parseFloat(l.tempL2) : null },
-          { label: "L3", cor: CORES_HEX.tempL3, valor: l.tempL3 ? parseFloat(l.tempL3) : null },
+          { label: "Temperatura L1", cor: CORES_HEX.tempL1, valor: l.tempL1 ? parseFloat(l.tempL1) : null },
+          { label: "Temperatura L2", cor: CORES_HEX.tempL2, valor: l.tempL2 ? parseFloat(l.tempL2) : null },
+          { label: "Temperatura L3", cor: CORES_HEX.tempL3, valor: l.tempL3 ? parseFloat(l.tempL3) : null },
         ],
       }));
       const pngTemp = gerarGraficoLinha({ titulo: `Temperatura — ${cuba.codigo.toUpperCase()}`, dados: chartDataT, unidade: "°C" });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const imgTId = (wb as any).addImage({ buffer: Buffer.from(pngTemp), extension: "png" }) as number;
-      wsC.addImage(imgTId, { tl: { col: 0, row: startRow + 18 }, ext: { width: 700, height: 280 } });
+      const imgTId = (wb as any).addImage({ buffer: pngTemp.buffer, extension: "png" }) as number;
+      wsC.addImage(imgTId, { tl: { col: 0, row: startRow + 18 }, ext: { width: 700, height: pngTemp.height } });
     }
 
     // Adições no final da folha (se existirem)
