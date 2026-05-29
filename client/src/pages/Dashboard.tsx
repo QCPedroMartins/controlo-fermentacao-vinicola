@@ -118,7 +118,7 @@ export default function Dashboard() {
             <BarChart3 size={22} className="text-[var(--color-vinho)]" />
             <h1 className="text-2xl font-bold text-[var(--color-vinho)]">Dashboard</h1>
           </div>
-          <p className="text-gray-500 text-sm">Estado geral das 57 cubas de fermentação</p>
+          <p className="text-gray-500 text-sm">Estado geral das 62 cubas de fermentação</p>
         </div>
         <div className="flex items-center gap-2">
           <Link href="/campanhas">
@@ -147,7 +147,7 @@ export default function Dashboard() {
 
       {/* Estatísticas */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        <StatCard label="Total" value={57} color="text-[var(--color-vinho)]" bg="bg-white" />
+        <StatCard label="Total" value={62} color="text-[var(--color-vinho)]" bg="bg-white" />
         <StatCard label="Sem dados" value={semDados} color="text-gray-500" bg="bg-white" />
         <StatCard label="Em fermentação" value={emFermentacao} color="text-amber-600" bg="bg-amber-50" />
         <StatCard label="Completas" value={completas} color="text-green-600" bg="bg-green-50" />
@@ -218,7 +218,12 @@ export default function Dashboard() {
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
                       {cuba.codigo}
                     </span>
-                    <div className={`w-2 h-2 rounded-full ${temAlerta ? "bg-red-400 animate-pulse" : cfg.dot}`} />
+                    <div className="flex items-center gap-1">
+                      {(cuba as { tipoCuba?: string }).tipoCuba === "porto" && (
+                        <span className="text-[8px] font-bold bg-amber-800 text-amber-100 px-1 rounded">VP</span>
+                      )}
+                      <div className={`w-2 h-2 rounded-full ${temAlerta ? "bg-red-400 animate-pulse" : cfg.dot}`} />
+                    </div>
                   </div>
                   <p className="text-xs font-semibold text-gray-700 truncate leading-tight">
                     {cuba.nomeLote ?? "—"}

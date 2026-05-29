@@ -43,6 +43,13 @@
       "when": 1779960163631,
       "tag": "0005_fantastic_gamma_corps",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1780046939875,
+      "tag": "0006_smart_cannonball",
+      "breakpoints": true
     }
   ]
 }

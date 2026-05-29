@@ -72,6 +72,9 @@ const cubasRouter = router({
         tempPretendida: z.string().nullable().optional(),
         desvioTempAlerta: z.string().optional(),
         desvioDesnsAlerta: z.string().optional(),
+        alertasDensidade: z.string().nullable().optional(),
+        pontoAguardentacao: z.string().nullable().optional(),
+        desvioAguardentacaoAlerta: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -79,6 +82,9 @@ const cubasRouter = router({
         tempPretendida: input.tempPretendida,
         desvioTempAlerta: input.desvioTempAlerta,
         desvioDesnsAlerta: input.desvioDesnsAlerta,
+        alertasDensidade: input.alertasDensidade,
+        pontoAguardentacao: input.pontoAguardentacao,
+        desvioAguardentacaoAlerta: input.desvioAguardentacaoAlerta,
       });
       return { success: true };
     }),
@@ -112,19 +118,29 @@ const cubasRouter = router({
 
 // ── Função auxiliar: verificar alertas e notificar ────────
 async function processarAlertas(params: {
-  cuba: { id: number; codigo: string; nomeLote: string | null; densidadeLimite: string; estado: string; tempPretendida: string | null; desvioTempAlerta: string; desvioDesnsAlerta: string };
+  cuba: {
+    id: number; codigo: string; nomeLote: string | null; densidadeLimite: string; estado: string;
+    tempPretendida: string | null; desvioTempAlerta: string; desvioDesnsAlerta: string;
+    alertasDensidade?: string | null;
+    pontoAguardentacao?: string | null;
+    desvioAguardentacaoAlerta?: string | null;
+  };
   densidades: (string | null | undefined)[];
   leituraInput: {
     densL1?: string | null; densL2?: string | null; densL3?: string | null;
     tempL1?: string | null; tempL2?: string | null; tempL3?: string | null;
+    baumeL1?: string | null; baumeL2?: string | null; baumeL3?: string | null;
   };
-  leituraAnterior?: { densL1?: string | null; densL2?: string | null; densL3?: string | null } | null;
+  leituraAnterior?: {
+    densL1?: string | null; densL2?: string | null; densL3?: string | null;
+    baumeL1?: string | null; baumeL2?: string | null; baumeL3?: string | null;
+  } | null;
   diaNr: number;
   userName: string;
 }): Promise<{ fermentacaoCompleta: boolean; alertas: string[] }> {
   const estadoAnterior = params.cuba.estado;
 
-  // Verificar fermentação completa
+  // Verificar fermentação completa (apenas cubas de vinho com densidade)
   const fermentacaoCompleta = await verificarFermentacaoCompleta(
     params.cuba.id,
     params.densidades,
@@ -142,17 +158,23 @@ async function processarAlertas(params: {
     await updateCubaEstado(params.cuba.id, "em_fermentacao");
   }
 
-  // Calcular alertas de temperatura e variação de densidade
+  // Calcular alertas (temperatura, densidade, Baumé/aguardentação)
   const alertas = calcularAlertas({
     tempPretendida: params.cuba.tempPretendida,
     desvioTempAlerta: params.cuba.desvioTempAlerta ?? "5.0",
     desvioDesnsAlerta: params.cuba.desvioDesnsAlerta ?? "0.010",
+    alertasDensidade: params.cuba.alertasDensidade,
+    pontoAguardentacao: params.cuba.pontoAguardentacao,
+    desvioAguardentacaoAlerta: params.cuba.desvioAguardentacaoAlerta ?? "0.50",
     tempL1: params.leituraInput.tempL1,
     tempL2: params.leituraInput.tempL2,
     tempL3: params.leituraInput.tempL3,
     densL1: params.leituraInput.densL1,
     densL2: params.leituraInput.densL2,
     densL3: params.leituraInput.densL3,
+    baumeL1: params.leituraInput.baumeL1,
+    baumeL2: params.leituraInput.baumeL2,
+    baumeL3: params.leituraInput.baumeL3,
     leituraAnterior: params.leituraAnterior,
   });
 
@@ -192,6 +214,9 @@ const leiturasRouter = router({
         tempL3: z.string().nullable().optional(),
         o2: z.string().nullable().optional(),
         redox: z.string().nullable().optional(),
+        baumeL1: z.string().nullable().optional(),
+        baumeL2: z.string().nullable().optional(),
+        baumeL3: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -222,6 +247,9 @@ const leiturasRouter = router({
         tempL3: input.tempL3,
         o2: input.o2,
         redox: input.redox,
+        baumeL1: input.baumeL1,
+        baumeL2: input.baumeL2,
+        baumeL3: input.baumeL3,
         userId: ctx.user.id,
         userName,
       });
@@ -244,6 +272,9 @@ const leiturasRouter = router({
             tempPretendida: cuba.tempPretendida ?? null,
             desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
             desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+            alertasDensidade: cuba.alertasDensidade ?? null,
+            pontoAguardentacao: cuba.pontoAguardentacao ?? null,
+            desvioAguardentacaoAlerta: cuba.desvioAguardentacaoAlerta ?? "0.50",
           },
           densidades: [input.densL1, input.densL2, input.densL3],
           leituraInput: input,
@@ -271,6 +302,9 @@ const leiturasRouter = router({
         tempL3: z.string().nullable().optional(),
         o2: z.string().nullable().optional(),
         redox: z.string().nullable().optional(),
+        baumeL1: z.string().nullable().optional(),
+        baumeL2: z.string().nullable().optional(),
+        baumeL3: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -307,6 +341,9 @@ const leiturasRouter = router({
               tempPretendida: cuba.tempPretendida ?? null,
               desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
               desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+              alertasDensidade: cuba.alertasDensidade ?? null,
+              pontoAguardentacao: cuba.pontoAguardentacao ?? null,
+              desvioAguardentacaoAlerta: cuba.desvioAguardentacaoAlerta ?? "0.50",
             },
             densidades: [data.densL1, data.densL2, data.densL3],
             leituraInput: data,

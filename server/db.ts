@@ -110,6 +110,9 @@ export async function updateCubaAlertas(
     tempPretendida?: string | null;
     desvioTempAlerta?: string;
     desvioDesnsAlerta?: string;
+    alertasDensidade?: string | null;
+    pontoAguardentacao?: string | null;
+    desvioAguardentacaoAlerta?: string;
   }
 ) {
   const db = await getDb();
@@ -118,6 +121,9 @@ export async function updateCubaAlertas(
   if (data.tempPretendida !== undefined) set.tempPretendida = data.tempPretendida;
   if (data.desvioTempAlerta !== undefined) set.desvioTempAlerta = data.desvioTempAlerta;
   if (data.desvioDesnsAlerta !== undefined) set.desvioDesnsAlerta = data.desvioDesnsAlerta;
+  if (data.alertasDensidade !== undefined) set.alertasDensidade = data.alertasDensidade;
+  if (data.pontoAguardentacao !== undefined) set.pontoAguardentacao = data.pontoAguardentacao;
+  if (data.desvioAguardentacaoAlerta !== undefined) set.desvioAguardentacaoAlerta = data.desvioAguardentacaoAlerta;
   if (Object.keys(set).length > 0) {
     await db.update(cubas).set(set).where(eq(cubas.id, id));
   }
@@ -175,17 +181,28 @@ export function calcularAlertas(params: {
   tempPretendida: string | null | undefined;
   desvioTempAlerta: string;
   desvioDesnsAlerta: string;
+  /** Lista JSON de valores de densidade que geram alertas (ex: "[1.050,1.020]") */
+  alertasDensidade?: string | null;
+  /** Ponto de Baumé para aguardentação (cubas VP) */
+  pontoAguardentacao?: string | null;
+  desvioAguardentacaoAlerta?: string;
   tempL1?: string | null;
   tempL2?: string | null;
   tempL3?: string | null;
   densL1?: string | null;
   densL2?: string | null;
   densL3?: string | null;
+  baumeL1?: string | null;
+  baumeL2?: string | null;
+  baumeL3?: string | null;
   /** Leitura anterior para comparação de variação brusca */
   leituraAnterior?: {
     densL1?: string | null;
     densL2?: string | null;
     densL3?: string | null;
+    baumeL1?: string | null;
+    baumeL2?: string | null;
+    baumeL3?: string | null;
   } | null;
 }): string[] {
   const alertas: string[] = [];
@@ -203,7 +220,7 @@ export function calcularAlertas(params: {
         alertas.push(
           `Temperatura ${t.toFixed(1)}°C desvia ${Math.abs(t - pretendida).toFixed(1)}°C da pretendida (${pretendida.toFixed(1)}°C ± ${desvioTemp}°C)`
         );
-        break; // um alerta por leitura é suficiente
+        break;
       }
     }
   }
@@ -227,6 +244,46 @@ export function calcularAlertas(params: {
           );
           break;
         }
+      }
+    }
+  }
+
+  // Alertas de densidade por valor específico (cubas de vinho)
+  if (params.alertasDensidade) {
+    try {
+      const valoresAlerta: number[] = JSON.parse(params.alertasDensidade);
+      const densidades = [params.densL1, params.densL2, params.densL3]
+        .filter((d): d is string => d !== null && d !== undefined && d !== "")
+        .map(parseFloat);
+      const anteriores = [
+        params.leituraAnterior?.densL1,
+        params.leituraAnterior?.densL2,
+        params.leituraAnterior?.densL3,
+      ].filter((d): d is string => d !== null && d !== undefined && d !== "")
+        .map(parseFloat);
+      for (const limiar of valoresAlerta) {
+        const cruzou = densidades.some((d) => d <= limiar);
+        const jaCruzado = anteriores.some((d) => d <= limiar);
+        if (cruzou && !jaCruzado) {
+          alertas.push(`Densidade atingiu o valor de alerta: ${limiar.toFixed(3)}`);
+        }
+      }
+    } catch { /* JSON inválido, ignorar */ }
+  }
+
+  // Alerta de aguardentação (cubas VP — Baumé)
+  if (params.pontoAguardentacao) {
+    const ponto = parseFloat(params.pontoAguardentacao);
+    const desvioAg = parseFloat(params.desvioAguardentacaoAlerta ?? "0.50") || 0.5;
+    const baumesAtuais = [params.baumeL1, params.baumeL2, params.baumeL3]
+      .filter((b): b is string => b !== null && b !== undefined && b !== "")
+      .map(parseFloat);
+    for (const b of baumesAtuais) {
+      if (Math.abs(b - ponto) <= desvioAg) {
+        alertas.push(
+          `⚠️ AGUARDENTAÇÃO: Baumé ${b.toFixed(2)}° está no ponto de aguardentação (${ponto.toFixed(2)}° ± ${desvioAg.toFixed(2)}°) — adicionar aguardente!`
+        );
+        break;
       }
     }
   }
@@ -269,6 +326,9 @@ export async function createLeitura(data: {
   tempL3?: string | null;
   o2?: string | null;
   redox?: string | null;
+  baumeL1?: string | null;
+  baumeL2?: string | null;
+  baumeL3?: string | null;
   userId?: number;
   userName?: string;
 }) {
@@ -287,6 +347,9 @@ export async function createLeitura(data: {
     tempL3: data.tempL3 ?? null,
     o2: data.o2 ?? null,
     redox: data.redox ?? null,
+    baumeL1: data.baumeL1 ?? null,
+    baumeL2: data.baumeL2 ?? null,
+    baumeL3: data.baumeL3 ?? null,
     userId: data.userId,
     userName: data.userName,
   });
@@ -304,6 +367,9 @@ export async function editarLeitura(
     tempL3?: string | null;
     o2?: string | null;
     redox?: string | null;
+    baumeL1?: string | null;
+    baumeL2?: string | null;
+    baumeL3?: string | null;
     editedBy?: number;
     editedByName?: string;
   }
@@ -319,6 +385,9 @@ export async function editarLeitura(
     tempL3: data.tempL3,
     o2: data.o2,
     redox: data.redox,
+    baumeL1: data.baumeL1,
+    baumeL2: data.baumeL2,
+    baumeL3: data.baumeL3,
     editedAt: new Date(),
     editedBy: data.editedBy,
     editedByName: data.editedByName,

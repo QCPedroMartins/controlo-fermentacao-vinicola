@@ -73,6 +73,9 @@ type LeituraRow = {
   tempL3: string | null;
   o2: string | null;
   redox: string | null;
+  baumeL1: string | null;
+  baumeL2: string | null;
+  baumeL3: string | null;
   userName: string | null;
   editedAt: Date | null;
   editedByName: string | null;
@@ -83,6 +86,9 @@ function calcularAlertasClient(params: {
   tempPretendida: string | null | undefined;
   desvioTempAlerta: string;
   desvioDesnsAlerta: string;
+  alertasDensidade?: string | null;
+  pontoAguardentacao?: string | null;
+  desvioAguardentacaoAlerta?: string | null;
   leituras: LeituraRow[];
 }): { leituraId: number; mensagens: string[] }[] {
   const desvioTemp = parseFloat(params.desvioTempAlerta) || 5;
@@ -130,6 +136,40 @@ function calcularAlertasClient(params: {
       }
     }
 
+    // Alertas de densidade por valor específico
+    if (params.alertasDensidade) {
+      try {
+        const valoresAlerta: number[] = JSON.parse(params.alertasDensidade);
+        const densidades = [l.densL1, l.densL2, l.densL3]
+          .filter((d): d is string => !!d && d !== "").map(parseFloat);
+        const anteriores = i > 0
+          ? [params.leituras[i-1].densL1, params.leituras[i-1].densL2, params.leituras[i-1].densL3]
+              .filter((d): d is string => !!d && d !== "").map(parseFloat)
+          : [];
+        for (const limiar of valoresAlerta) {
+          const cruzou = densidades.some((d) => d <= limiar);
+          const jaCruzado = anteriores.some((d) => d <= limiar);
+          if (cruzou && !jaCruzado) {
+            mensagens.push(`Densidade atingiu o valor de alerta: ${limiar.toFixed(3)}`);
+          }
+        }
+      } catch { /* JSON inválido */ }
+    }
+
+    // Alerta de aguardentação (Baumé — cubas VP)
+    if (params.pontoAguardentacao) {
+      const ponto = parseFloat(params.pontoAguardentacao);
+      const desvioAg = parseFloat(params.desvioAguardentacaoAlerta ?? "0.50") || 0.5;
+      const baumes = [l.baumeL1, l.baumeL2, l.baumeL3]
+        .filter((b): b is string => !!b && b !== "").map(parseFloat);
+      for (const b of baumes) {
+        if (Math.abs(b - ponto) <= desvioAg) {
+          mensagens.push(`⚠️ AGUARDENTAÇÃO: Baumé ${b.toFixed(2)}° está no ponto de aguardentação (${ponto.toFixed(2)}° ± ${desvioAg.toFixed(2)}°) — adicionar aguardente!`);
+          break;
+        }
+      }
+    }
+
     if (mensagens.length > 0) {
       resultado.push({ leituraId: l.id, mensagens });
     }
@@ -150,6 +190,7 @@ export default function CubaPage() {
     densL1: "", densL2: "", densL3: "",
     tempL1: "", tempL2: "", tempL3: "",
     o2: "", redox: "",
+    baumeL1: "", baumeL2: "", baumeL3: "",
   });
 
   // Estado edição do nome
@@ -183,6 +224,7 @@ export default function CubaPage() {
     densL1: "", densL2: "", densL3: "",
     tempL1: "", tempL2: "", tempL3: "",
     o2: "", redox: "",
+    baumeL1: "", baumeL2: "", baumeL3: "",
   });
 
   // ── Estado: ficha inicial ─────────────────────────────────
@@ -200,6 +242,9 @@ export default function CubaPage() {
     tempPretendida: "",
     desvioTempAlerta: "5.0",
     desvioDesnsAlerta: "0.010",
+    alertasDensidadeStr: "",
+    pontoAguardentacao: "",
+    desvioAguardentacaoAlerta: "0.50",
   });
 
   // ── Queries ───────────────────────────────────────────
@@ -247,7 +292,7 @@ export default function CubaPage() {
       if (data.alertas && data.alertas.length > 0) {
         data.alertas.forEach((a) => toast.warning("⚠️ " + a));
       }
-      setForm({ dataLeitura: new Date().toISOString().split("T")[0], densL1: "", densL2: "", densL3: "", tempL1: "", tempL2: "", tempL3: "", o2: "", redox: "" });
+      setForm({ dataLeitura: new Date().toISOString().split("T")[0], densL1: "", densL2: "", densL3: "", tempL1: "", tempL2: "", tempL3: "", o2: "", redox: "", baumeL1: "", baumeL2: "", baumeL3: "" });
       utils.leituras.listByCuba.invalidate();
       utils.leituras.resumo.invalidate();
       utils.cubas.dashboard.invalidate();
@@ -414,6 +459,9 @@ export default function CubaPage() {
       tempPretendida: cuba.tempPretendida,
       desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
       desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+      alertasDensidade: cuba.alertasDensidade,
+      pontoAguardentacao: cuba.pontoAguardentacao,
+      desvioAguardentacaoAlerta: cuba.desvioAguardentacaoAlerta,
       leituras: leituras as LeituraRow[],
     });
   }, [leituras, cuba]);
@@ -454,13 +502,19 @@ export default function CubaPage() {
       tempL3: l.tempL3 ? parseFloat(l.tempL3) : null,
       o2: l.o2 ? parseFloat(l.o2) : null,
       redox: l.redox ? parseFloat(l.redox) : null,
+      baumeL1: (l as LeituraRow).baumeL1 ? parseFloat((l as LeituraRow).baumeL1!) : null,
+      baumeL2: (l as LeituraRow).baumeL2 ? parseFloat((l as LeituraRow).baumeL2!) : null,
+      baumeL3: (l as LeituraRow).baumeL3 ? parseFloat((l as LeituraRow).baumeL3!) : null,
     }));
   }, [leituras]);
 
   const handleSubmitLeitura = () => {
     if (!cuba) return;
     if (!form.dataLeitura) { toast.error("Insira a data"); return; }
-    const hasData = form.densL1 || form.densL2 || form.densL3 || form.o2 || form.redox;
+    const isPorto = cuba.tipoCuba === "porto";
+    const hasData = isPorto
+      ? (form.baumeL1 || form.baumeL2 || form.baumeL3)
+      : (form.densL1 || form.densL2 || form.densL3 || form.o2 || form.redox);
     if (!hasData) { toast.error("Insira pelo menos um valor"); return; }
 
     criarLeitura.mutate({
@@ -475,6 +529,9 @@ export default function CubaPage() {
       tempL3: form.tempL3 || null,
       o2: form.o2 || null,
       redox: form.redox || null,
+      baumeL1: form.baumeL1 || null,
+      baumeL2: form.baumeL2 || null,
+      baumeL3: form.baumeL3 || null,
     });
   };
 
@@ -489,6 +546,9 @@ export default function CubaPage() {
       tempL3: l.tempL3 ?? "",
       o2: l.o2 ?? "",
       redox: l.redox ?? "",
+      baumeL1: l.baumeL1 ?? "",
+      baumeL2: l.baumeL2 ?? "",
+      baumeL3: l.baumeL3 ?? "",
     });
   };
 
@@ -504,15 +564,28 @@ export default function CubaPage() {
       tempL3: editForm.tempL3 || null,
       o2: editForm.o2 || null,
       redox: editForm.redox || null,
+      baumeL1: editForm.baumeL1 || null,
+      baumeL2: editForm.baumeL2 || null,
+      baumeL3: editForm.baumeL3 || null,
     });
   };
 
   const abrirConfiguracaoAlertas = () => {
     if (!cuba) return;
+    let alertasDensidadeStr = "";
+    if (cuba.alertasDensidade) {
+      try {
+        const arr: number[] = JSON.parse(cuba.alertasDensidade);
+        alertasDensidadeStr = arr.join(", ");
+      } catch { /* ignore */ }
+    }
     setAlertaForm({
       tempPretendida: cuba.tempPretendida ?? "",
       desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
       desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+      alertasDensidadeStr,
+      pontoAguardentacao: cuba.pontoAguardentacao ?? "",
+      desvioAguardentacaoAlerta: cuba.desvioAguardentacaoAlerta ?? "0.50",
     });
     setShowAlertas(true);
   };
@@ -882,71 +955,127 @@ export default function CubaPage() {
           <h2 className="text-sm font-semibold text-[var(--color-vinho)] mb-4 flex items-center gap-2">
             <Plus size={16} /> Registar leitura do dia
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-xs text-gray-500 mb-1">Data</label>
-              <input type="date" value={form.dataLeitura}
-                onChange={(e) => setForm({ ...form, dataLeitura: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-vinho)] focus:ring-1 focus:ring-[var(--color-vinho)]/20"
-              />
+          {cuba.tipoCuba === "porto" ? (
+            /* Formulário VP — Baumé + Temperatura */
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-xs text-gray-500 mb-1">Data</label>
+                <input type="date" value={form.dataLeitura}
+                  onChange={(e) => setForm({ ...form, dataLeitura: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-vinho)] focus:ring-1 focus:ring-[var(--color-vinho)]/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Baumé L1 (°)</label>
+                <input type="number" step="0.01" placeholder="6.50" value={form.baumeL1}
+                  onChange={(e) => setForm({ ...form, baumeL1: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
+                <input type="number" step="0.1" placeholder="18.5" value={form.tempL1}
+                  onChange={(e) => setForm({ ...form, tempL1: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Baumé L2 (°)</label>
+                <input type="number" step="0.01" placeholder="6.50" value={form.baumeL2}
+                  onChange={(e) => setForm({ ...form, baumeL2: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
+                <input type="number" step="0.1" placeholder="19.0" value={form.tempL2}
+                  onChange={(e) => setForm({ ...form, tempL2: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Baumé L3 (°)</label>
+                <input type="number" step="0.01" placeholder="6.50" value={form.baumeL3}
+                  onChange={(e) => setForm({ ...form, baumeL3: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
+                <input type="number" step="0.1" placeholder="19.5" value={form.tempL3}
+                  onChange={(e) => setForm({ ...form, tempL3: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Dens. L1</label>
-              <input type="number" step="0.001" placeholder="1.085" value={form.densL1}
-                onChange={(e) => setForm({ ...form, densL1: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-              />
+          ) : (
+            /* Formulário normal — Densidade + Temperatura + O₂ + Redox */
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-xs text-gray-500 mb-1">Data</label>
+                <input type="date" value={form.dataLeitura}
+                  onChange={(e) => setForm({ ...form, dataLeitura: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-vinho)] focus:ring-1 focus:ring-[var(--color-vinho)]/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Dens. L1</label>
+                <input type="number" step="0.001" placeholder="1.085" value={form.densL1}
+                  onChange={(e) => setForm({ ...form, densL1: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
+                <input type="number" step="0.1" placeholder="18.5" value={form.tempL1}
+                  onChange={(e) => setForm({ ...form, tempL1: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Dens. L2</label>
+                <input type="number" step="0.001" placeholder="1.082" value={form.densL2}
+                  onChange={(e) => setForm({ ...form, densL2: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
+                <input type="number" step="0.1" placeholder="19.0" value={form.tempL2}
+                  onChange={(e) => setForm({ ...form, tempL2: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Dens. L3</label>
+                <input type="number" step="0.001" placeholder="1.080" value={form.densL3}
+                  onChange={(e) => setForm({ ...form, densL3: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
+                <input type="number" step="0.1" placeholder="19.5" value={form.tempL3}
+                  onChange={(e) => setForm({ ...form, tempL3: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.o2 }}>O₂ (mg/L)</label>
+                <input type="number" step="0.01" placeholder="6.50" value={form.o2}
+                  onChange={(e) => setForm({ ...form, o2: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.redox }}>Redox (mV)</label>
+                <input type="number" step="1" placeholder="250" value={form.redox}
+                  onChange={(e) => setForm({ ...form, redox: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
-              <input type="number" step="0.1" placeholder="18.5" value={form.tempL1}
-                onChange={(e) => setForm({ ...form, tempL1: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Dens. L2</label>
-              <input type="number" step="0.001" placeholder="1.082" value={form.densL2}
-                onChange={(e) => setForm({ ...form, densL2: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
-              <input type="number" step="0.1" placeholder="19.0" value={form.tempL2}
-                onChange={(e) => setForm({ ...form, tempL2: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Dens. L3</label>
-              <input type="number" step="0.001" placeholder="1.080" value={form.densL3}
-                onChange={(e) => setForm({ ...form, densL3: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
-              <input type="number" step="0.1" placeholder="19.5" value={form.tempL3}
-                onChange={(e) => setForm({ ...form, tempL3: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: CORES.o2 }}>O₂ (mg/L)</label>
-              <input type="number" step="0.01" placeholder="6.50" value={form.o2}
-                onChange={(e) => setForm({ ...form, o2: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: CORES.redox }}>Redox (mV)</label>
-              <input type="number" step="1" placeholder="250" value={form.redox}
-                onChange={(e) => setForm({ ...form, redox: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-              />
-            </div>
-          </div>
+          )}
           <div className="flex items-center justify-between mt-4">
             <p className="text-xs text-gray-400">Registado por: <span className="font-medium">{user?.name ?? "—"}</span></p>
             <button
@@ -1005,14 +1134,27 @@ export default function CubaPage() {
                 <tr className="bg-[var(--color-vinho)] text-white">
                   <th className="px-3 py-3 text-left text-xs font-semibold">Data</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold">Dia</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Dens. L1</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temp. L1</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Dens. L2</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Temp. L2</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Dens. L3</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Temp. L3</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#80deea" }}>O₂</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ce93d8" }}>Redox</th>
+                  {cuba.tipoCuba === "porto" ? (
+                    <>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Baumé L1</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temp. L1</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Baumé L2</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Temp. L2</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Baumé L3</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Temp. L3</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Dens. L1</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temp. L1</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Dens. L2</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Temp. L2</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Dens. L3</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Temp. L3</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#80deea" }}>O₂</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ce93d8" }}>Redox</th>
+                    </>
+                  )}
                   <th className="px-3 py-3 text-center text-xs font-semibold">Utilizador</th>
                   {isAuthenticated && <th className="px-3 py-3 text-center text-xs font-semibold">Editar</th>}
                 </tr>
@@ -1038,14 +1180,27 @@ export default function CubaPage() {
                           </div>
                         </td>
                         <td className="px-3 py-2.5 text-center text-xs font-bold text-[var(--color-vinho)]">{l.diaNr ?? "—"}</td>
-                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL1 ? parseFloat(l.densL1).toFixed(3) : "—"}</td>
-                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
-                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL2 ? parseFloat(l.densL2).toFixed(3) : "—"}</td>
-                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL2 ? `${parseFloat(l.tempL2).toFixed(1)}°` : "—"}</td>
-                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL3 ? parseFloat(l.densL3).toFixed(3) : "—"}</td>
-                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL3 ? `${parseFloat(l.tempL3).toFixed(1)}°` : "—"}</td>
-                        <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.o2 }}>{l.o2 ? parseFloat(l.o2).toFixed(2) : "—"}</td>
-                        <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.redox }}>{l.redox ? parseFloat(l.redox).toFixed(0) : "—"}</td>
+                        {cuba.tipoCuba === "porto" ? (
+                          <>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{(l as LeituraRow).baumeL1 ? `${parseFloat((l as LeituraRow).baumeL1!).toFixed(2)}°` : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{(l as LeituraRow).baumeL2 ? `${parseFloat((l as LeituraRow).baumeL2!).toFixed(2)}°` : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL2 ? `${parseFloat(l.tempL2).toFixed(1)}°` : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{(l as LeituraRow).baumeL3 ? `${parseFloat((l as LeituraRow).baumeL3!).toFixed(2)}°` : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL3 ? `${parseFloat(l.tempL3).toFixed(1)}°` : "—"}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL1 ? parseFloat(l.densL1).toFixed(3) : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL2 ? parseFloat(l.densL2).toFixed(3) : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL2 ? `${parseFloat(l.tempL2).toFixed(1)}°` : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL3 ? parseFloat(l.densL3).toFixed(3) : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL3 ? `${parseFloat(l.tempL3).toFixed(1)}°` : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.o2 }}>{l.o2 ? parseFloat(l.o2).toFixed(2) : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.redox }}>{l.redox ? parseFloat(l.redox).toFixed(0) : "—"}</td>
+                          </>
+                        )}
                         <td className="px-3 py-2.5 text-center text-xs text-gray-400">
                           <div className="flex flex-col items-center gap-0.5">
                             <span>{l.userName ?? "—"}</span>
@@ -1090,22 +1245,37 @@ export default function CubaPage() {
             </div>
           ) : (
             <>
-              <ChartCard title="Densidade (g/L)">
+              <ChartCard title={cuba.tipoCuba === "porto" ? "Baumé (°)" : "Densidade (g/L)"}>
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
-                    <Tooltip formatter={(v: number) => v?.toFixed(3)} labelFormatter={(l) => `Dia ${l}`} />
+                    <Tooltip formatter={(v: number) => cuba.tipoCuba === "porto" ? `${v?.toFixed(2)}°` : v?.toFixed(3)} labelFormatter={(l) => `Dia ${l}`} />
                     <Legend />
                     {adicaoMarkers.map((m, i) => (
                       <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
                         label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
-                    <Line type="monotone" dataKey="densL1" name="L1" stroke={CORES.densL1} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="densL2" name="L2" stroke={CORES.densL2} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="densL3" name="L3" stroke={CORES.densL3} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                    {cuba.pontoAguardentacao && cuba.tipoCuba === "porto" && (
+                      <ReferenceLine y={parseFloat(cuba.pontoAguardentacao)} stroke="#dc2626" strokeDasharray="6 3" strokeWidth={2}
+                        label={{ value: `Aguardentação ${cuba.pontoAguardentacao}°`, position: "insideTopLeft", fontSize: 10, fill: "#dc2626" }}
+                      />
+                    )}
+                    {cuba.tipoCuba === "porto" ? (
+                      <>
+                        <Line type="monotone" dataKey="baumeL1" name="L1" stroke={CORES.densL1} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                        <Line type="monotone" dataKey="baumeL2" name="L2" stroke={CORES.densL2} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                        <Line type="monotone" dataKey="baumeL3" name="L3" stroke={CORES.densL3} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                      </>
+                    ) : (
+                      <>
+                        <Line type="monotone" dataKey="densL1" name="L1" stroke={CORES.densL1} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                        <Line type="monotone" dataKey="densL2" name="L2" stroke={CORES.densL2} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                        <Line type="monotone" dataKey="densL3" name="L3" stroke={CORES.densL3} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                      </>
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -1496,62 +1666,111 @@ export default function CubaPage() {
               A edição fica registada com o seu nome e a data/hora da alteração.
             </p>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Dens. L1</label>
-                <input type="number" step="0.001" value={editForm.densL1}
-                  onChange={(e) => setEditForm({ ...editForm, densL1: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
-                <input type="number" step="0.1" value={editForm.tempL1}
-                  onChange={(e) => setEditForm({ ...editForm, tempL1: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Dens. L2</label>
-                <input type="number" step="0.001" value={editForm.densL2}
-                  onChange={(e) => setEditForm({ ...editForm, densL2: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
-                <input type="number" step="0.1" value={editForm.tempL2}
-                  onChange={(e) => setEditForm({ ...editForm, tempL2: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Dens. L3</label>
-                <input type="number" step="0.001" value={editForm.densL3}
-                  onChange={(e) => setEditForm({ ...editForm, densL3: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
-                <input type="number" step="0.1" value={editForm.tempL3}
-                  onChange={(e) => setEditForm({ ...editForm, tempL3: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.o2 }}>O₂ (mg/L)</label>
-                <input type="number" step="0.01" value={editForm.o2}
-                  onChange={(e) => setEditForm({ ...editForm, o2: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.redox }}>Redox (mV)</label>
-                <input type="number" step="1" value={editForm.redox}
-                  onChange={(e) => setEditForm({ ...editForm, redox: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
+              {cuba.tipoCuba === "porto" ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Baumé L1 (°)</label>
+                    <input type="number" step="0.01" value={editForm.baumeL1}
+                      onChange={(e) => setEditForm({ ...editForm, baumeL1: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
+                    <input type="number" step="0.1" value={editForm.tempL1}
+                      onChange={(e) => setEditForm({ ...editForm, tempL1: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Baumé L2 (°)</label>
+                    <input type="number" step="0.01" value={editForm.baumeL2}
+                      onChange={(e) => setEditForm({ ...editForm, baumeL2: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
+                    <input type="number" step="0.1" value={editForm.tempL2}
+                      onChange={(e) => setEditForm({ ...editForm, tempL2: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Baumé L3 (°)</label>
+                    <input type="number" step="0.01" value={editForm.baumeL3}
+                      onChange={(e) => setEditForm({ ...editForm, baumeL3: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
+                    <input type="number" step="0.1" value={editForm.tempL3}
+                      onChange={(e) => setEditForm({ ...editForm, tempL3: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Dens. L1</label>
+                    <input type="number" step="0.001" value={editForm.densL1}
+                      onChange={(e) => setEditForm({ ...editForm, densL1: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
+                    <input type="number" step="0.1" value={editForm.tempL1}
+                      onChange={(e) => setEditForm({ ...editForm, tempL1: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Dens. L2</label>
+                    <input type="number" step="0.001" value={editForm.densL2}
+                      onChange={(e) => setEditForm({ ...editForm, densL2: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
+                    <input type="number" step="0.1" value={editForm.tempL2}
+                      onChange={(e) => setEditForm({ ...editForm, tempL2: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Dens. L3</label>
+                    <input type="number" step="0.001" value={editForm.densL3}
+                      onChange={(e) => setEditForm({ ...editForm, densL3: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
+                    <input type="number" step="0.1" value={editForm.tempL3}
+                      onChange={(e) => setEditForm({ ...editForm, tempL3: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.o2 }}>O₂ (mg/L)</label>
+                    <input type="number" step="0.01" value={editForm.o2}
+                      onChange={(e) => setEditForm({ ...editForm, o2: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.redox }}>Redox (mV)</label>
+                    <input type="number" step="1" value={editForm.redox}
+                      onChange={(e) => setEditForm({ ...editForm, redox: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -1616,23 +1835,82 @@ export default function CubaPage() {
               </p>
             </div>
 
-            {/* Desvio de densidade */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Variação máxima de densidade entre leituras consecutivas
-              </label>
-              <input
-                type="number"
-                step="0.001"
-                min="0.001"
-                value={alertaForm.desvioDesnsAlerta}
-                onChange={(e) => setAlertaForm({ ...alertaForm, desvioDesnsAlerta: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Alerta quando a densidade variar mais de {alertaForm.desvioDesnsAlerta} entre dois dias consecutivos (ex: 0.010 = 10 pontos).
-              </p>
-            </div>
+            {/* Desvio de densidade (só para cubas normais) */}
+            {cuba.tipoCuba !== "porto" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Variação máxima de densidade entre leituras consecutivas
+                </label>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  value={alertaForm.desvioDesnsAlerta}
+                  onChange={(e) => setAlertaForm({ ...alertaForm, desvioDesnsAlerta: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Alerta quando a densidade variar mais de {alertaForm.desvioDesnsAlerta} entre dois dias consecutivos (ex: 0.010 = 10 pontos).
+                </p>
+              </div>
+            )}
+
+            {/* Alertas de densidade por valor (só para cubas normais) */}
+            {cuba.tipoCuba !== "porto" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Alertas de densidade por valor específico
+                </label>
+                <input
+                  type="text"
+                  placeholder="ex: 1.050, 1.020, 1.000"
+                  value={alertaForm.alertasDensidadeStr}
+                  onChange={(e) => setAlertaForm({ ...alertaForm, alertasDensidadeStr: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Separados por vírgula. Alerta quando a densidade baixar para ou abaixo de cada valor indicado.
+                </p>
+              </div>
+            )}
+
+            {/* Ponto de aguardentação (só para cubas VP) */}
+            {cuba.tipoCuba === "porto" && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ponto de aguardentação (Baumé °)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="ex: 6.5"
+                    value={alertaForm.pontoAguardentacao}
+                    onChange={(e) => setAlertaForm({ ...alertaForm, pontoAguardentacao: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Alerta quando o Baumé atingir este valor. Aparece também como linha de referência no gráfico.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Desvio de tolerância para aguardentação (° Baumé)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    value={alertaForm.desvioAguardentacaoAlerta}
+                    onChange={(e) => setAlertaForm({ ...alertaForm, desvioAguardentacaoAlerta: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Alerta quando o Baumé estiver dentro de ±{alertaForm.desvioAguardentacaoAlerta}° do ponto de aguardentação.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <button
@@ -1644,11 +1922,22 @@ export default function CubaPage() {
             <button
               onClick={() => {
                 if (!cuba) return;
+                // Converter lista de densidades para JSON
+                let alertasDensidade: string | null = null;
+                if (alertaForm.alertasDensidadeStr.trim()) {
+                  const vals = alertaForm.alertasDensidadeStr.split(",")
+                    .map((s) => parseFloat(s.trim()))
+                    .filter((n) => !isNaN(n));
+                  if (vals.length > 0) alertasDensidade = JSON.stringify(vals);
+                }
                 updateAlertas.mutate({
                   id: cuba.id,
                   tempPretendida: alertaForm.tempPretendida || null,
                   desvioTempAlerta: alertaForm.desvioTempAlerta,
                   desvioDesnsAlerta: alertaForm.desvioDesnsAlerta,
+                  alertasDensidade,
+                  pontoAguardentacao: alertaForm.pontoAguardentacao || null,
+                  desvioAguardentacaoAlerta: alertaForm.desvioAguardentacaoAlerta,
                 });
               }}
               disabled={updateAlertas.isPending}
@@ -1693,6 +1982,41 @@ export default function CubaPage() {
                 />
               </div>
             ))}
+            {/* Campos VP — ponto de aguardentação */}
+            {cuba.tipoCuba === "porto" && (
+              <>
+                <div className="col-span-2 border-t border-amber-100 pt-3 mt-1">
+                  <p className="text-xs font-semibold text-amber-800 mb-3 flex items-center gap-1">
+                    ⚠️ Vinho do Porto — Aguardentação
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ponto de Aguardentação (Baumé °)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="ex: 6.5"
+                    value={alertaForm.pontoAguardentacao}
+                    onChange={(e) => setAlertaForm({ ...alertaForm, pontoAguardentacao: e.target.value })}
+                    className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Baumé alvo para adicionar aguardente.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Desvio de tolerância (± Baumé °)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    placeholder="ex: 0.5"
+                    value={alertaForm.desvioAguardentacaoAlerta}
+                    onChange={(e) => setAlertaForm({ ...alertaForm, desvioAguardentacaoAlerta: e.target.value })}
+                    className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Alerta quando Baumé estiver dentro de ±{alertaForm.desvioAguardentacaoAlerta}° do ponto.</p>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <button
@@ -1716,8 +2040,19 @@ export default function CubaPage() {
                   fichaGluconico: fichaForm.fichaGluconico || null,
                   fichaAlcoolProvavel: fichaForm.fichaAlcoolProvavel || null,
                 });
+                // Para cubas VP, guardar também o ponto de aguardentação
+                if (cuba.tipoCuba === "porto" && (alertaForm.pontoAguardentacao || alertaForm.desvioAguardentacaoAlerta)) {
+                  updateAlertas.mutate({
+                    id: cuba.id,
+                    tempPretendida: alertaForm.tempPretendida || null,
+                    desvioTempAlerta: alertaForm.desvioTempAlerta,
+                    desvioDesnsAlerta: alertaForm.desvioDesnsAlerta,
+                    pontoAguardentacao: alertaForm.pontoAguardentacao || null,
+                    desvioAguardentacaoAlerta: alertaForm.desvioAguardentacaoAlerta,
+                  });
+                }
               }}
-              disabled={updateFichaInicial.isPending}
+              disabled={updateFichaInicial.isPending || updateAlertas.isPending}
               className="flex items-center gap-2 px-5 py-2 bg-[var(--color-vinho)] text-white rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50"
             >
               {updateFichaInicial.isPending ? <RefreshCw size={14} className="animate-spin" /> : <ClipboardList size={14} />}

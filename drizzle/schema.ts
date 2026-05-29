@@ -44,8 +44,10 @@ export type InsertCampanha = typeof campanhas.$inferInsert;
 // ── Cubas de Fermentação ───────────────────────────────────
 export const cubas = mysqlTable("cubas", {
   id: int("id").autoincrement().primaryKey(),
-  /** Identificador interno fixo: cf1, cf2, ..., lf37, lf38, cf80..cf85, cf93, cf94, cf200..cf210 */
+  /** Identificador interno fixo: cf1..cf57, vp01..vp05 */
   codigo: varchar("codigo", { length: 8 }).notNull().unique(),
+  /** Tipo de cuba: 'vinho' (fermentação normal) | 'porto' (Vinho do Porto, usa Baumé) */
+  tipoCuba: mysqlEnum("tipo_cuba", ["vinho", "porto"]).default("vinho").notNull(),
   /** Nome/lote personalizável pelo utilizador */
   nomeLote: varchar("nome_lote", { length: 120 }),
   /** Número da fermentação atual (incrementa ao arquivar) */
@@ -62,6 +64,14 @@ export const cubas = mysqlTable("cubas", {
   desvioTempAlerta: decimal("desvio_temp_alerta", { precision: 5, scale: 1 }).default("5.0").notNull(),
   /** Limiar de variação brusca de densidade entre leituras consecutivas (padrão: 10 pontos = 0.010) */
   desvioDesnsAlerta: decimal("desvio_desns_alerta", { precision: 7, scale: 3 }).default("0.010").notNull(),
+  // ── Alertas de Densidade por Valor (cubas de vinho) ──────
+  /** Lista JSON de valores de densidade que geram alertas (ex: "[1.050,1.020,1.000]") */
+  alertasDensidade: text("alertas_densidade"),
+  // ── Vinho do Porto — Baumé ────────────────────────────────
+  /** Ponto de Baumé em que se deve adicionar aguardente (ex: 6.5) */
+  pontoAguardentacao: decimal("ponto_aguardentacao", { precision: 5, scale: 2 }),
+  /** Desvio ± em torno do ponto de aguardentação para disparar alerta (padrão: 0.5) */
+  desvioAguardentacaoAlerta: decimal("desvio_aguardentacao_alerta", { precision: 5, scale: 2 }).default("0.50").notNull(),
   // ── Ficha Inicial ────────────────────────────────────────
   /** Quantidade em quilogramas */
   fichaKilos: decimal("ficha_kilos", { precision: 10, scale: 1 }),
@@ -100,7 +110,7 @@ export const leituras = mysqlTable("leituras", {
   dataLeitura: date("data_leitura").notNull(),
   /** Dia de fermentação calculado (1, 2, 3...) */
   diaNr: int("dia_nr"),
-  // Densidade — 3 leituras por dia
+  // Densidade — 3 leituras por dia (cubas de vinho)
   densL1: decimal("dens_l1", { precision: 7, scale: 3 }),
   densL2: decimal("dens_l2", { precision: 7, scale: 3 }),
   densL3: decimal("dens_l3", { precision: 7, scale: 3 }),
@@ -112,6 +122,10 @@ export const leituras = mysqlTable("leituras", {
   o2: decimal("o2", { precision: 6, scale: 2 }),
   // Potencial Redox (mV) — leitura semanal
   redox: decimal("redox", { precision: 6, scale: 1 }),
+  // Baumé — 3 leituras por dia (cubas de Vinho do Porto)
+  baumeL1: decimal("baume_l1", { precision: 5, scale: 2 }),
+  baumeL2: decimal("baume_l2", { precision: 5, scale: 2 }),
+  baumeL3: decimal("baume_l3", { precision: 5, scale: 2 }),
   /** Utilizador que registou */
   userId: int("user_id"),
   userName: varchar("user_name", { length: 120 }),

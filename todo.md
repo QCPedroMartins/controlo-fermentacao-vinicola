@@ -151,3 +151,25 @@
 - [x] Frontend: botão "PDF" (vermelho) na CubaPage ao lado do Excel e CSV
 - [x] Testes Vitest: 33 testes a passar
 - [x] Checkpoint e deploy
+
+## Cubas VP (Vinho do Porto) e Alertas de Densidade (v14)
+- [x] Schema: campo `tipoCuba` (enum: 'vinho' | 'porto') na tabela `cubas`
+- [x] Schema: campos `baumeL1`, `baumeL2`, `baumeL3` (decimal) na tabela `leituras` para cubas VP
+- [x] Schema: campo `pontoAguardentacao` na tabela `cubas` (ponto de aguardentação em Baumé)
+- [x] Schema: campo `desvioAguardentacaoAlerta` (default 0.5) na tabela `cubas`
+- [x] Schema: campo `alertasDensidade` (JSON) na tabela `cubas` — lista de valores de densidade para alertas
+- [x] Migração SQL aplicada na BD
+- [x] Backend: cubas VP01–VP05 inseridas na BD com tipoCuba='porto'
+- [x] Backend: updateCubaAlertas actualizado com pontoAguardentacao, desvioAguardentacaoAlerta, alertasDensidade
+- [x] Backend: processarAlertas verifica Baumé vs pontoAguardentacao nas cubas VP
+- [x] Backend: processarAlertas verifica densidade vs alertasDensidade nas cubas normais
+- [x] Backend: leituras.create e leituras.edit aceitam baumeL1/2/3
+- [x] Frontend: CubaPage detecta tipoCuba — para VP mostra campos Baumé em vez de Dens. L1/L2/L3
+- [x] Frontend: alerta visual de aguardentação quando Baumé está dentro do desvio configurado
+- [x] Frontend: gráfico de Baumé na CubaPage VP com linha de referência do ponto de aguardentação
+- [x] Frontend: modal de alertas VP com campos pontoAguardentacao e desvioAguardentacaoAlerta
+- [x] Frontend: modal de alertas cubas normais com campo alertasDensidadeStr (lista de valores)
+- [x] Dashboard: badge "VP" nos cartões das cubas VP01–VP05, total actualizado para 62
+- [x] Menu lateral: grupo "VP01 – VP05 (Vinho do Porto)" adicionado
+- [x] Testes Vitest: 33 testes a passar
+- [x] Checkpoint e deploy
