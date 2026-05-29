@@ -250,3 +250,10 @@
 ## Melhorias v23
 - [x] Frontend: guardar hora HH:MM:SS por cuba no localStorage e mostrar no banner do Registo Rápido
 - [x] BD: alterar precisão de dens_l1/l2/l3 de (7,3) para (8,4) no schema Drizzle e migrar
+
+## Simplificação v25: 1 leitura por campo
+- [ ] BD: remover dens_l2, dens_l3, temp_l2, temp_l3, baume_l2, baume_l3 da tabela leituras
+- [ ] Backend: actualizar db.ts e routers.ts para nova estrutura (dens, temp, baume, o2, redox)
+- [ ] Frontend: simplificar RegistoRapido.tsx (1 coluna densidade, 1 temperatura, 1 O₂, 1 Redox)
+- [ ] Frontend: simplificar ImportacaoCsvModal.tsx para nova estrutura
+- [ ] Frontend: garantir 4 casas decimais em gráficos, tabelas e formulários

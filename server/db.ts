@@ -79,15 +79,10 @@ export async function getAllCubas() {
 export async function getCubaByCodigo(codigo: string) {
   const db = await getDb();
   if (!db) return undefined;
-  // Normalizar o código: maiúsculas + zero de preenchimento se necessário
-  // Exemplos: vp3 → VP03, cf1 → CF01, VP01 → VP01, lf37 → LF37
   const upper = codigo.toUpperCase();
-  // Se terminar em dígitos sem zero de preenchimento (ex: VP3, CF1), adicionar zero
   const normalized = upper.replace(/^([A-Z]+)(\d+)$/, (_, prefix, num) => {
-    // Manter o formato original se já tiver 2+ dígitos; caso contrário adicionar zero
     return num.length === 1 ? prefix + '0' + num : prefix + num;
   });
-  // Tentar primeiro com o código normalizado, depois com o original em maiúsculas
   let result = await db.select().from(cubas).where(eq(cubas.codigo, normalized)).limit(1);
   if (!result[0] && normalized !== upper) {
     result = await db.select().from(cubas).where(eq(cubas.codigo, upper)).limit(1);
@@ -116,7 +111,6 @@ export async function updateCubaDensidadeLimite(id: number, densidadeLimite: str
   await db.update(cubas).set({ densidadeLimite }).where(eq(cubas.id, id));
 }
 
-/** Atualiza as configurações de alerta de temperatura e densidade de uma cuba */
 export async function updateCubaAlertas(
   id: number,
   data: {
@@ -142,7 +136,6 @@ export async function updateCubaAlertas(
   }
 }
 
-/** Atualiza a ficha inicial de uma cuba (kg, litros, análises iniciais) */
 export async function updateFichaInicial(
   id: number,
   data: {
@@ -172,7 +165,6 @@ export async function updateFichaInicial(
   }
 }
 
-/** Verifica se alguma densidade da leitura atingiu o limite e atualiza estado da cuba */
 export async function verificarFermentacaoCompleta(
   cubaId: number,
   densidades: (string | null | undefined)[],
@@ -188,34 +180,19 @@ export async function verificarFermentacaoCompleta(
   return atingiu;
 }
 
-/** Verifica alertas de temperatura e densidade para uma leitura nova/editada.
- *  Retorna array de mensagens de alerta (vazio se tudo OK). */
 export function calcularAlertas(params: {
   tempPretendida: string | null | undefined;
   desvioTempAlerta: string;
   desvioDesnsAlerta: string;
-  /** Lista JSON de valores de densidade que geram alertas (ex: "[1.050,1.020]") */
   alertasDensidade?: string | null;
-  /** Ponto de Baumé para aguardentação (cubas VP) */
   pontoAguardentacao?: string | null;
   desvioAguardentacaoAlerta?: string;
   tempL1?: string | null;
-  tempL2?: string | null;
-  tempL3?: string | null;
   densL1?: string | null;
-  densL2?: string | null;
-  densL3?: string | null;
   baumeL1?: string | null;
-  baumeL2?: string | null;
-  baumeL3?: string | null;
-  /** Leitura anterior para comparação de variação brusca */
   leituraAnterior?: {
     densL1?: string | null;
-    densL2?: string | null;
-    densL3?: string | null;
     baumeL1?: string | null;
-    baumeL2?: string | null;
-    baumeL3?: string | null;
   } | null;
 }): string[] {
   const alertas: string[] = [];
@@ -223,81 +200,55 @@ export function calcularAlertas(params: {
   const desvioDesns = parseFloat(params.desvioDesnsAlerta) || 0.010;
 
   // Alerta de temperatura
-  if (params.tempPretendida) {
+  if (params.tempPretendida && params.tempL1) {
     const pretendida = parseFloat(params.tempPretendida);
-    const temps = [params.tempL1, params.tempL2, params.tempL3]
-      .filter((t): t is string => t !== null && t !== undefined && t !== "")
-      .map(parseFloat);
-    for (const t of temps) {
-      if (Math.abs(t - pretendida) > desvioTemp) {
-        alertas.push(
-          `Temperatura ${t.toFixed(1)}°C desvia ${Math.abs(t - pretendida).toFixed(1)}°C da pretendida (${pretendida.toFixed(1)}°C ± ${desvioTemp}°C)`
-        );
-        break;
-      }
+    const t = parseFloat(params.tempL1);
+    if (!isNaN(t) && Math.abs(t - pretendida) > desvioTemp) {
+      alertas.push(
+        `Temperatura ${t.toFixed(1)}°C desvia ${Math.abs(t - pretendida).toFixed(1)}°C da pretendida (${pretendida.toFixed(1)}°C ± ${desvioTemp}°C)`
+      );
     }
   }
 
   // Alerta de variação brusca de densidade entre leituras consecutivas
-  if (params.leituraAnterior) {
-    const pares: [string | null | undefined, string | null | undefined][] = [
-      [params.leituraAnterior.densL1, params.densL1],
-      [params.leituraAnterior.densL2, params.densL2],
-      [params.leituraAnterior.densL3, params.densL3],
-    ];
-    for (const [anterior, atual] of pares) {
-      if (
-        anterior !== null && anterior !== undefined && anterior !== "" &&
-        atual !== null && atual !== undefined && atual !== ""
-      ) {
-        const diff = Math.abs(parseFloat(anterior) - parseFloat(atual));
-        if (diff > desvioDesns) {
-          alertas.push(
-            `Variação brusca de densidade: ${diff.toFixed(3)} (limiar: ${desvioDesns.toFixed(3)})`
-          );
-          break;
-        }
+  if (params.leituraAnterior?.densL1 && params.densL1) {
+    const anterior = parseFloat(params.leituraAnterior.densL1);
+    const atual = parseFloat(params.densL1);
+    if (!isNaN(anterior) && !isNaN(atual)) {
+      const diff = Math.abs(anterior - atual);
+      if (diff > desvioDesns) {
+        alertas.push(
+          `Variação brusca de densidade: ${diff.toFixed(4)} (limiar: ${desvioDesns.toFixed(4)})`
+        );
       }
     }
   }
 
   // Alertas de densidade por valor específico (cubas de vinho)
-  if (params.alertasDensidade) {
+  if (params.alertasDensidade && params.densL1) {
     try {
       const valoresAlerta: number[] = JSON.parse(params.alertasDensidade);
-      const densidades = [params.densL1, params.densL2, params.densL3]
-        .filter((d): d is string => d !== null && d !== undefined && d !== "")
-        .map(parseFloat);
-      const anteriores = [
-        params.leituraAnterior?.densL1,
-        params.leituraAnterior?.densL2,
-        params.leituraAnterior?.densL3,
-      ].filter((d): d is string => d !== null && d !== undefined && d !== "")
-        .map(parseFloat);
+      const dens = parseFloat(params.densL1);
+      const anterior = params.leituraAnterior?.densL1 ? parseFloat(params.leituraAnterior.densL1) : null;
       for (const limiar of valoresAlerta) {
-        const cruzou = densidades.some((d) => d <= limiar);
-        const jaCruzado = anteriores.some((d) => d <= limiar);
+        const cruzou = !isNaN(dens) && dens <= limiar;
+        const jaCruzado = anterior !== null && !isNaN(anterior) && anterior <= limiar;
         if (cruzou && !jaCruzado) {
-          alertas.push(`Densidade atingiu o valor de alerta: ${limiar.toFixed(3)}`);
+          alertas.push(`Densidade atingiu o valor de alerta: ${limiar.toFixed(4)}`);
         }
       }
     } catch { /* JSON inválido, ignorar */ }
   }
 
   // Alerta de aguardentação (cubas VP — Baumé)
-  if (params.pontoAguardentacao) {
+  if (params.pontoAguardentacao && params.baumeL1) {
     const ponto = parseFloat(params.pontoAguardentacao);
     const desvioAg = parseFloat(params.desvioAguardentacaoAlerta ?? "0.50") || 0.5;
-    const baumesAtuais = [params.baumeL1, params.baumeL2, params.baumeL3]
-      .filter((b): b is string => b !== null && b !== undefined && b !== "")
-      .map(parseFloat);
-    for (const b of baumesAtuais) {
-      if (Math.abs(b - ponto) <= desvioAg) {
-        alertas.push(
-          `⚠️ AGUARDENTAÇÃO: Baumé ${b.toFixed(2)}° está no ponto de aguardentação (${ponto.toFixed(2)}° ± ${desvioAg.toFixed(2)}°) — adicionar aguardente!`
-        );
-        break;
-      }
+    const b = parseFloat(params.baumeL1);
+    if (!isNaN(b) && Math.abs(b - ponto) <= desvioAg) {
+      alertas.push(
+        `⚠️ AGUARDENTAÇÃO: Baumé ${b.toFixed(2)}° está no ponto de aguardentação (${ponto.toFixed(2)}° ± ${desvioAg.toFixed(2)}°) — adicionar aguardente!`
+      );
     }
   }
 
@@ -321,7 +272,6 @@ export async function getLeituraById(id: number) {
   return result[0];
 }
 
-// Helper: converte string "YYYY-MM-DD" para Date (para campos date do Drizzle MySQL)
 function toDate(dateStr: string): Date {
   return new Date(dateStr + "T00:00:00.000Z");
 }
@@ -332,16 +282,10 @@ export async function createLeitura(data: {
   dataLeitura: string;
   diaNr?: number;
   densL1?: string | null;
-  densL2?: string | null;
-  densL3?: string | null;
   tempL1?: string | null;
-  tempL2?: string | null;
-  tempL3?: string | null;
   o2?: string | null;
   redox?: string | null;
   baumeL1?: string | null;
-  baumeL2?: string | null;
-  baumeL3?: string | null;
   userId?: number;
   userName?: string;
 }) {
@@ -353,36 +297,23 @@ export async function createLeitura(data: {
     dataLeitura: toDate(data.dataLeitura),
     diaNr: data.diaNr,
     densL1: data.densL1 ?? null,
-    densL2: data.densL2 ?? null,
-    densL3: data.densL3 ?? null,
     tempL1: data.tempL1 ?? null,
-    tempL2: data.tempL2 ?? null,
-    tempL3: data.tempL3 ?? null,
     o2: data.o2 ?? null,
     redox: data.redox ?? null,
     baumeL1: data.baumeL1 ?? null,
-    baumeL2: data.baumeL2 ?? null,
-    baumeL3: data.baumeL3 ?? null,
     userId: data.userId,
     userName: data.userName,
   });
 }
 
-/** Editar uma leitura existente, registando quem editou e quando */
 export async function editarLeitura(
   id: number,
   data: {
     densL1?: string | null;
-    densL2?: string | null;
-    densL3?: string | null;
     tempL1?: string | null;
-    tempL2?: string | null;
-    tempL3?: string | null;
     o2?: string | null;
     redox?: string | null;
     baumeL1?: string | null;
-    baumeL2?: string | null;
-    baumeL3?: string | null;
     editedBy?: number;
     editedByName?: string;
   }
@@ -391,16 +322,10 @@ export async function editarLeitura(
   if (!db) return;
   await db.update(leituras).set({
     densL1: data.densL1,
-    densL2: data.densL2,
-    densL3: data.densL3,
     tempL1: data.tempL1,
-    tempL2: data.tempL2,
-    tempL3: data.tempL3,
     o2: data.o2,
     redox: data.redox,
     baumeL1: data.baumeL1,
-    baumeL2: data.baumeL2,
-    baumeL3: data.baumeL3,
     editedAt: new Date(),
     editedBy: data.editedBy,
     editedByName: data.editedByName,
@@ -508,9 +433,7 @@ export async function getCampanhaAtiva() {
 export async function createCampanha(data: { nome: string; descricao?: string }) {
   const db = await getDb();
   if (!db) return;
-  // Desativar todas as campanhas existentes
   await db.update(campanhas).set({ ativa: false });
-  // Criar nova campanha ativa
   await db.insert(campanhas).values({
     nome: data.nome,
     descricao: data.descricao ?? null,
@@ -525,7 +448,6 @@ export async function ativarCampanha(id: number) {
   await db.update(campanhas).set({ ativa: true }).where(eq(campanhas.id, id));
 }
 
-/** Ao arquivar uma fermentação, associa-a à campanha ativa */
 export async function associarCampanhaArquivo(fermentacaoArquivoId: number) {
   const db = await getDb();
   if (!db) return;
@@ -537,7 +459,6 @@ export async function associarCampanhaArquivo(fermentacaoArquivoId: number) {
     .where(eq(fermentacoesArquivo.id, fermentacaoArquivoId));
 }
 
-/** Retorna arquivo de uma cuba filtrado por campanha */
 export async function getArquivoByCubaCampanha(cubaId: number, campanhaId?: number) {
   const db = await getDb();
   if (!db) return [];
@@ -552,8 +473,6 @@ export async function getArquivoByCubaCampanha(cubaId: number, campanhaId?: numb
 }
 
 // ── Cálculo de Baumé de Envasilhamento (Vinho do Porto) ───
-
-/** Devolve o último cálculo de Baumé guardado para uma cuba VP */
 export async function getBaumeCalculo(cubaId: number) {
   const db = await getDb();
   if (!db) return null;
@@ -581,7 +500,6 @@ export async function leituraExistePorData(cubaId: number, dataLeituraIso: strin
   return rows.length > 0;
 }
 
-/** Guarda (insert ou update) o cálculo de Baumé para uma cuba VP */
 export async function upsertBaumeCalculo(data: {
   cubaId: number;
   mostoFresco: number;

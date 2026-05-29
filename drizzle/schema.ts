@@ -110,22 +110,16 @@ export const leituras = mysqlTable("leituras", {
   dataLeitura: date("data_leitura").notNull(),
   /** Dia de fermentação calculado (1, 2, 3...) */
   diaNr: int("dia_nr"),
-  // Densidade — 3 leituras por dia (cubas de vinho)
+  // Densidade — 1 leitura por dia (cubas de vinho), 4 casas decimais
   densL1: decimal("dens_l1", { precision: 8, scale: 4 }),
-  densL2: decimal("dens_l2", { precision: 8, scale: 4 }),
-  densL3: decimal("dens_l3", { precision: 8, scale: 4 }),
-  // Temperatura — 3 leituras por dia
+  // Temperatura — 1 leitura por dia
   tempL1: decimal("temp_l1", { precision: 5, scale: 1 }),
-  tempL2: decimal("temp_l2", { precision: 5, scale: 1 }),
-  tempL3: decimal("temp_l3", { precision: 5, scale: 1 }),
-  // O₂ dissolvido (mg/L) — leitura semanal
+  // O₂ dissolvido (mg/L)
   o2: decimal("o2", { precision: 6, scale: 2 }),
-  // Potencial Redox (mV) — leitura semanal
+  // Potencial Redox (mV)
   redox: decimal("redox", { precision: 6, scale: 1 }),
-  // Baumé — 3 leituras por dia (cubas de Vinho do Porto)
+  // Baumé — 1 leitura por dia (cubas de Vinho do Porto)
   baumeL1: decimal("baume_l1", { precision: 5, scale: 2 }),
-  baumeL2: decimal("baume_l2", { precision: 5, scale: 2 }),
-  baumeL3: decimal("baume_l3", { precision: 5, scale: 2 }),
   /** Utilizador que registou */
   userId: int("user_id"),
   userName: varchar("user_name", { length: 120 }),

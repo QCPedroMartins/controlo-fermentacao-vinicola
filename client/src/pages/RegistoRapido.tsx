@@ -25,9 +25,9 @@ const CUBAS_PORTO = ['VP01','VP02','VP03','VP04','VP05'];
 const TODAS_CUBAS = [...CUBAS_VINHO, ...CUBAS_PORTO];
 
 type LinhaLeitura = {
-  densL1: string; densL2: string; densL3: string;
-  baumeL1: string; baumeL2: string; baumeL3: string;
-  tempL1: string; tempL2: string; tempL3: string;
+  densL1: string;
+  baumeL1: string;
+  tempL1: string;
   o2: string; redox: string;
 };
 
@@ -35,9 +35,9 @@ type EstadoLinha = "idle" | "ok" | "erro";
 
 function linhaVazia(): LinhaLeitura {
   return {
-    densL1: "", densL2: "", densL3: "",
-    baumeL1: "", baumeL2: "", baumeL3: "",
-    tempL1: "", tempL2: "", tempL3: "",
+    densL1: "",
+    baumeL1: "",
+    tempL1: "",
     o2: "", redox: "",
   };
 }
@@ -158,14 +158,8 @@ export default function RegistoRapido() {
         cubaId: cuba.id,
         fermentacaoNum: cuba.fermentacaoNum,
         densL1: isPorto ? null : toNullable(l.densL1),
-        densL2: isPorto ? null : toNullable(l.densL2),
-        densL3: isPorto ? null : toNullable(l.densL3),
         baumeL1: isPorto ? toNullable(l.baumeL1) : null,
-        baumeL2: isPorto ? toNullable(l.baumeL2) : null,
-        baumeL3: isPorto ? toNullable(l.baumeL3) : null,
         tempL1: toNullable(l.tempL1),
-        tempL2: toNullable(l.tempL2),
-        tempL3: toNullable(l.tempL3),
         o2: toNullable(l.o2),
         redox: toNullable(l.redox),
       };
@@ -316,12 +310,8 @@ export default function RegistoRapido() {
               <thead>
                 <tr className="bg-[var(--color-vinho)] text-white">
                   <th className="sticky left-0 z-10 bg-[var(--color-vinho)] px-3 py-3 text-left font-semibold w-20">Cuba</th>
-                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-24">Dens. L1</th>
-                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Temp. L1</th>
-                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-24">Dens. L2</th>
-                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Temp. L2</th>
-                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-24">Dens. L3</th>
-                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Temp. L3</th>
+                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-28">Densidade</th>
+                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-24">Temperatura (°C)</th>
                   <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
                   <th className="px-2 py-3 text-center font-semibold text-purple-300 w-20">Redox (mV)</th>
                   <th className="px-2 py-3 text-center font-semibold w-16">Estado</th>
@@ -347,26 +337,6 @@ export default function RegistoRapido() {
                         <Input type="number" step="0.1" placeholder="—" value={linha.tempL1}
                           onChange={(e) => updateCampo(codigo, "tempL1", e.target.value)}
                           className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1" />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input type="number" step="0.0001" placeholder="—" value={linha.densL2}
-                          onChange={(e) => updateCampo(codigo, "densL2", e.target.value)}
-                          className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL2}
-                          onChange={(e) => updateCampo(codigo, "tempL2", e.target.value)}
-                          className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input type="number" step="0.0001" placeholder="—" value={linha.densL3}
-                          onChange={(e) => updateCampo(codigo, "densL3", e.target.value)}
-                          className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1" />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL3}
-                          onChange={(e) => updateCampo(codigo, "tempL3", e.target.value)}
-                          className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1" />
                       </td>
                       <td className="px-1 py-1">
                         <Input type="number" step="0.01" placeholder="—" value={linha.o2}
@@ -406,12 +376,8 @@ export default function RegistoRapido() {
               <thead>
                 <tr className="bg-amber-800 text-white">
                   <th className="sticky left-0 z-10 bg-amber-800 px-3 py-3 text-left font-semibold w-20">Cuba</th>
-                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Baumé L1</th>
-                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Temp. L1</th>
-                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Baumé L2</th>
-                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Temp. L2</th>
-                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Baumé L3</th>
-                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Temp. L3</th>
+                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-24">Baumé (°)</th>
+                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-24">Temperatura (°C)</th>
                   <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
                   <th className="px-2 py-3 text-center font-semibold text-purple-300 w-20">Redox (mV)</th>
                   <th className="px-2 py-3 text-center font-semibold w-16">Estado</th>
@@ -440,26 +406,6 @@ export default function RegistoRapido() {
                         <Input type="number" step="0.1" placeholder="—" value={linha.tempL1}
                           onChange={(e) => updateCampo(codigo, "tempL1", e.target.value)}
                           className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1" />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input type="number" step="0.1" placeholder="—" value={linha.baumeL2}
-                          onChange={(e) => updateCampo(codigo, "baumeL2", e.target.value)}
-                          className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL2}
-                          onChange={(e) => updateCampo(codigo, "tempL2", e.target.value)}
-                          className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input type="number" step="0.1" placeholder="—" value={linha.baumeL3}
-                          onChange={(e) => updateCampo(codigo, "baumeL3", e.target.value)}
-                          className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1" />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL3}
-                          onChange={(e) => updateCampo(codigo, "tempL3", e.target.value)}
-                          className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1" />
                       </td>
                       <td className="px-1 py-1">
                         <Input type="number" step="0.01" placeholder="—" value={linha.o2}

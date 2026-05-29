@@ -12,14 +12,8 @@ type LeituraRow = {
   dataLeitura: Date | string;
   diaNr: number | null;
   densL1: string | null;
-  densL2: string | null;
-  densL3: string | null;
   baumeL1?: string | null;
-  baumeL2?: string | null;
-  baumeL3?: string | null;
   tempL1: string | null;
-  tempL2: string | null;
-  tempL3: string | null;
   o2: string | null;
   redox: string | null;
   userName: string | null;
@@ -63,13 +57,11 @@ const COR_CINZA = "#666666";
 
 const CORES = {
   l1: "2e7d32",
-  l2: "1565c0",
-  l3: "c62828",
   o2: "00838f",
   redox: "6a1b9a",
 };
 
-function formatVal(v: string | null | undefined, decimals = 3): string {
+function formatVal(v: string | null | undefined, decimals = 4): string {
   if (!v) return "—";
   const n = parseFloat(v);
   return isNaN(n) ? v : n.toFixed(decimals);
@@ -258,14 +250,8 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
   const chartData = leituras.map((l) => ({
     x: l.diaNr ?? 0,
     densL1: l.densL1 ? parseFloat(l.densL1) : null,
-    densL2: l.densL2 ? parseFloat(l.densL2) : null,
-    densL3: l.densL3 ? parseFloat(l.densL3) : null,
     baumeL1: l.baumeL1 ? parseFloat(l.baumeL1) : null,
-    baumeL2: l.baumeL2 ? parseFloat(l.baumeL2) : null,
-    baumeL3: l.baumeL3 ? parseFloat(l.baumeL3) : null,
     tempL1: l.tempL1 ? parseFloat(l.tempL1) : null,
-    tempL2: l.tempL2 ? parseFloat(l.tempL2) : null,
-    tempL3: l.tempL3 ? parseFloat(l.tempL3) : null,
     o2: l.o2 ? parseFloat(l.o2) : null,
     redox: l.redox ? parseFloat(l.redox) : null,
   }));
@@ -365,9 +351,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
             dados: chartData.map((d) => ({
               x: d.x,
               series: [
-                { label: "Baumé L1", cor: CORES.l1, valor: d.baumeL1 },
-                { label: "Baumé L2", cor: CORES.l2, valor: d.baumeL2 },
-                { label: "Baumé L3", cor: CORES.l3, valor: d.baumeL3 },
+                { label: "Baumé", cor: CORES.l1, valor: d.baumeL1 },
               ],
             })),
             largura: CHART_W * 2,
@@ -380,9 +364,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
             dados: chartData.map((d) => ({
               x: d.x,
               series: [
-                { label: "Densidade L1", cor: CORES.l1, valor: d.densL1 },
-                { label: "Densidade L2", cor: CORES.l2, valor: d.densL2 },
-                { label: "Densidade L3", cor: CORES.l3, valor: d.densL3 },
+                { label: "Densidade", cor: CORES.l1, valor: d.densL1 },
               ],
             })),
             largura: CHART_W * 2,
@@ -403,9 +385,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
         dados: chartData.map((d) => ({
           x: d.x,
           series: [
-            { label: "Temp. L1", cor: CORES.l1, valor: d.tempL1 },
-            { label: "Temp. L2", cor: CORES.l2, valor: d.tempL2 },
-            { label: "Temp. L3", cor: CORES.l3, valor: d.tempL3 },
+            { label: "Temperatura", cor: CORES.l1, valor: d.tempL1 },
           ],
         })),
         largura: CHART_W * 2,
@@ -470,29 +450,21 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
 
       const cols = isPorto
         ? [
-            { header: "Data", width: 55 },
-            { header: "Dia", width: 28 },
-            { header: "Baumé L1", width: 50 },
-            { header: "Temp. L1", width: 48 },
-            { header: "Baumé L2", width: 50 },
-            { header: "Temp. L2", width: 48 },
-            { header: "Baumé L3", width: 50 },
-            { header: "Temp. L3", width: 48 },
-            { header: "O₂", width: 38 },
-            { header: "Redox", width: 40 },
+            { header: "Data", width: 65 },
+            { header: "Dia", width: 30 },
+            { header: "Baumé", width: 55 },
+            { header: "Temperatura", width: 55 },
+            { header: "O₂", width: 40 },
+            { header: "Redox", width: 45 },
             { header: "Utilizador", width: 0 },
           ]
         : [
-            { header: "Data", width: 55 },
-            { header: "Dia", width: 28 },
-            { header: "Dens. L1", width: 48 },
-            { header: "Temp. L1", width: 48 },
-            { header: "Dens. L2", width: 48 },
-            { header: "Temp. L2", width: 48 },
-            { header: "Dens. L3", width: 48 },
-            { header: "Temp. L3", width: 48 },
-            { header: "O₂", width: 38 },
-            { header: "Redox", width: 40 },
+            { header: "Data", width: 65 },
+            { header: "Dia", width: 30 },
+            { header: "Densidade", width: 60 },
+            { header: "Temperatura", width: 55 },
+            { header: "O₂", width: 40 },
+            { header: "Redox", width: 45 },
             { header: "Utilizador", width: 0 },
           ];
 
@@ -524,10 +496,6 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
               String(l.diaNr ?? ""),
               formatVal(l.baumeL1, 1),
               formatVal(l.tempL1, 1),
-              formatVal(l.baumeL2, 1),
-              formatVal(l.tempL2, 1),
-              formatVal(l.baumeL3, 1),
-              formatVal(l.tempL3, 1),
               formatVal(l.o2, 2),
               formatVal(l.redox, 0),
               l.editedAt && l.editedByName ? `${l.userName ?? ""} ✏ ${l.editedByName}` : (l.userName ?? ""),
@@ -537,10 +505,6 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
               String(l.diaNr ?? ""),
               formatVal(l.densL1),
               formatVal(l.tempL1, 1),
-              formatVal(l.densL2),
-              formatVal(l.tempL2, 1),
-              formatVal(l.densL3),
-              formatVal(l.tempL3, 1),
               formatVal(l.o2, 2),
               formatVal(l.redox, 0),
               l.editedAt && l.editedByName ? `${l.userName ?? ""} ✏ ${l.editedByName}` : (l.userName ?? ""),

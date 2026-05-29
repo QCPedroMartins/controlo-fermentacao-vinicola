@@ -67,7 +67,6 @@ const cubasRouter = router({
       return { success: true };
     }),
 
-  /** Atualizar configurações de alerta: temperatura pretendida, desvio de temperatura, desvio de densidade */
   updateAlertas: protectedProcedure
     .input(
       z.object({
@@ -92,7 +91,6 @@ const cubasRouter = router({
       return { success: true };
     }),
 
-  /** Atualizar ficha inicial: kg, litros, pH, AT, AV, NFA, NTU, Glucónico, Álcool Provável */
   updateFichaInicial: protectedProcedure
     .input(
       z.object({
@@ -118,14 +116,12 @@ const cubasRouter = router({
     return getDashboardCubas();
   }),
 
-  /** Obter último cálculo de Baumé guardado para uma cuba VP */
   getBaumeCalculo: publicProcedure
     .input(z.object({ cubaId: z.number() }))
     .query(async ({ input }) => {
       return getBaumeCalculo(input.cubaId);
     }),
 
-  /** Guardar (upsert) o cálculo de Baumé para uma cuba VP */
   saveBaumeCalculo: protectedProcedure
     .input(
       z.object({
@@ -160,20 +156,19 @@ async function processarAlertas(params: {
   };
   densidades: (string | null | undefined)[];
   leituraInput: {
-    densL1?: string | null; densL2?: string | null; densL3?: string | null;
-    tempL1?: string | null; tempL2?: string | null; tempL3?: string | null;
-    baumeL1?: string | null; baumeL2?: string | null; baumeL3?: string | null;
+    densL1?: string | null;
+    tempL1?: string | null;
+    baumeL1?: string | null;
   };
   leituraAnterior?: {
-    densL1?: string | null; densL2?: string | null; densL3?: string | null;
-    baumeL1?: string | null; baumeL2?: string | null; baumeL3?: string | null;
+    densL1?: string | null;
+    baumeL1?: string | null;
   } | null;
   diaNr: number;
   userName: string;
 }): Promise<{ fermentacaoCompleta: boolean; alertas: string[] }> {
   const estadoAnterior = params.cuba.estado;
 
-  // Verificar fermentação completa (apenas cubas de vinho com densidade)
   const fermentacaoCompleta = await verificarFermentacaoCompleta(
     params.cuba.id,
     params.densidades,
@@ -191,7 +186,6 @@ async function processarAlertas(params: {
     await updateCubaEstado(params.cuba.id, "em_fermentacao");
   }
 
-  // Calcular alertas (temperatura, densidade, Baumé/aguardentação)
   const alertas = calcularAlertas({
     tempPretendida: params.cuba.tempPretendida,
     desvioTempAlerta: params.cuba.desvioTempAlerta ?? "5.0",
@@ -200,18 +194,11 @@ async function processarAlertas(params: {
     pontoAguardentacao: params.cuba.pontoAguardentacao,
     desvioAguardentacaoAlerta: params.cuba.desvioAguardentacaoAlerta ?? "0.50",
     tempL1: params.leituraInput.tempL1,
-    tempL2: params.leituraInput.tempL2,
-    tempL3: params.leituraInput.tempL3,
     densL1: params.leituraInput.densL1,
-    densL2: params.leituraInput.densL2,
-    densL3: params.leituraInput.densL3,
     baumeL1: params.leituraInput.baumeL1,
-    baumeL2: params.leituraInput.baumeL2,
-    baumeL3: params.leituraInput.baumeL3,
     leituraAnterior: params.leituraAnterior,
   });
 
-  // Notificar alertas críticos
   if (alertas.length > 0) {
     const nomeCuba = params.cuba.nomeLote
       ? `${params.cuba.codigo} (${params.cuba.nomeLote})`
@@ -240,23 +227,16 @@ const leiturasRouter = router({
         fermentacaoNum: z.number(),
         dataLeitura: z.string(),
         densL1: z.string().nullable().optional(),
-        densL2: z.string().nullable().optional(),
-        densL3: z.string().nullable().optional(),
         tempL1: z.string().nullable().optional(),
-        tempL2: z.string().nullable().optional(),
-        tempL3: z.string().nullable().optional(),
         o2: z.string().nullable().optional(),
         redox: z.string().nullable().optional(),
         baumeL1: z.string().nullable().optional(),
-        baumeL2: z.string().nullable().optional(),
-        baumeL3: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      // Calcular dia de fermentação
       const existingLeituras = await getLeiturasByCuba(input.cubaId, input.fermentacaoNum);
       let diaNr = 1;
       if (existingLeituras.length > 0) {
@@ -273,28 +253,20 @@ const leiturasRouter = router({
         dataLeitura: input.dataLeitura,
         diaNr,
         densL1: input.densL1,
-        densL2: input.densL2,
-        densL3: input.densL3,
         tempL1: input.tempL1,
-        tempL2: input.tempL2,
-        tempL3: input.tempL3,
         o2: input.o2,
         redox: input.redox,
         baumeL1: input.baumeL1,
-        baumeL2: input.baumeL2,
-        baumeL3: input.baumeL3,
         userId: ctx.user.id,
         userName,
       });
 
-      // Obter dados da cuba (limite, alertas)
       const cubaRows = await db.select().from(cubas).where(eq(cubas.id, input.cubaId)).limit(1);
       const cuba = cubaRows[0];
       let fermentacaoCompleta = false;
       let alertas: string[] = [];
 
       if (cuba) {
-        // Leitura anterior para comparação de variação de densidade
         const leituraAnterior = existingLeituras.length > 0
           ? existingLeituras[existingLeituras.length - 1]
           : null;
@@ -309,7 +281,7 @@ const leiturasRouter = router({
             pontoAguardentacao: cuba.pontoAguardentacao ?? null,
             desvioAguardentacaoAlerta: cuba.desvioAguardentacaoAlerta ?? "0.50",
           },
-          densidades: [input.densL1, input.densL2, input.densL3],
+          densidades: [input.densL1],
           leituraInput: input,
           leituraAnterior,
           diaNr,
@@ -322,29 +294,21 @@ const leiturasRouter = router({
       return { success: true, diaNr, fermentacaoCompleta, alertas };
     }),
 
-  /** Editar uma leitura já registada — regista quem editou e quando */
   edit: protectedProcedure
     .input(
       z.object({
         id: z.number(),
         densL1: z.string().nullable().optional(),
-        densL2: z.string().nullable().optional(),
-        densL3: z.string().nullable().optional(),
         tempL1: z.string().nullable().optional(),
-        tempL2: z.string().nullable().optional(),
-        tempL3: z.string().nullable().optional(),
         o2: z.string().nullable().optional(),
         redox: z.string().nullable().optional(),
         baumeL1: z.string().nullable().optional(),
-        baumeL2: z.string().nullable().optional(),
-        baumeL3: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       const userName = ctx.user.name ?? ctx.user.email ?? "Utilizador";
 
-      // Verificar que a leitura existe
       const leituraExistente = await getLeituraById(id);
       if (!leituraExistente) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Leitura não encontrada" });
@@ -356,14 +320,12 @@ const leiturasRouter = router({
         editedByName: userName,
       });
 
-      // Rever alertas e estado após edição
       const db = await getDb();
       let alertas: string[] = [];
       if (db) {
         const cubaRows = await db.select().from(cubas).where(eq(cubas.id, leituraExistente.cubaId)).limit(1);
         const cuba = cubaRows[0];
         if (cuba) {
-          // Leitura anterior (a que vem antes desta na ordem de data)
           const todasLeituras = await getLeiturasByCuba(leituraExistente.cubaId, leituraExistente.fermentacaoNum);
           const idx = todasLeituras.findIndex((l) => l.id === id);
           const leituraAnterior = idx > 0 ? todasLeituras[idx - 1] : null;
@@ -378,7 +340,7 @@ const leiturasRouter = router({
               pontoAguardentacao: cuba.pontoAguardentacao ?? null,
               desvioAguardentacaoAlerta: cuba.desvioAguardentacaoAlerta ?? "0.50",
             },
-            densidades: [data.densL1, data.densL2, data.densL3],
+            densidades: [data.densL1],
             leituraInput: data,
             leituraAnterior,
             diaNr: leituraExistente.diaNr ?? 1,
@@ -395,20 +357,17 @@ const leiturasRouter = router({
     .input(
       z.object({
         dataLeitura: z.string(),
-        leituras: z.array(
-          z.object({
-            cubaId: z.number(),
-            fermentacaoNum: z.number(),
-            densL1: z.string().nullable().optional(),
-            densL2: z.string().nullable().optional(),
-            densL3: z.string().nullable().optional(),
-            tempL1: z.string().nullable().optional(),
-            tempL2: z.string().nullable().optional(),
-            tempL3: z.string().nullable().optional(),
-            o2: z.string().nullable().optional(),
-            redox: z.string().nullable().optional(),
-          })
-        ),
+        leituras: z
+          .array(
+            z.object({
+              cubaId: z.number(),
+              fermentacaoNum: z.number(),
+              densL1: z.string().nullable().optional(),
+              tempL1: z.string().nullable().optional(),
+              o2: z.string().nullable().optional(),
+              redox: z.string().nullable().optional(),
+            })
+          ),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -434,11 +393,7 @@ const leiturasRouter = router({
             dataLeitura: input.dataLeitura,
             diaNr,
             densL1: linha.densL1,
-            densL2: linha.densL2,
-            densL3: linha.densL3,
             tempL1: linha.tempL1,
-            tempL2: linha.tempL2,
-            tempL3: linha.tempL3,
             o2: linha.o2,
             redox: linha.redox,
             userId: ctx.user.id,
@@ -458,8 +413,11 @@ const leiturasRouter = router({
                 tempPretendida: cuba.tempPretendida ?? null,
                 desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
                 desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
+                alertasDensidade: cuba.alertasDensidade ?? null,
+                pontoAguardentacao: cuba.pontoAguardentacao ?? null,
+                desvioAguardentacaoAlerta: cuba.desvioAguardentacaoAlerta ?? "0.50",
               },
-              densidades: [linha.densL1, linha.densL2, linha.densL3],
+              densidades: [linha.densL1],
               leituraInput: linha,
               leituraAnterior,
               diaNr,
@@ -477,18 +435,15 @@ const leiturasRouter = router({
       return { resultados, total: input.leituras.length, sucesso: resultados.filter((r) => r.success).length };
     }),
 
-  /** Retorna leituras de todas as cubas em fermentação para cálculo de alertas no dashboard */
   listAllDashboard: publicProcedure.query(async () => {
     const db = await getDb();
     if (!db) return [];
-    // Apenas cubas em fermentação precisam de alertas
     const cubasAtivas = await db.select().from(cubas).where(eq(cubas.estado, "em_fermentacao"));
     if (cubasAtivas.length === 0) return [];
-    // Buscar leituras de cada cuba ativa (apenas a fermentação atual)
     const todasLeituras: Array<{
       cubaId: number; fermentacaoNum: number;
-      densL1: string | null; densL2: string | null; densL3: string | null;
-      tempL1: string | null; tempL2: string | null; tempL3: string | null;
+      densL1: string | null;
+      tempL1: string | null;
     }> = [];
     for (const cuba of cubasAtivas) {
       const rows = await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum);
@@ -497,11 +452,7 @@ const leiturasRouter = router({
           cubaId: cuba.id,
           fermentacaoNum: cuba.fermentacaoNum,
           densL1: r.densL1 ?? null,
-          densL2: r.densL2 ?? null,
-          densL3: r.densL3 ?? null,
           tempL1: r.tempL1 ?? null,
-          tempL2: r.tempL2 ?? null,
-          tempL3: r.tempL3 ?? null,
         });
       }
     }
@@ -515,12 +466,8 @@ const leiturasRouter = router({
       if (rows.length === 0) return { totalDias: 0, densMin: null, tempMax: null };
 
       const totalDias = rows[rows.length - 1].diaNr ?? rows.length;
-      const allDens = rows.flatMap((r) =>
-        [r.densL1, r.densL2, r.densL3].filter((v) => v !== null).map(Number)
-      );
-      const allTemp = rows.flatMap((r) =>
-        [r.tempL1, r.tempL2, r.tempL3].filter((v) => v !== null).map(Number)
-      );
+      const allDens = rows.map((r) => r.densL1).filter((v): v is string => v !== null).map(Number);
+      const allTemp = rows.map((r) => r.tempL1).filter((v): v is string => v !== null).map(Number);
       const densMin = allDens.length > 0 ? Math.min(...allDens) : null;
       const tempMax = allTemp.length > 0 ? Math.max(...allTemp) : null;
 
@@ -603,13 +550,9 @@ const arquivoRouter = router({
         dataInicio = rows[0].dataLeitura instanceof Date ? rows[0].dataLeitura.toISOString().split('T')[0] : String(rows[0].dataLeitura);
         dataFim = rows[rows.length - 1].dataLeitura instanceof Date ? rows[rows.length - 1].dataLeitura.toISOString().split('T')[0] : String(rows[rows.length - 1].dataLeitura);
         totalDias = rows[rows.length - 1].diaNr ?? rows.length;
-        const allDens = rows.flatMap((r) =>
-          [r.densL1, r.densL2, r.densL3].filter((v) => v !== null).map(Number)
-        );
-        const allTemp = rows.flatMap((r) =>
-          [r.tempL1, r.tempL2, r.tempL3].filter((v) => v !== null).map(Number)
-        );
-        if (allDens.length > 0) densMin = Math.min(...allDens).toFixed(3);
+        const allDens = rows.map((r) => r.densL1).filter((v): v is string => v !== null).map(Number);
+        const allTemp = rows.map((r) => r.tempL1).filter((v): v is string => v !== null).map(Number);
+        if (allDens.length > 0) densMin = Math.min(...allDens).toFixed(4);
         if (allTemp.length > 0) tempMax = Math.max(...allTemp).toFixed(1);
       }
 
@@ -625,7 +568,6 @@ const arquivoRouter = router({
         archivedBy: ctx.user.name ?? ctx.user.email ?? "Utilizador",
       });
 
-      // Associar a fermentação arquivada à campanha ativa (se existir)
       try {
         const db2 = await getDb();
         if (db2) {
@@ -643,8 +585,6 @@ const arquivoRouter = router({
         console.warn("[Campanhas] Erro ao associar campanha ao arquivo:", campErr);
       }
 
-      // A cuba fica com estado 'completa' após arquivar (mostra no dashboard).
-      // Só volta a 'sem_dados' quando a nova fermentação tiver a primeira leitura registada.
       await db
         .update(cubas)
         .set({
@@ -654,7 +594,6 @@ const arquivoRouter = router({
         })
         .where(eq(cubas.id, input.cubaId));
 
-      // Enviar email de fim de fermentação em background (não bloqueia a resposta)
       import("../server/emailReport").then(async ({ gerarExcelCuba, enviarEmailComExcel }) => {
         try {
           const cubaParaRelatorio = {
@@ -700,23 +639,19 @@ const arquivoRouter = router({
 });
 
 // ── Router de Arquivo / Nova Fermentação (extensão) ─────────
-// Adicionar ao arquivoRouter os procedimentos de consulta de detalhe
 const arquivoDetalheRouter = router({
-  /** Retorna todas as leituras de uma fermentação arquivada */
   getLeituras: publicProcedure
     .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number() }))
     .query(async ({ input }) => {
       return getLeiturasByCuba(input.cubaId, input.fermentacaoNum);
     }),
 
-  /** Retorna todas as adições de uma fermentação arquivada */
   getAdicoes: publicProcedure
     .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number() }))
     .query(async ({ input }) => {
       return getAdicoesByCuba(input.cubaId, input.fermentacaoNum);
     }),
 
-  /** Retorna o resumo de uma fermentação arquivada (metadados do arquivo) */
   getResumo: publicProcedure
     .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number() }))
     .query(async ({ input }) => {
@@ -740,7 +675,6 @@ const arquivoDetalheRouter = router({
 
 // ── Router de Relatórios ────────────────────────────────────
 const relatorioRouter = router({
-  // Envia o Excel de uma cuba específica por email imediatamente
   enviarCuba: protectedProcedure
     .input(z.object({ codigo: z.string() }))
     .mutation(async ({ input }) => {
@@ -769,7 +703,6 @@ const relatorioRouter = router({
       return { ok: true, destinatario: "geral@castelares.com" };
     }),
 
-  // Exporta o Excel com gráficos de uma cuba (devolve base64)
   exportarExcelCuba: publicProcedure
     .input(z.object({ codigo: z.string() }))
     .mutation(async ({ input }) => {
@@ -783,7 +716,6 @@ const relatorioRouter = router({
       return { base64, nomeFicheiro };
     }),
 
-  // Exporta o PDF de uma cuba (devolve base64)
   exportarPdfCuba: publicProcedure
     .input(z.object({ codigo: z.string() }))
     .mutation(async ({ input }) => {
@@ -797,15 +729,14 @@ const relatorioRouter = router({
       return { base64, nomeFicheiro };
     }),
 
-  // Envia o digest diário com todas as cubas ativas por email
   enviarDigestDiario: protectedProcedure
     .mutation(async () => {
       const { gerarExcelDigestDiario, enviarEmailComExcel } = await import("./emailReport");
       const buffer = await gerarExcelDigestDiario();
 
       const dataHoje = new Date().toLocaleDateString("pt-PT");
-      const cubas = await getAllCubas();
-      const ativas = cubas.filter(c => c.estado === "em_fermentacao");
+      const cubasAll = await getAllCubas();
+      const ativas = cubasAll.filter(c => c.estado === "em_fermentacao");
 
       await enviarEmailComExcel({
         assunto: `Digest Diário — ${ativas.length} cuba${ativas.length !== 1 ? "s" : ""} ativa${ativas.length !== 1 ? "s" : ""} (${dataHoje})`,
@@ -823,7 +754,6 @@ const relatorioRouter = router({
       return { ok: true, cubasAtivas: ativas.length, destinatario: "geral@castelares.com" };
     }),
 });
-
 
 // ── Campanhas Router ─────────────────────────────────────
 const campanhasRouter = router({
@@ -863,7 +793,7 @@ export const appRouter = router({
   arquivo: arquivoRouter,
   arquivoDetalhe: arquivoDetalheRouter,
   relatorio: relatorioRouter,
-    campanhas: campanhasRouter,
+  campanhas: campanhasRouter,
   importacao: importacaoRouter,
 });
 export type AppRouter = typeof appRouter;

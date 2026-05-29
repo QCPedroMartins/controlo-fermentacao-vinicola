@@ -54,13 +54,9 @@ import CalculadoraBaumeEnvasilhamento from "@/components/CalculadoraBaumeEnvasil
 // ── Cores fixas dos gráficos ──────────────────────────────
 const CORES = {
   densL1: "#2e7d32",
-  densL2: "#1565c0",
-  densL3: "#c62828",
   o2: "#00838f",
   redox: "#6a1b9a",
   tempL1: "#2e7d32",
-  tempL2: "#1565c0",
-  tempL3: "#c62828",
 };
 
 // ── Tipos ─────────────────────────────────────────────────
@@ -69,16 +65,10 @@ type LeituraRow = {
   dataLeitura: Date | string;
   diaNr: number | null;
   densL1: string | null;
-  densL2: string | null;
-  densL3: string | null;
+  baumeL1?: string | null;
   tempL1: string | null;
-  tempL2: string | null;
-  tempL3: string | null;
   o2: string | null;
   redox: string | null;
-  baumeL1: string | null;
-  baumeL2: string | null;
-  baumeL3: string | null;
   userName: string | null;
   editedAt: Date | null;
   editedByName: string | null;
@@ -105,7 +95,7 @@ function calcularAlertasClient(params: {
     // Alerta de temperatura
     if (params.tempPretendida) {
       const pretendida = parseFloat(params.tempPretendida);
-      const temps = [l.tempL1, l.tempL2, l.tempL3]
+      const temps = [l.tempL1]
         .filter((t): t is string => t !== null && t !== undefined && t !== "")
         .map(parseFloat);
       for (const t of temps) {
@@ -123,15 +113,13 @@ function calcularAlertasClient(params: {
       const anterior = params.leituras[i - 1];
       const pares: [string | null, string | null][] = [
         [anterior.densL1, l.densL1],
-        [anterior.densL2, l.densL2],
-        [anterior.densL3, l.densL3],
       ];
       for (const [ant, atual] of pares) {
         if (ant && atual && ant !== "" && atual !== "") {
           const diff = Math.abs(parseFloat(ant) - parseFloat(atual));
           if (diff > desvioDesns) {
             mensagens.push(
-              `Variação brusca de densidade: ${diff.toFixed(3)} (limiar: ${desvioDesns.toFixed(3)})`
+              `Variação brusca de densidade: ${diff.toFixed(4)} (limiar: ${desvioDesns.toFixed(4)})`
             );
             break;
           }
@@ -143,17 +131,17 @@ function calcularAlertasClient(params: {
     if (params.alertasDensidade) {
       try {
         const valoresAlerta: number[] = JSON.parse(params.alertasDensidade);
-        const densidades = [l.densL1, l.densL2, l.densL3]
+        const densidades = [l.densL1]
           .filter((d): d is string => !!d && d !== "").map(parseFloat);
         const anteriores = i > 0
-          ? [params.leituras[i-1].densL1, params.leituras[i-1].densL2, params.leituras[i-1].densL3]
+          ? [params.leituras[i-1].densL1]
               .filter((d): d is string => !!d && d !== "").map(parseFloat)
           : [];
         for (const limiar of valoresAlerta) {
           const cruzou = densidades.some((d) => d <= limiar);
           const jaCruzado = anteriores.some((d) => d <= limiar);
           if (cruzou && !jaCruzado) {
-            mensagens.push(`Densidade atingiu o valor de alerta: ${limiar.toFixed(3)}`);
+            mensagens.push(`Densidade atingiu o valor de alerta: ${limiar.toFixed(4)}`);
           }
         }
       } catch { /* JSON inválido */ }
@@ -163,7 +151,7 @@ function calcularAlertasClient(params: {
     if (params.pontoAguardentacao) {
       const ponto = parseFloat(params.pontoAguardentacao);
       const desvioAg = parseFloat(params.desvioAguardentacaoAlerta ?? "0.50") || 0.5;
-      const baumes = [l.baumeL1, l.baumeL2, l.baumeL3]
+      const baumes = [l.baumeL1]
         .filter((b): b is string => !!b && b !== "").map(parseFloat);
       for (const b of baumes) {
         if (Math.abs(b - ponto) <= desvioAg) {
@@ -190,10 +178,10 @@ export default function CubaPage() {
   // Estado do formulário de leitura
   const [form, setForm] = useState({
     dataLeitura: new Date().toISOString().split("T")[0],
-    densL1: "", densL2: "", densL3: "",
-    tempL1: "", tempL2: "", tempL3: "",
+    densL1: "",
+    tempL1: "",
     o2: "", redox: "",
-    baumeL1: "", baumeL2: "", baumeL3: "",
+    baumeL1: "",
   });
 
   // Estado edição do nome
@@ -224,10 +212,10 @@ export default function CubaPage() {
   // ── Estado: modal de edição de leitura ───────────────────
   const [editLeitura, setEditLeitura] = useState<LeituraRow | null>(null);
   const [editForm, setEditForm] = useState({
-    densL1: "", densL2: "", densL3: "",
-    tempL1: "", tempL2: "", tempL3: "",
+    densL1: "",
+    tempL1: "",
     o2: "", redox: "",
-    baumeL1: "", baumeL2: "", baumeL3: "",
+    baumeL1: "",
   });
 
   // ── Estado: ficha inicial ─────────────────────────────────
@@ -295,7 +283,7 @@ export default function CubaPage() {
       if (data.alertas && data.alertas.length > 0) {
         data.alertas.forEach((a) => toast.warning("⚠️ " + a));
       }
-      setForm({ dataLeitura: new Date().toISOString().split("T")[0], densL1: "", densL2: "", densL3: "", tempL1: "", tempL2: "", tempL3: "", o2: "", redox: "", baumeL1: "", baumeL2: "", baumeL3: "" });
+      setForm({ dataLeitura: new Date().toISOString().split("T")[0], densL1: "", tempL1: "", o2: "", redox: "", baumeL1: "" });
       utils.leituras.listByCuba.invalidate();
       utils.leituras.resumo.invalidate();
       utils.cubas.dashboard.invalidate();
@@ -498,16 +486,10 @@ export default function CubaPage() {
     return leituras.map((l) => ({
       dia: l.diaNr ?? 0,
       densL1: l.densL1 ? parseFloat(l.densL1) : null,
-      densL2: l.densL2 ? parseFloat(l.densL2) : null,
-      densL3: l.densL3 ? parseFloat(l.densL3) : null,
       tempL1: l.tempL1 ? parseFloat(l.tempL1) : null,
-      tempL2: l.tempL2 ? parseFloat(l.tempL2) : null,
-      tempL3: l.tempL3 ? parseFloat(l.tempL3) : null,
       o2: l.o2 ? parseFloat(l.o2) : null,
       redox: l.redox ? parseFloat(l.redox) : null,
       baumeL1: (l as LeituraRow).baumeL1 ? parseFloat((l as LeituraRow).baumeL1!) : null,
-      baumeL2: (l as LeituraRow).baumeL2 ? parseFloat((l as LeituraRow).baumeL2!) : null,
-      baumeL3: (l as LeituraRow).baumeL3 ? parseFloat((l as LeituraRow).baumeL3!) : null,
     }));
   }, [leituras]);
 
@@ -516,8 +498,8 @@ export default function CubaPage() {
     if (!form.dataLeitura) { toast.error("Insira a data"); return; }
     const isPorto = cuba.tipoCuba === "porto";
     const hasData = isPorto
-      ? (form.baumeL1 || form.baumeL2 || form.baumeL3)
-      : (form.densL1 || form.densL2 || form.densL3 || form.o2 || form.redox);
+      ? form.baumeL1
+      : (form.densL1 || form.o2 || form.redox);
     if (!hasData) { toast.error("Insira pelo menos um valor"); return; }
 
     criarLeitura.mutate({
@@ -525,16 +507,10 @@ export default function CubaPage() {
       fermentacaoNum: cuba.fermentacaoNum,
       dataLeitura: form.dataLeitura,
       densL1: form.densL1 || null,
-      densL2: form.densL2 || null,
-      densL3: form.densL3 || null,
       tempL1: form.tempL1 || null,
-      tempL2: form.tempL2 || null,
-      tempL3: form.tempL3 || null,
       o2: form.o2 || null,
       redox: form.redox || null,
       baumeL1: form.baumeL1 || null,
-      baumeL2: form.baumeL2 || null,
-      baumeL3: form.baumeL3 || null,
     });
   };
 
@@ -542,16 +518,10 @@ export default function CubaPage() {
     setEditLeitura(l);
     setEditForm({
       densL1: l.densL1 ?? "",
-      densL2: l.densL2 ?? "",
-      densL3: l.densL3 ?? "",
       tempL1: l.tempL1 ?? "",
-      tempL2: l.tempL2 ?? "",
-      tempL3: l.tempL3 ?? "",
       o2: l.o2 ?? "",
       redox: l.redox ?? "",
       baumeL1: l.baumeL1 ?? "",
-      baumeL2: l.baumeL2 ?? "",
-      baumeL3: l.baumeL3 ?? "",
     });
   };
 
@@ -560,16 +530,10 @@ export default function CubaPage() {
     editarLeitura.mutate({
       id: editLeitura.id,
       densL1: editForm.densL1 || null,
-      densL2: editForm.densL2 || null,
-      densL3: editForm.densL3 || null,
       tempL1: editForm.tempL1 || null,
-      tempL2: editForm.tempL2 || null,
-      tempL3: editForm.tempL3 || null,
       o2: editForm.o2 || null,
       redox: editForm.redox || null,
       baumeL1: editForm.baumeL1 || null,
-      baumeL2: editForm.baumeL2 || null,
-      baumeL3: editForm.baumeL3 || null,
     });
   };
 
@@ -624,12 +588,8 @@ export default function CubaPage() {
     const leiturasData = leituras.map((l) => ({
       "Data": new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
       "Dia Nº": l.diaNr ?? "",
-      "Dens. L1": l.densL1 ?? "",
-      "Temp. L1 (°C)": l.tempL1 ?? "",
-      "Dens. L2": l.densL2 ?? "",
-      "Temp. L2 (°C)": l.tempL2 ?? "",
-      "Dens. L3": l.densL3 ?? "",
-      "Temp. L3 (°C)": l.tempL3 ?? "",
+      "Densidade": l.densL1 ?? "",
+      "Temperatura (°C)": l.tempL1 ?? "",
       "O₂ (mg/L)": l.o2 ?? "",
       "Redox (mV)": l.redox ?? "",
       "Registado por": l.userName ?? "",
@@ -663,12 +623,8 @@ export default function CubaPage() {
     const leiturasData = leituras.map((l) => ({
       "Data": new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
       "Dia Nº": l.diaNr ?? "",
-      "Dens. L1": l.densL1 ?? "",
-      "Temp. L1 (°C)": l.tempL1 ?? "",
-      "Dens. L2": l.densL2 ?? "",
-      "Temp. L2 (°C)": l.tempL2 ?? "",
-      "Dens. L3": l.densL3 ?? "",
-      "Temp. L3 (°C)": l.tempL3 ?? "",
+      "Densidade": l.densL1 ?? "",
+      "Temperatura (°C)": l.tempL1 ?? "",
       "O₂ (mg/L)": l.o2 ?? "",
       "Redox (mV)": l.redox ?? "",
       "Registado por": l.userName ?? "",
@@ -783,7 +739,7 @@ export default function CubaPage() {
           <div className="flex flex-col gap-3 items-end">
             <div className="flex gap-3">
               <ResumoCard icon={<TrendingDown size={14} />} label="Dias" value={resumo?.totalDias ? `${resumo.totalDias}` : "—"} color="text-[var(--color-vinho)]" />
-              <ResumoCard icon={<FlaskConical size={14} />} label="Dens. mín." value={resumo?.densMin ? resumo.densMin.toFixed(3) : "—"} color="text-green-700" />
+              <ResumoCard icon={<FlaskConical size={14} />} label="Dens. mín." value={resumo?.densMin ? resumo.densMin.toFixed(4) : "—"} color="text-green-700" />
               <ResumoCard icon={<Thermometer size={14} />} label="Temp. máx." value={resumo?.tempMax ? `${resumo.tempMax.toFixed(1)}°` : "—"} color="text-red-600" />
             </div>
             {/* Botões de exportação */}
@@ -960,8 +916,8 @@ export default function CubaPage() {
           </h2>
           {cuba.tipoCuba === "porto" ? (
             /* Formulário VP — Baumé + Temperatura */
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-              <div className="col-span-2 sm:col-span-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
                 <label className="block text-xs text-gray-500 mb-1">Data</label>
                 <input type="date" value={form.dataLeitura}
                   onChange={(e) => setForm({ ...form, dataLeitura: e.target.value })}
@@ -969,52 +925,24 @@ export default function CubaPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Baumé L1 (°)</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Baumé (°)</label>
                 <input type="number" step="0.01" placeholder="6.50" value={form.baumeL1}
                   onChange={(e) => setForm({ ...form, baumeL1: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temperatura (°C)</label>
                 <input type="number" step="0.1" placeholder="18.5" value={form.tempL1}
                   onChange={(e) => setForm({ ...form, tempL1: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Baumé L2 (°)</label>
-                <input type="number" step="0.01" placeholder="6.50" value={form.baumeL2}
-                  onChange={(e) => setForm({ ...form, baumeL2: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
-                <input type="number" step="0.1" placeholder="19.0" value={form.tempL2}
-                  onChange={(e) => setForm({ ...form, tempL2: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Baumé L3 (°)</label>
-                <input type="number" step="0.01" placeholder="6.50" value={form.baumeL3}
-                  onChange={(e) => setForm({ ...form, baumeL3: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
-                <input type="number" step="0.1" placeholder="19.5" value={form.tempL3}
-                  onChange={(e) => setForm({ ...form, tempL3: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                />
-              </div>
             </div>
           ) : (
             /* Formulário normal — Densidade + Temperatura + O₂ + Redox */
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-              <div className="col-span-2 sm:col-span-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+              <div>
                 <label className="block text-xs text-gray-500 mb-1">Data</label>
                 <input type="date" value={form.dataLeitura}
                   onChange={(e) => setForm({ ...form, dataLeitura: e.target.value })}
@@ -1022,45 +950,17 @@ export default function CubaPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Dens. L1</label>
-                <input type="number" step="0.001" placeholder="1.085" value={form.densL1}
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Densidade</label>
+                <input type="number" step="0.0001" placeholder="1.0850" value={form.densL1}
                   onChange={(e) => setForm({ ...form, densL1: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temperatura (°C)</label>
                 <input type="number" step="0.1" placeholder="18.5" value={form.tempL1}
                   onChange={(e) => setForm({ ...form, tempL1: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Dens. L2</label>
-                <input type="number" step="0.001" placeholder="1.082" value={form.densL2}
-                  onChange={(e) => setForm({ ...form, densL2: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
-                <input type="number" step="0.1" placeholder="19.0" value={form.tempL2}
-                  onChange={(e) => setForm({ ...form, tempL2: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Dens. L3</label>
-                <input type="number" step="0.001" placeholder="1.080" value={form.densL3}
-                  onChange={(e) => setForm({ ...form, densL3: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
-                <input type="number" step="0.1" placeholder="19.5" value={form.tempL3}
-                  onChange={(e) => setForm({ ...form, tempL3: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
                 />
               </div>
               <div>
@@ -1139,21 +1039,13 @@ export default function CubaPage() {
                   <th className="px-3 py-3 text-center text-xs font-semibold">Dia</th>
                   {cuba.tipoCuba === "porto" ? (
                     <>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Baumé L1</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temp. L1</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Baumé L2</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Temp. L2</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Baumé L3</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Temp. L3</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Baumé (°)</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temperatura</th>
                     </>
                   ) : (
                     <>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Dens. L1</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temp. L1</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Dens. L2</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Temp. L2</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Dens. L3</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Temp. L3</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Densidade</th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temperatura</th>
                       <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#80deea" }}>O₂</th>
                       <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ce93d8" }}>Redox</th>
                     </>
@@ -1187,19 +1079,11 @@ export default function CubaPage() {
                           <>
                             <td className="px-3 py-2.5 text-center text-xs font-mono">{(l as LeituraRow).baumeL1 ? `${parseFloat((l as LeituraRow).baumeL1!).toFixed(2)}°` : "—"}</td>
                             <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{(l as LeituraRow).baumeL2 ? `${parseFloat((l as LeituraRow).baumeL2!).toFixed(2)}°` : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL2 ? `${parseFloat(l.tempL2).toFixed(1)}°` : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{(l as LeituraRow).baumeL3 ? `${parseFloat((l as LeituraRow).baumeL3!).toFixed(2)}°` : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL3 ? `${parseFloat(l.tempL3).toFixed(1)}°` : "—"}</td>
                           </>
                         ) : (
                           <>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL1 ? parseFloat(l.densL1).toFixed(3) : "—"}</td>
+                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL1 ? parseFloat(l.densL1).toFixed(4) : "—"}</td>
                             <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL2 ? parseFloat(l.densL2).toFixed(3) : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL2 ? `${parseFloat(l.tempL2).toFixed(1)}°` : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL3 ? parseFloat(l.densL3).toFixed(3) : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL3 ? `${parseFloat(l.tempL3).toFixed(1)}°` : "—"}</td>
                             <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.o2 }}>{l.o2 ? parseFloat(l.o2).toFixed(2) : "—"}</td>
                             <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.redox }}>{l.redox ? parseFloat(l.redox).toFixed(0) : "—"}</td>
                           </>
@@ -1254,7 +1138,7 @@ export default function CubaPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
-                    <Tooltip formatter={(v: number) => cuba.tipoCuba === "porto" ? `${v?.toFixed(2)}°` : v?.toFixed(3)} labelFormatter={(l) => `Dia ${l}`} />
+                    <Tooltip formatter={(v: number) => cuba.tipoCuba === "porto" ? `${v?.toFixed(2)}°` : v?.toFixed(4)} labelFormatter={(l) => `Dia ${l}`} />
                     <Legend />
                     {adicaoMarkers.map((m, i) => (
                       <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
@@ -1267,17 +1151,9 @@ export default function CubaPage() {
                       />
                     )}
                     {cuba.tipoCuba === "porto" ? (
-                      <>
-                        <Line type="monotone" dataKey="baumeL1" name="L1" stroke={CORES.densL1} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                        <Line type="monotone" dataKey="baumeL2" name="L2" stroke={CORES.densL2} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                        <Line type="monotone" dataKey="baumeL3" name="L3" stroke={CORES.densL3} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                      </>
+                      <Line type="monotone" dataKey="baumeL1" name="Baumé" stroke={CORES.densL1} strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
                     ) : (
-                      <>
-                        <Line type="monotone" dataKey="densL1" name="L1" stroke={CORES.densL1} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                        <Line type="monotone" dataKey="densL2" name="L2" stroke={CORES.densL2} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                        <Line type="monotone" dataKey="densL3" name="L3" stroke={CORES.densL3} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                      </>
+                      <Line type="monotone" dataKey="densL1" name="Densidade" stroke={CORES.densL1} strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
                     )}
                   </LineChart>
                 </ResponsiveContainer>
@@ -1299,9 +1175,7 @@ export default function CubaPage() {
                     {cuba.tempPretendida && (
                       <Line type="monotone" dataKey={() => parseFloat(cuba.tempPretendida!)} name="Pretendida" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
                     )}
-                    <Line type="monotone" dataKey="tempL1" name="L1" stroke={CORES.tempL1} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="tempL2" name="L2" stroke={CORES.tempL2} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="tempL3" name="L3" stroke={CORES.tempL3} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                    <Line type="monotone" dataKey="tempL1" name="Temperatura" stroke={CORES.tempL1} strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -1552,7 +1426,7 @@ export default function CubaPage() {
                       <p className="text-xs text-gray-400">dias</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-xl font-bold text-green-700">{arq.densMin ? parseFloat(arq.densMin).toFixed(3) : "—"}</p>
+                      <p className="text-xl font-bold text-green-700">{arq.densMin ? parseFloat(arq.densMin).toFixed(4) : "—"}</p>
                       <p className="text-xs text-gray-400">dens. mín.</p>
                     </div>
                     <div className="text-center">
@@ -1684,90 +1558,34 @@ export default function CubaPage() {
               {cuba.tipoCuba === "porto" ? (
                 <>
                   <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Baumé L1 (°)</label>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Baumé (°)</label>
                     <input type="number" step="0.01" value={editForm.baumeL1}
                       onChange={(e) => setEditForm({ ...editForm, baumeL1: e.target.value })}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temperatura (°C)</label>
                     <input type="number" step="0.1" value={editForm.tempL1}
                       onChange={(e) => setEditForm({ ...editForm, tempL1: e.target.value })}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Baumé L2 (°)</label>
-                    <input type="number" step="0.01" value={editForm.baumeL2}
-                      onChange={(e) => setEditForm({ ...editForm, baumeL2: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
-                    <input type="number" step="0.1" value={editForm.tempL2}
-                      onChange={(e) => setEditForm({ ...editForm, tempL2: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Baumé L3 (°)</label>
-                    <input type="number" step="0.01" value={editForm.baumeL3}
-                      onChange={(e) => setEditForm({ ...editForm, baumeL3: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
-                    <input type="number" step="0.1" value={editForm.tempL3}
-                      onChange={(e) => setEditForm({ ...editForm, tempL3: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
                     />
                   </div>
                 </>
               ) : (
                 <>
                   <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Dens. L1</label>
-                    <input type="number" step="0.001" value={editForm.densL1}
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL1 }}>Densidade</label>
+                    <input type="number" step="0.0001" value={editForm.densL1}
                       onChange={(e) => setEditForm({ ...editForm, densL1: e.target.value })}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temp. L1 (°C)</label>
+                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL1 }}>Temperatura (°C)</label>
                     <input type="number" step="0.1" value={editForm.tempL1}
                       onChange={(e) => setEditForm({ ...editForm, tempL1: e.target.value })}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL2 }}>Dens. L2</label>
-                    <input type="number" step="0.001" value={editForm.densL2}
-                      onChange={(e) => setEditForm({ ...editForm, densL2: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL2 }}>Temp. L2 (°C)</label>
-                    <input type="number" step="0.1" value={editForm.tempL2}
-                      onChange={(e) => setEditForm({ ...editForm, tempL2: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.densL3 }}>Dens. L3</label>
-                    <input type="number" step="0.001" value={editForm.densL3}
-                      onChange={(e) => setEditForm({ ...editForm, densL3: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1" style={{ color: CORES.tempL3 }}>Temp. L3 (°C)</label>
-                    <input type="number" step="0.1" value={editForm.tempL3}
-                      onChange={(e) => setEditForm({ ...editForm, tempL3: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500"
                     />
                   </div>
                   <div>

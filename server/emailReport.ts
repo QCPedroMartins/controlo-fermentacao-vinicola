@@ -14,11 +14,7 @@ const TO_EMAIL = "geral@castelares.com";
 
 const CORES_HEX = {
   densL1: "2e7d32",
-  densL2: "1565c0",
-  densL3: "c62828",
   tempL1: "2e7d32",
-  tempL2: "1565c0",
-  tempL3: "c62828",
   o2: "00838f",
   redox: "6a1b9a",
 };
@@ -29,11 +25,8 @@ type LeituraRow = {
   dataLeitura: Date | string;
   diaNr: number | null;
   densL1: string | null;
-  densL2: string | null;
-  densL3: string | null;
+  baumeL1?: string | null;
   tempL1: string | null;
-  tempL2: string | null;
-  tempL3: string | null;
   o2: string | null;
   redox: string | null;
   userName: string | null;
@@ -140,7 +133,7 @@ function gerarGraficoLinha(params: {
     ctx.font = "10px sans-serif";
     ctx.textAlign = "right";
     // Formatar com casas decimais adequadas à unidade
-    const decimais = params.unidade === "mg/L" || params.unidade === "°C" || params.unidade === "mV" || params.unidade === "°" ? 1 : 3;
+    const decimais = params.unidade === "mg/L" || params.unidade === "°C" || params.unidade === "mV" || params.unidade === "°" ? 1 : 4;
     ctx.fillText(val.toFixed(decimais), PAD.left - 5, y + 4);
   }
 
@@ -366,9 +359,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   // Cabeçalhos da tabela
   const headerRow = wsL.addRow([
     "Data", "Dia Nº",
-    "Dens. L1", "Temp. L1 (°C)",
-    "Dens. L2", "Temp. L2 (°C)",
-    "Dens. L3", "Temp. L3 (°C)",
+    "Densidade", "Temperatura (°C)",
     "O₂ (mg/L)", "Redox (mV)",
     "Utilizador",
   ]);
@@ -388,10 +379,6 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       l.diaNr ?? "",
       l.densL1 ? parseFloat(l.densL1) : "",
       l.tempL1 ? parseFloat(l.tempL1) : "",
-      l.densL2 ? parseFloat(l.densL2) : "",
-      l.tempL2 ? parseFloat(l.tempL2) : "",
-      l.densL3 ? parseFloat(l.densL3) : "",
-      l.tempL3 ? parseFloat(l.tempL3) : "",
       l.o2 ? parseFloat(l.o2) : "",
       l.redox ? parseFloat(l.redox) : "",
       l.userName ?? "",
@@ -413,9 +400,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   // Larguras das colunas
   wsL.columns = [
     { width: 13 }, { width: 8 },
-    { width: 10 }, { width: 12 },
-    { width: 10 }, { width: 12 },
-    { width: 10 }, { width: 12 },
+    { width: 12 }, { width: 14 },
     { width: 10 }, { width: 10 },
     { width: 22 },
   ];
@@ -431,14 +416,8 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   const chartData = leituras.map((l) => ({
     x: l.diaNr ?? 0,
     densL1: l.densL1 ? parseFloat(l.densL1) : null,
-    densL2: l.densL2 ? parseFloat(l.densL2) : null,
-    densL3: l.densL3 ? parseFloat(l.densL3) : null,
-    baumeL1: (l as any).baumeL1 ? parseFloat((l as any).baumeL1) : null,
-    baumeL2: (l as any).baumeL2 ? parseFloat((l as any).baumeL2) : null,
-    baumeL3: (l as any).baumeL3 ? parseFloat((l as any).baumeL3) : null,
+    baumeL1: l.baumeL1 ? parseFloat(l.baumeL1) : null,
     tempL1: l.tempL1 ? parseFloat(l.tempL1) : null,
-    tempL2: l.tempL2 ? parseFloat(l.tempL2) : null,
-    tempL3: l.tempL3 ? parseFloat(l.tempL3) : null,
     o2: l.o2 ? parseFloat(l.o2) : null,
     redox: l.redox ? parseFloat(l.redox) : null,
   }));
@@ -472,9 +451,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
         dados: chartData.map((d) => ({
           x: d.x,
           series: [
-            { label: "Baumé L1", cor: CORES_HEX.densL1, valor: d.baumeL1 },
-            { label: "Baumé L2", cor: CORES_HEX.densL2, valor: d.baumeL2 },
-            { label: "Baumé L3", cor: CORES_HEX.densL3, valor: d.baumeL3 },
+            { label: "Baumé", cor: CORES_HEX.densL1, valor: d.baumeL1 },
           ],
         })),
       })
@@ -485,9 +462,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
         dados: chartData.map((d) => ({
           x: d.x,
           series: [
-            { label: "Densidade L1", cor: CORES_HEX.densL1, valor: d.densL1 },
-            { label: "Densidade L2", cor: CORES_HEX.densL2, valor: d.densL2 },
-            { label: "Densidade L3", cor: CORES_HEX.densL3, valor: d.densL3 },
+            { label: "Densidade", cor: CORES_HEX.densL1, valor: d.densL1 },
           ],
         })),
       });
@@ -507,9 +482,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     dados: chartData.map((d) => ({
       x: d.x,
       series: [
-        { label: "Temperatura L1", cor: CORES_HEX.tempL1, valor: d.tempL1 },
-        { label: "Temperatura L2", cor: CORES_HEX.tempL2, valor: d.tempL2 },
-        { label: "Temperatura L3", cor: CORES_HEX.tempL3, valor: d.tempL3 },
+        { label: "Temperatura", cor: CORES_HEX.tempL1, valor: d.tempL1 },
       ],
     })),
   });
@@ -705,9 +678,7 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
     // Tabela de leituras
     const hdr = wsC.addRow([
       "Data", "Dia Nº",
-      "Dens. L1", "Temp. L1",
-      "Dens. L2", "Temp. L2",
-      "Dens. L3", "Temp. L3",
+      "Densidade", "Temperatura",
       "O₂", "Redox", "Utilizador",
     ]);
     hdr.eachCell((cell) => {
@@ -722,10 +693,6 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
         l.diaNr ?? "",
         l.densL1 ? parseFloat(l.densL1) : "",
         l.tempL1 ? parseFloat(l.tempL1) : "",
-        l.densL2 ? parseFloat(l.densL2) : "",
-        l.tempL2 ? parseFloat(l.tempL2) : "",
-        l.densL3 ? parseFloat(l.densL3) : "",
-        l.tempL3 ? parseFloat(l.tempL3) : "",
         l.o2 ? parseFloat(l.o2) : "",
         l.redox ? parseFloat(l.redox) : "",
         l.userName ?? "",
@@ -740,23 +707,19 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
 
     wsC.columns = [
       { width: 12 }, { width: 7 },
-      { width: 9 }, { width: 10 },
-      { width: 9 }, { width: 10 },
-      { width: 9 }, { width: 10 },
+      { width: 12 }, { width: 12 },
       { width: 8 }, { width: 8 }, { width: 18 },
     ];
 
     // Gráfico de densidade inline
     if (leituras.length > 1) {
-      const chartData = leituras.map((l) => ({
+      const chartDataDens = leituras.map((l) => ({
         x: l.diaNr ?? 0,
         series: [
-          { label: "L1", cor: CORES_HEX.densL1, valor: l.densL1 ? parseFloat(l.densL1) : null },
-          { label: "L2", cor: CORES_HEX.densL2, valor: l.densL2 ? parseFloat(l.densL2) : null },
-          { label: "L3", cor: CORES_HEX.densL3, valor: l.densL3 ? parseFloat(l.densL3) : null },
+          { label: "Densidade", cor: CORES_HEX.densL1, valor: l.densL1 ? parseFloat(l.densL1) : null },
         ],
       }));
-      const pngDens = gerarGraficoLinha({ titulo: `Densidade — ${cuba.codigo.toUpperCase()}`, dados: chartData, unidade: "Densidade" });
+      const pngDens = gerarGraficoLinha({ titulo: `Densidade — ${cuba.codigo.toUpperCase()}`, dados: chartDataDens, unidade: "Densidade" });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const imgId = (wb as any).addImage({ buffer: pngDens.buffer, extension: "png" }) as number;
       const startRow = leituras.length + 4;
@@ -766,9 +729,7 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
       const chartDataT = leituras.map((l) => ({
         x: l.diaNr ?? 0,
         series: [
-          { label: "Temperatura L1", cor: CORES_HEX.tempL1, valor: l.tempL1 ? parseFloat(l.tempL1) : null },
-          { label: "Temperatura L2", cor: CORES_HEX.tempL2, valor: l.tempL2 ? parseFloat(l.tempL2) : null },
-          { label: "Temperatura L3", cor: CORES_HEX.tempL3, valor: l.tempL3 ? parseFloat(l.tempL3) : null },
+          { label: "Temperatura", cor: CORES_HEX.tempL1, valor: l.tempL1 ? parseFloat(l.tempL1) : null },
         ],
       }));
       const pngTemp = gerarGraficoLinha({ titulo: `Temperatura — ${cuba.codigo.toUpperCase()}`, dados: chartDataT, unidade: "°C" });

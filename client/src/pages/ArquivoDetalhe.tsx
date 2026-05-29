@@ -28,13 +28,9 @@ import {
 // ── Cores fixas dos gráficos ──────────────────────────────
 const CORES = {
   densL1: "#2e7d32",
-  densL2: "#1565c0",
-  densL3: "#c62828",
   o2: "#00838f",
   redox: "#6a1b9a",
   tempL1: "#2e7d32",
-  tempL2: "#1565c0",
-  tempL3: "#c62828",
 };
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -84,11 +80,7 @@ export default function ArquivoDetalhe() {
       dia: l.diaNr ?? 0,
       data: new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
       densL1: l.densL1 ? parseFloat(l.densL1) : null,
-      densL2: l.densL2 ? parseFloat(l.densL2) : null,
-      densL3: l.densL3 ? parseFloat(l.densL3) : null,
       tempL1: l.tempL1 ? parseFloat(l.tempL1) : null,
-      tempL2: l.tempL2 ? parseFloat(l.tempL2) : null,
-      tempL3: l.tempL3 ? parseFloat(l.tempL3) : null,
       o2: l.o2 ? parseFloat(l.o2) : null,
       redox: l.redox ? parseFloat(l.redox) : null,
     }));
@@ -102,12 +94,8 @@ export default function ArquivoDetalhe() {
     const leiturasData = leituras.map((l) => ({
       "Data": new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
       "Dia Nº": l.diaNr ?? "",
-      "Dens. L1": l.densL1 ?? "",
-      "Temp. L1 (°C)": l.tempL1 ?? "",
-      "Dens. L2": l.densL2 ?? "",
-      "Temp. L2 (°C)": l.tempL2 ?? "",
-      "Dens. L3": l.densL3 ?? "",
-      "Temp. L3 (°C)": l.tempL3 ?? "",
+      "Densidade": l.densL1 ?? "",
+      "Temperatura (°C)": l.tempL1 ?? "",
       "O₂ (mg/L)": l.o2 ?? "",
       "Redox (mV)": l.redox ?? "",
       "Registado por": l.userName ?? "",
@@ -133,13 +121,11 @@ export default function ArquivoDetalhe() {
     if (!leituras || !cuba) return;
     const nomeFicheiro = `${cuba.codigo}_ferm${fermentacaoNum}`;
     const linhas = [
-      ["Data", "Dia Nº", "Dens. L1", "Temp. L1", "Dens. L2", "Temp. L2", "Dens. L3", "Temp. L3", "O₂", "Redox", "Utilizador"],
+      ["Data", "Dia Nº", "Densidade", "Temperatura (°C)", "O₂ (mg/L)", "Redox (mV)", "Utilizador"],
       ...leituras.map((l) => [
         new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
         l.diaNr ?? "",
         l.densL1 ?? "", l.tempL1 ?? "",
-        l.densL2 ?? "", l.tempL2 ?? "",
-        l.densL3 ?? "", l.tempL3 ?? "",
         l.o2 ?? "", l.redox ?? "",
         l.userName ?? "",
       ]),
@@ -256,8 +242,8 @@ export default function ArquivoDetalhe() {
             <p className="text-xs text-gray-400">dias</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-            <p className="text-xl font-bold text-green-700">
-              {resumo?.densMin ? parseFloat(resumo.densMin).toFixed(3) : "—"}
+                  <p className="text-xl font-bold text-green-700">
+              {resumo?.densMin ? parseFloat(resumo.densMin).toFixed(4) : "—"}
             </p>
             <p className="text-xs text-gray-400">dens. mín.</p>
           </div>
@@ -295,14 +281,12 @@ export default function ArquivoDetalhe() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -10, fontSize: 11 }} tick={{ fontSize: 11 }} />
                 <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => v?.toFixed(3)} labelFormatter={(l) => `Dia ${l}`} />
+                <Tooltip formatter={(v: number) => v?.toFixed(4)} labelFormatter={(l) => `Dia ${l}`} />
                 <Legend verticalAlign="top" height={24} />
                 {resumo?.densMin && (
-                  <ReferenceLine y={parseFloat(resumo.densMin)} stroke="#999" strokeDasharray="4 4" label={{ value: `Mín: ${parseFloat(resumo.densMin).toFixed(3)}`, fontSize: 10, fill: "#999" }} />
+                  <ReferenceLine y={parseFloat(resumo.densMin)} stroke="#999" strokeDasharray="4 4" label={{ value: `Mín: ${parseFloat(resumo.densMin).toFixed(4)}`, fontSize: 10, fill: "#999" }} />
                 )}
-                <Line type="monotone" dataKey="densL1" name="L1" stroke={CORES.densL1} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
-                <Line type="monotone" dataKey="densL2" name="L2" stroke={CORES.densL2} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
-                <Line type="monotone" dataKey="densL3" name="L3" stroke={CORES.densL3} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+                <Line type="monotone" dataKey="densL1" name="Densidade" stroke={CORES.densL1} strokeWidth={2.5} dot={{ r: 3 }} connectNulls={false} />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -318,9 +302,7 @@ export default function ArquivoDetalhe() {
                 {resumo?.tempMax && (
                   <ReferenceLine y={parseFloat(resumo.tempMax)} stroke="#ef5350" strokeDasharray="4 4" label={{ value: `Máx: ${parseFloat(resumo.tempMax).toFixed(1)}°C`, fontSize: 10, fill: "#ef5350" }} />
                 )}
-                <Line type="monotone" dataKey="tempL1" name="L1" stroke={CORES.tempL1} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
-                <Line type="monotone" dataKey="tempL2" name="L2" stroke={CORES.tempL2} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
-                <Line type="monotone" dataKey="tempL3" name="L3" stroke={CORES.tempL3} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
+                <Line type="monotone" dataKey="tempL1" name="Temperatura" stroke={CORES.tempL1} strokeWidth={2.5} dot={{ r: 3 }} connectNulls={false} />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -367,12 +349,8 @@ export default function ArquivoDetalhe() {
                 <tr className="bg-[var(--color-vinho)] text-white">
                   <th className="px-3 py-3 text-left text-xs font-semibold">Data</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold">Dia</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Dens. L1</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temp. L1</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Dens. L2</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#90caf9" }}>Temp. L2</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Dens. L3</th>
-                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ef9a9a" }}>Temp. L3</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Densidade</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temperatura</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#80deea" }}>O₂</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ce93d8" }}>Redox</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold">Utilizador</th>
@@ -380,9 +358,9 @@ export default function ArquivoDetalhe() {
               </thead>
               <tbody>
                 {loadingLeituras ? (
-                  <tr><td colSpan={11} className="text-center py-8 text-gray-400">A carregar...</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-gray-400">A carregar...</td></tr>
                 ) : !leituras?.length ? (
-                  <tr><td colSpan={11} className="text-center py-8 text-gray-400">Sem leituras registadas</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-gray-400">Sem leituras registadas</td></tr>
                 ) : (
                   leituras.map((l, idx) => (
                     <tr key={l.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
@@ -390,12 +368,8 @@ export default function ArquivoDetalhe() {
                         {new Date(l.dataLeitura).toLocaleDateString("pt-PT")}
                       </td>
                       <td className="px-3 py-2.5 text-center text-xs font-bold text-[var(--color-vinho)]">{l.diaNr ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.densL1 }}>{l.densL1 ? parseFloat(l.densL1).toFixed(3) : "—"}</td>
+                      <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.densL1 }}>{l.densL1 ? parseFloat(l.densL1).toFixed(4) : "—"}</td>
                       <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.tempL1 }}>{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.densL2 }}>{l.densL2 ? parseFloat(l.densL2).toFixed(3) : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.tempL2 }}>{l.tempL2 ? `${parseFloat(l.tempL2).toFixed(1)}°` : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.densL3 }}>{l.densL3 ? parseFloat(l.densL3).toFixed(3) : "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.tempL3 }}>{l.tempL3 ? `${parseFloat(l.tempL3).toFixed(1)}°` : "—"}</td>
                       <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.o2 }}>{l.o2 ? `${parseFloat(l.o2).toFixed(2)}` : "—"}</td>
                       <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.redox }}>{l.redox ? `${parseFloat(l.redox).toFixed(0)}` : "—"}</td>
                       <td className="px-3 py-2.5 text-center text-xs text-gray-400">{l.userName ?? "—"}</td>
