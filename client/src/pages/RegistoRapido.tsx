@@ -335,7 +335,7 @@ export default function RegistoRapido() {
                   const temDadosLinha = temDados(linha);
                   const rowBg = temDadosLinha ? "bg-amber-50" : idx % 2 === 0 ? "bg-white" : "bg-gray-50/60";
                   return (
-                    <tr key={codigo} className={`${rowBg} hover:bg-amber-50/80 transition-colors border-b border-gray-100`}>
+                    <tr key={`vinho-${codigo}`} className={`${rowBg} hover:bg-amber-50/80 transition-colors border-b border-gray-100`}>
                       <td className={`sticky left-0 z-10 ${rowBg} px-3 py-1.5`}>
                         <span className="font-bold text-[var(--color-vinho)] text-xs">{codigo}</span>
                       </td>
@@ -401,7 +401,7 @@ export default function RegistoRapido() {
                   const temDadosLinha = temDados(linha);
                   const rowBg = temDadosLinha ? "bg-amber-50" : idx % 2 === 0 ? "bg-white" : "bg-amber-50/30";
                   return (
-                    <tr key={codigo} className={`${rowBg} hover:bg-amber-50/80 transition-colors border-b border-amber-100`}>
+                    <tr key={`porto-${codigo}`} className={`${rowBg} hover:bg-amber-50/80 transition-colors border-b border-amber-100`}>
                       <td className={`sticky left-0 z-10 ${rowBg} px-3 py-1.5`}>
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-amber-800 text-xs">{codigo}</span>
