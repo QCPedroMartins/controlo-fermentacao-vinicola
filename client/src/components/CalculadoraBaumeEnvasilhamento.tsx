@@ -52,19 +52,21 @@ export default function CalculadoraBaumeEnvasilhamento({
   );
 
   // Pré-preencher campos com os últimos valores guardados (ou volume da cuba)
+  // saved === undefined → ainda a carregar; saved === null → sem dados; saved = objecto → dados guardados
   useEffect(() => {
     if (initializedRef.current) return;
+    if (saved === undefined) return; // ainda a carregar, aguardar
+    initializedRef.current = true;
     if (saved) {
-      initializedRef.current = true;
-      setMostoFresco(saved.mostoFresco ?? (volumeCuba ? String(volumeCuba) : ""));
-      setBeLagrima(saved.beLagrima ?? "");
-      setAlcool(saved.alcool ?? "");
-      setBeActual(saved.beActual ?? "");
-      setGrauVinica(saved.grauVinica ?? "77");
+      // Dados guardados encontrados — preencher todos os campos
+      setMostoFresco(saved.mostoFresco != null ? String(saved.mostoFresco) : (volumeCuba ? String(volumeCuba) : ""));
+      setBeLagrima(saved.beLagrima != null ? String(saved.beLagrima) : "");
+      setAlcool(saved.alcool != null ? String(saved.alcool) : "");
+      setBeActual(saved.beActual != null ? String(saved.beActual) : "");
+      setGrauVinica(saved.grauVinica != null ? String(saved.grauVinica) : "77");
       setSavedAt(new Date(saved.updatedAt));
-    } else if (saved === null) {
+    } else {
       // Sem dados guardados — usar volume da cuba como default
-      initializedRef.current = true;
       if (volumeCuba) setMostoFresco(String(volumeCuba));
     }
   }, [saved, volumeCuba]);
