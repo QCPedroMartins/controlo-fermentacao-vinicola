@@ -232,3 +232,10 @@
 - [x] Frontend: botão "Confirmar Importação" que cria as leituras e mostra resumo de sucesso
 - [x] Testes Vitest: 33 testes a passar
 - [x] Checkpoint e deploy
+
+## Detecção de Duplicados na Importação CSV (v21)
+- [x] Backend: helper `leituraExiste(cubaId, dataLeitura, hora)` em db.ts para verificar duplicados
+- [x] Backend: em processarCsv, marcar cada linha como `duplicado: true` se já existe leitura com mesma cuba+data+hora
+- [x] Backend: em confirmarCsv, ignorar linhas duplicadas (não criar leitura)
+- [x] Frontend: mostrar duplicados no preview com badge "Já existe" (cor âmbar), separados das linhas normais
+- [x] Frontend: duplicados não têm checkbox (são sempre ignorados)

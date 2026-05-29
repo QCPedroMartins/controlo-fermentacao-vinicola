@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload, FileText, CheckCircle2, AlertTriangle, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, FileText, CheckCircle2, AlertTriangle, X, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ interface LinhaPreview {
   densidade: number;
   temperatura: number;
   diaFermentacao?: number;
+  duplicado?: boolean;
 }
 
 interface LinhaIgnorada {
@@ -42,13 +43,20 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
   const [preview, setPreview] = useState<ResultadoPreview | null>(null);
   const [linhasSelecionadas, setLinhasSelecionadas] = useState<Set<number>>(new Set());
   const [mostrarIgnoradas, setMostrarIgnoradas] = useState(false);
-  const [resultadoFinal, setResultadoFinal] = useState<{ criadas: number; erros: string[] } | null>(null);
+  const [mostrarDuplicadas, setMostrarDuplicadas] = useState(false);
+  const [resultadoFinal, setResultadoFinal] = useState<{ criadas: number; ignoradas: number; erros: string[] } | null>(null);
 
   const processarMutation = trpc.importacao.processarCsv.useMutation({
     onSuccess: (data) => {
       setPreview(data);
-      // Seleccionar todas as linhas válidas por defeito
-      setLinhasSelecionadas(new Set(data.linhasValidas.map((_, i) => i)));
+      // Seleccionar apenas as linhas não-duplicadas por defeito
+      const novasSelecionadas = new Set(
+        data.linhasValidas
+          .map((l, i) => ({ l, i }))
+          .filter(({ l }) => !l.duplicado)
+          .map(({ i }) => i)
+      );
+      setLinhasSelecionadas(novasSelecionadas);
       setEtapa("preview");
     },
     onError: (err) => {
@@ -93,6 +101,8 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
   }
 
   function toggleLinha(idx: number) {
+    // Não permitir seleccionar duplicados
+    if (preview?.linhasValidas[idx]?.duplicado) return;
     setLinhasSelecionadas((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx);
@@ -103,10 +113,15 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
 
   function toggleTodas() {
     if (!preview) return;
-    if (linhasSelecionadas.size === preview.linhasValidas.length) {
+    // Apenas as não-duplicadas
+    const novas = preview.linhasValidas
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => !l.duplicado)
+      .map(({ i }) => i);
+    if (linhasSelecionadas.size === novas.length) {
       setLinhasSelecionadas(new Set());
     } else {
-      setLinhasSelecionadas(new Set(preview.linhasValidas.map((_, i) => i)));
+      setLinhasSelecionadas(new Set(novas));
     }
   }
 
@@ -131,9 +146,18 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
     setLinhasSelecionadas(new Set());
     setResultadoFinal(null);
     setMostrarIgnoradas(false);
+    setMostrarDuplicadas(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
     onClose();
   }
+
+  // Separar linhas novas das duplicadas
+  const linhasNovas = preview?.linhasValidas.filter((l) => !l.duplicado) ?? [];
+  const linhasDuplicadas = preview?.linhasValidas.filter((l) => l.duplicado) ?? [];
+  const novasIndexes = preview?.linhasValidas
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => !l.duplicado)
+    .map(({ i }) => i) ?? [];
 
   return (
     <Dialog open={open} onOpenChange={handleFechar}>
@@ -188,12 +212,18 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
             <div className="flex gap-3 flex-wrap">
               <Badge variant="outline" className="text-green-700 border-green-300 bg-green-50">
                 <CheckCircle2 className="w-3 h-3 mr-1" />
-                {preview.linhasValidas.length} leituras a importar
+                {linhasNovas.length} leitura{linhasNovas.length !== 1 ? "s" : ""} nova{linhasNovas.length !== 1 ? "s" : ""}
               </Badge>
-              {preview.linhasIgnoradas.length > 0 && (
+              {linhasDuplicadas.length > 0 && (
                 <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                  <Copy className="w-3 h-3 mr-1" />
+                  {linhasDuplicadas.length} duplicada{linhasDuplicadas.length !== 1 ? "s" : ""} (já existe)
+                </Badge>
+              )}
+              {preview.linhasIgnoradas.length > 0 && (
+                <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">
                   <AlertTriangle className="w-3 h-3 mr-1" />
-                  {preview.linhasIgnoradas.length} linhas ignoradas
+                  {preview.linhasIgnoradas.length} ignorada{preview.linhasIgnoradas.length !== 1 ? "s" : ""}
                 </Badge>
               )}
               <Badge variant="outline" className="text-muted-foreground">
@@ -201,13 +231,13 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
               </Badge>
             </div>
 
-            {/* Tabela de leituras válidas */}
-            {preview.linhasValidas.length > 0 && (
+            {/* Tabela de leituras novas */}
+            {linhasNovas.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold">Leituras a criar</h4>
+                  <h4 className="text-sm font-semibold text-green-700">Leituras novas a criar</h4>
                   <Button variant="ghost" size="sm" onClick={toggleTodas} className="text-xs h-7">
-                    {linhasSelecionadas.size === preview.linhasValidas.length ? "Desseleccionar todas" : "Seleccionar todas"}
+                    {linhasSelecionadas.size === novasIndexes.length ? "Desseleccionar todas" : "Seleccionar todas"}
                   </Button>
                 </div>
                 <div className="border rounded-lg overflow-hidden">
@@ -224,34 +254,83 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.linhasValidas.map((linha, i) => (
-                        <tr
-                          key={i}
-                          className={`border-t cursor-pointer hover:bg-muted/30 transition-colors ${
-                            linhasSelecionadas.has(i) ? "" : "opacity-40"
-                          }`}
-                          onClick={() => toggleLinha(i)}
-                        >
-                          <td className="p-2">
-                            <input
-                              type="checkbox"
-                              checked={linhasSelecionadas.has(i)}
-                              onChange={() => toggleLinha(i)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="rounded"
-                            />
-                          </td>
-                          <td className="p-2 font-medium">{linha.cubaCodigo}</td>
-                          <td className="p-2">{linha.data}</td>
-                          <td className="p-2 text-muted-foreground">{linha.hora}</td>
-                          <td className="p-2 text-right font-mono">{linha.densidade.toFixed(4)}</td>
-                          <td className="p-2 text-right font-mono">{linha.temperatura.toFixed(1)}</td>
-                          <td className="p-2 text-right text-muted-foreground">{linha.diaFermentacao ?? "—"}</td>
-                        </tr>
-                      ))}
+                      {preview.linhasValidas.map((linha, i) => {
+                        if (linha.duplicado) return null;
+                        return (
+                          <tr
+                            key={i}
+                            className={`border-t cursor-pointer hover:bg-muted/30 transition-colors ${
+                              linhasSelecionadas.has(i) ? "" : "opacity-40"
+                            }`}
+                            onClick={() => toggleLinha(i)}
+                          >
+                            <td className="p-2">
+                              <input
+                                type="checkbox"
+                                checked={linhasSelecionadas.has(i)}
+                                onChange={() => toggleLinha(i)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded"
+                              />
+                            </td>
+                            <td className="p-2 font-medium">{linha.cubaCodigo}</td>
+                            <td className="p-2">{linha.data}</td>
+                            <td className="p-2 text-muted-foreground">{linha.hora}</td>
+                            <td className="p-2 text-right font-mono">{linha.densidade.toFixed(4)}</td>
+                            <td className="p-2 text-right font-mono">{linha.temperatura.toFixed(1)}</td>
+                            <td className="p-2 text-right text-muted-foreground">{linha.diaFermentacao ?? "—"}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* Leituras duplicadas (colapsável) */}
+            {linhasDuplicadas.length > 0 && (
+              <div>
+                <button
+                  className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 transition-colors"
+                  onClick={() => setMostrarDuplicadas(!mostrarDuplicadas)}
+                >
+                  {mostrarDuplicadas ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  <Copy className="w-3 h-3" />
+                  {mostrarDuplicadas ? "Ocultar" : "Ver"} leituras duplicadas ({linhasDuplicadas.length}) — já existem na BD, serão ignoradas
+                </button>
+                {mostrarDuplicadas && (
+                  <div className="mt-2 border border-amber-200 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead className="bg-amber-50">
+                        <tr>
+                          <th className="p-2 text-left">Cuba</th>
+                          <th className="p-2 text-left">Data</th>
+                          <th className="p-2 text-left">Hora</th>
+                          <th className="p-2 text-right">Densidade</th>
+                          <th className="p-2 text-right">Temp. (°C)</th>
+                          <th className="p-2 text-center">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {linhasDuplicadas.map((linha, i) => (
+                          <tr key={i} className="border-t bg-amber-50/30">
+                            <td className="p-2 font-medium text-amber-800">{linha.cubaCodigo}</td>
+                            <td className="p-2 text-amber-700">{linha.data}</td>
+                            <td className="p-2 text-amber-600">{linha.hora}</td>
+                            <td className="p-2 text-right font-mono text-amber-700">{linha.densidade.toFixed(4)}</td>
+                            <td className="p-2 text-right font-mono text-amber-700">{linha.temperatura.toFixed(1)}</td>
+                            <td className="p-2 text-center">
+                              <Badge variant="outline" className="text-amber-700 border-amber-400 bg-amber-100 text-[10px]">
+                                Já existe
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
@@ -268,7 +347,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                 {mostrarIgnoradas && (
                   <div className="mt-2 border rounded-lg overflow-hidden">
                     <table className="w-full text-xs">
-                      <thead className="bg-amber-50/50">
+                      <thead className="bg-red-50/50">
                         <tr>
                           <th className="p-2 text-left">Nº</th>
                           <th className="p-2 text-left">Motivo</th>
@@ -278,7 +357,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                         {preview.linhasIgnoradas.map((l, i) => (
                           <tr key={i} className="border-t">
                             <td className="p-2 text-muted-foreground">{l.measNo}</td>
-                            <td className="p-2 text-amber-700">{l.motivo}</td>
+                            <td className="p-2 text-red-700">{l.motivo}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -288,10 +367,18 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
               </div>
             )}
 
-            {preview.linhasValidas.length === 0 && (
+            {linhasNovas.length === 0 && linhasDuplicadas.length === 0 && (
               <div className="text-center py-6 text-muted-foreground">
                 <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-amber-500" />
                 <p className="text-sm">Nenhuma leitura válida encontrada no ficheiro.</p>
+              </div>
+            )}
+
+            {linhasNovas.length === 0 && linhasDuplicadas.length > 0 && (
+              <div className="text-center py-4 text-amber-700 bg-amber-50 rounded-lg">
+                <Copy className="w-8 h-8 mx-auto mb-2 text-amber-500" />
+                <p className="text-sm font-medium">Todas as leituras já existem na base de dados.</p>
+                <p className="text-xs text-muted-foreground mt-1">Nenhuma leitura nova para importar.</p>
               </div>
             )}
           </div>
@@ -305,6 +392,11 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
             <p className="text-sm text-muted-foreground">
               <strong>{resultadoFinal.criadas}</strong> leitura{resultadoFinal.criadas !== 1 ? "s" : ""} criada{resultadoFinal.criadas !== 1 ? "s" : ""} com sucesso.
             </p>
+            {resultadoFinal.ignoradas > 0 && (
+              <p className="text-sm text-amber-600">
+                <strong>{resultadoFinal.ignoradas}</strong> leitura{resultadoFinal.ignoradas !== 1 ? "s" : ""} ignorada{resultadoFinal.ignoradas !== 1 ? "s" : ""} (já existia{resultadoFinal.ignoradas !== 1 ? "m" : ""} na BD).
+              </p>
+            )}
             {resultadoFinal.erros.length > 0 && (
               <div className="text-left mt-3 p-3 bg-red-50 rounded-lg">
                 <p className="text-xs font-semibold text-red-700 mb-1">Erros ({resultadoFinal.erros.length}):</p>

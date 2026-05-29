@@ -27,7 +27,7 @@
 
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
-import { getCubaByCodigo, createLeitura, getLeiturasByCuba } from "./db";
+import { getCubaByCodigo, createLeitura, getLeiturasByCuba, leituraExistePorData } from "./db";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +41,7 @@ export interface LinhaPreview {
   densidade: number;      // SG 20/20
   temperatura: number;    // °C
   diaFermentacao?: number; // calculado a partir das leituras existentes
+  duplicado?: boolean;    // true se já existe leitura para esta cuba+data
 }
 
 export interface LinhaIgnorada {
@@ -82,6 +83,13 @@ function parsearData(str: string): Date | null {
   const m = str.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   if (!m) return null;
   return new Date(`${m[3]}-${m[2]}-${m[1]}T12:00:00.000Z`);
+}
+
+/** Converte data DD.MM.YYYY → string ISO YYYY-MM-DD */
+function dataParaIso(dataStr: string): string | null {
+  const m = dataStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!m) return null;
+  return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
 export async function parsearCsv(csvContent: string): Promise<{
@@ -159,6 +167,7 @@ export const importacaoRouter = router({
   /**
    * Processa o CSV e devolve um preview das leituras a criar.
    * Não persiste nada — apenas valida e devolve para confirmação.
+   * Marca como `duplicado: true` as linhas que já existem na BD (mesma cuba + data).
    */
   processarCsv: protectedProcedure
     .input(z.object({ csvContent: z.string().max(5_000_000) }))
@@ -184,6 +193,20 @@ export const importacaoRouter = router({
           continue;
         }
 
+        // Converter data para ISO (YYYY-MM-DD)
+        const dataIso = dataParaIso(linha.dataStr);
+        if (!dataIso) {
+          linhasIgnoradasFinal.push({
+            measNo: linha.measNo,
+            motivo: `Data inválida: "${linha.dataStr}"`,
+            raw: `${linha.cubaCodigo} | ${linha.dataStr}`,
+          });
+          continue;
+        }
+
+        // Verificar se já existe leitura para esta cuba nesta data (duplicado)
+        const isDuplicado = await leituraExistePorData(cuba.id, dataIso);
+
         // Calcular dia de fermentação: contar leituras existentes + 1
         const leiturasExistentes = await getLeiturasByCuba(cuba.id);
         const diaFermentacao = leiturasExistentes.length + 1;
@@ -198,6 +221,7 @@ export const importacaoRouter = router({
           densidade: linha.densidade,
           temperatura: linha.temperatura,
           diaFermentacao,
+          duplicado: isDuplicado,
         });
       }
 
@@ -211,6 +235,7 @@ export const importacaoRouter = router({
   /**
    * Confirma a importação e persiste as leituras na BD.
    * Recebe apenas as linhas que o utilizador aprovou.
+   * Ignora silenciosamente linhas duplicadas (mesma cuba + data já existe na BD).
    */
   confirmarCsv: protectedProcedure
     .input(
@@ -229,14 +254,21 @@ export const importacaoRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       let criadas = 0;
+      let ignoradas = 0;
       const erros: string[] = [];
 
       for (const linha of input.linhas) {
         try {
           // Converter data DD.MM.YYYY → string ISO para o createLeitura
-          const m = linha.data.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-          if (!m) { erros.push(`Data inválida para cuba ${linha.cubaCodigo}: ${linha.data}`); continue; }
-          const dataIso = `${m[3]}-${m[2]}-${m[1]}`; // YYYY-MM-DD
+          const dataIso = dataParaIso(linha.data);
+          if (!dataIso) { erros.push(`Data inválida para cuba ${linha.cubaCodigo}: ${linha.data}`); continue; }
+
+          // Verificar duplicado antes de criar
+          const isDuplicado = await leituraExistePorData(linha.cubaId, dataIso);
+          if (isDuplicado) {
+            ignoradas++;
+            continue;
+          }
 
           // Obter cuba para saber fermentacaoNum actual (tentar múltiplas variantes)
           let cuba = null;
@@ -275,6 +307,6 @@ export const importacaoRouter = router({
         }
       }
 
-      return { criadas, erros };
+      return { criadas, ignoradas, erros };
     }),
 });

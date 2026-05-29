@@ -565,6 +565,22 @@ export async function getBaumeCalculo(cubaId: number) {
   return rows[0] ?? null;
 }
 
+/**
+ * Verifica se já existe uma leitura para uma cuba numa determinada data.
+ * Usado na importação CSV para evitar duplicados.
+ */
+export async function leituraExistePorData(cubaId: number, dataLeituraIso: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const dataDate = toDate(dataLeituraIso);
+  const rows = await db
+    .select({ id: leituras.id })
+    .from(leituras)
+    .where(and(eq(leituras.cubaId, cubaId), eq(leituras.dataLeitura, dataDate)))
+    .limit(1);
+  return rows.length > 0;
+}
+
 /** Guarda (insert ou update) o cálculo de Baumé para uma cuba VP */
 export async function upsertBaumeCalculo(data: {
   cubaId: number;
