@@ -279,3 +279,10 @@
 - [x] Backend: routers.ts removidos instanceof Date checks (dataLeitura é sempre string)
 - [x] PDF: gerarGraficoPng redesenhado com legenda na lateral direita (160px) em vez de em baixo
 - [x] Excel/Email: gerarGraficoLinha redesenhado com legenda na lateral direita (180px) em vez de em baixo
+
+## Hora no Registo Rápido (v33)
+- [x] Adicionar campo de hora global (ao lado da data) na barra de controlo do Registo Rápido
+- [x] Adicionar coluna Hora por cuba nas tabelas CF e VP do Registo Rápido
+- [x] Hora global aplica-se a todas as cubas sem hora individual definida
+- [x] Hora individual por cuba sobrepõe a hora global
+- [x] Horas vindas do CSV mantêm-se inalteradas

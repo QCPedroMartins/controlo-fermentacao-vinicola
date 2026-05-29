@@ -62,6 +62,8 @@ export default function RegistoRapido() {
   const [dadosCsvInfo, setDadosCsvInfo] = useState<{ nCubas: number; importadoEm: string; cubas: { codigo: string; hora: string }[] } | null>(null);
   // Mapa de hora por código de cuba (vem do CSV, para guardar na BD)
   const [horasPorCuba, setHorasPorCuba] = useState<Record<string, string>>({});
+  // Hora global aplicada a todas as cubas sem hora individual
+  const [horaGlobal, setHoraGlobal] = useState<string>("");
 
   const { data: cubasData } = trpc.cubas.list.useQuery();
   const registarLote = trpc.leituras.registarLote.useMutation();
@@ -137,6 +139,8 @@ export default function RegistoRapido() {
   function limparTudo() {
     setLinhas(Object.fromEntries(TODAS_CUBAS.map((c) => [c, linhaVazia()])));
     setEstados({});
+    setHorasPorCuba({});
+    setHoraGlobal("");
     limparDadosCsvDoStorage();
     setDadosCsvInfo(null);
   }
@@ -146,7 +150,13 @@ export default function RegistoRapido() {
     setDadosCsvInfo(null);
     setLinhas(Object.fromEntries(TODAS_CUBAS.map((c) => [c, linhaVazia()])));
     setEstados({});
+    setHorasPorCuba({});
     setMostrarSemDados(true);
+  }
+
+  function updateHoraCuba(codigo: string, valor: string) {
+    setHorasPorCuba((prev) => ({ ...prev, [codigo]: valor }));
+    setEstados((prev) => ({ ...prev, [codigo]: "idle" }));
   }
 
   async function registar() {
@@ -167,7 +177,12 @@ export default function RegistoRapido() {
       return {
         cubaId: cuba.id,
         fermentacaoNum: cuba.fermentacaoNum,
-        hora: horasPorCuba[codigo] ?? null,
+        hora: (() => {
+        const h = horasPorCuba[codigo] ?? (horaGlobal.trim() !== "" ? horaGlobal.trim() : null);
+        if (!h) return null;
+        // Normalizar HH:MM para HH:MM:00 para consistência com o CSV
+        return h.length === 5 ? h + ":00" : h;
+      })(),
         densL1: isPorto ? null : toNullable(l.densL1),
         baumeL1: isPorto ? toNullable(l.baumeL1) : null,
         tempL1: toNullable(l.tempL1),
@@ -282,6 +297,26 @@ export default function RegistoRapido() {
             className="h-8 text-xs w-36"
           />
         </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-gray-600">Hora global:</label>
+          <Input
+            type="time"
+            value={horaGlobal}
+            onChange={(e) => setHoraGlobal(e.target.value)}
+            className="h-8 text-xs w-28"
+            placeholder="HH:MM"
+            title="Hora aplicada a todas as cubas sem hora individual"
+          />
+          {horaGlobal && (
+            <button
+              onClick={() => setHoraGlobal("")}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+              title="Limpar hora global"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
         <Button
           variant="outline"
           size="sm"
@@ -321,6 +356,7 @@ export default function RegistoRapido() {
               <thead>
                 <tr className="bg-[var(--color-vinho)] text-white">
                   <th className="sticky left-0 z-10 bg-[var(--color-vinho)] px-3 py-3 text-left font-semibold w-20">Cuba</th>
+                  <th className="px-2 py-3 text-center font-semibold text-yellow-300 w-20">Hora</th>
                   <th className="px-2 py-3 text-center font-semibold text-green-300 w-28">Densidade</th>
                   <th className="px-2 py-3 text-center font-semibold text-green-300 w-24">Temperatura (°C)</th>
                   <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
@@ -338,6 +374,14 @@ export default function RegistoRapido() {
                     <tr key={`vinho-${codigo}`} className={`${rowBg} hover:bg-amber-50/80 transition-colors border-b border-gray-100`}>
                       <td className={`sticky left-0 z-10 ${rowBg} px-3 py-1.5`}>
                         <span className="font-bold text-[var(--color-vinho)] text-xs">{codigo}</span>
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="time" value={horasPorCuba[codigo] ?? ""}
+                          onChange={(e) => updateHoraCuba(codigo, e.target.value)}
+                          className="h-7 text-xs text-center border-yellow-200 focus:border-yellow-500 px-1"
+                          title={horaGlobal && !horasPorCuba[codigo] ? `Hora global: ${horaGlobal}` : "Hora individual"}
+                          style={{ opacity: (!horasPorCuba[codigo] && horaGlobal) ? 0.5 : 1 }}
+                        />
                       </td>
                       <td className="px-1 py-1">
                         <Input type="number" step="0.0001" placeholder="—" value={linha.densL1}
@@ -387,6 +431,7 @@ export default function RegistoRapido() {
               <thead>
                 <tr className="bg-amber-800 text-white">
                   <th className="sticky left-0 z-10 bg-amber-800 px-3 py-3 text-left font-semibold w-20">Cuba</th>
+                  <th className="px-2 py-3 text-center font-semibold text-yellow-300 w-20">Hora</th>
                   <th className="px-2 py-3 text-center font-semibold text-green-300 w-24">Baumé (°)</th>
                   <th className="px-2 py-3 text-center font-semibold text-green-300 w-24">Temperatura (°C)</th>
                   <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
@@ -407,6 +452,14 @@ export default function RegistoRapido() {
                           <span className="font-bold text-amber-800 text-xs">{codigo}</span>
                           <span className="text-[8px] font-bold bg-amber-800 text-amber-100 px-1 rounded">VP</span>
                         </div>
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="time" value={horasPorCuba[codigo] ?? ""}
+                          onChange={(e) => updateHoraCuba(codigo, e.target.value)}
+                          className="h-7 text-xs text-center border-yellow-200 focus:border-yellow-500 px-1"
+                          title={horaGlobal && !horasPorCuba[codigo] ? `Hora global: ${horaGlobal}` : "Hora individual"}
+                          style={{ opacity: (!horasPorCuba[codigo] && horaGlobal) ? 0.5 : 1 }}
+                        />
                       </td>
                       <td className="px-1 py-1">
                         <Input type="number" step="0.1" placeholder="—" value={linha.baumeL1}
