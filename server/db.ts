@@ -8,6 +8,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
   adicoes,
+  baumeCalculo,
   campanhas,
   cubas,
   fermentacoesArquivo,
@@ -539,7 +540,6 @@ export async function getArquivoByCubaCampanha(cubaId: number, campanhaId?: numb
 }
 
 // ── Cálculo de Baumé de Envasilhamento (Vinho do Porto) ───
-import { baumeCalculo } from "../drizzle/schema";
 
 /** Devolve o último cálculo de Baumé guardado para uma cuba VP */
 export async function getBaumeCalculo(cubaId: number) {
