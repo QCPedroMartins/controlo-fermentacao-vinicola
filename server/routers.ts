@@ -4,6 +4,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { importacaoRouter } from "./importacaoRouter";
 import {
   getAllCubas,
   getAdicoesByCuba,
@@ -862,7 +863,7 @@ export const appRouter = router({
   arquivo: arquivoRouter,
   arquivoDetalhe: arquivoDetalheRouter,
   relatorio: relatorioRouter,
-  campanhas: campanhasRouter,
+    campanhas: campanhasRouter,
+  importacao: importacaoRouter,
 });
-
 export type AppRouter = typeof appRouter;

@@ -217,3 +217,18 @@
 - [x] Frontend: indicador "A guardar…" / "Guardado às HH:MM" no cabeçalho da calculadora
 - [x] Testes Vitest: 33 testes a passar
 - [x] Checkpoint e deploy
+
+## Importação CSV da Máquina de Densimetria (v20)
+- [x] Backend: endpoint tRPC `importacao.processarCsv` que recebe o conteúdo do CSV como string
+- [x] Backend: parser do CSV (separador `;`, decimal `,`, ignorar WaterCheck e linhas sem Sample ID)
+- [x] Backend: mapear Col B (data DD.MM.YYYY), Col E (cuba), Col L (densidade SG 20/20), Col O (temperatura)
+- [x] Backend: normalizar código da cuba (cf01, CF01, cf1 → CF01) e verificar se existe na BD
+- [x] Backend: devolver preview das leituras a criar + linhas ignoradas + erros
+- [x] Backend: endpoint `importacao.confirmarCsv` que persiste as leituras após confirmação do utilizador
+- [x] Frontend: botão "Importar CSV" no Dashboard (topo direito, cor âmbar)
+- [x] Frontend: modal com upload de ficheiro CSV (drag & drop ou clique), pré-visualização das leituras por cuba
+- [x] Frontend: indica linhas ignoradas (WaterCheck, cuba não encontrada, dados inválidos) em secção colápsável
+- [x] Frontend: checkboxes para seleccionar/desseleccionar leituras antes de confirmar
+- [x] Frontend: botão "Confirmar Importação" que cria as leituras e mostra resumo de sucesso
+- [x] Testes Vitest: 33 testes a passar
+- [x] Checkpoint e deploy

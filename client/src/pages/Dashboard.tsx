@@ -1,7 +1,8 @@
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, FlaskConical } from "lucide-react";
+import { AlertTriangle, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, FlaskConical, Upload } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
+import ImportacaoCsvModal from "@/components/ImportacaoCsvModal";
 
 type Estado = "todos" | "sem_dados" | "em_fermentacao" | "completa" | "com_alertas";
 
@@ -77,6 +78,8 @@ function temAlertasAtivos(cuba: {
 
 export default function Dashboard() {
   const [filtro, setFiltro] = useState<Estado>("todos");
+  const [csvModalAberto, setCsvModalAberto] = useState(false);
+  const utils = trpc.useUtils();
   const { data: cubas, isLoading } = trpc.cubas.dashboard.useQuery();
   const { data: todasLeituras, isLoading: loadingAlertas } = trpc.leituras.listAllDashboard.useQuery();
   const { data: campanhaAtiva } = trpc.campanhas.ativa.useQuery();
@@ -136,6 +139,13 @@ export default function Dashboard() {
               ) : "Campanhas"}
             </button>
           </Link>
+          <button
+            onClick={() => setCsvModalAberto(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-amber-600 text-amber-700 text-sm font-semibold hover:bg-amber-50 transition-colors"
+          >
+            <Upload size={16} />
+            Importar CSV
+          </button>
           <Link href="/registo-rapido">
             <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-vinho)] text-white text-sm font-semibold shadow hover:bg-[var(--color-vinho)]/90 transition-colors">
               <ClipboardList size={16} />
@@ -144,6 +154,11 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+      <ImportacaoCsvModal
+        open={csvModalAberto}
+        onClose={() => setCsvModalAberto(false)}
+        onImportado={() => { utils.cubas.dashboard.invalidate(); utils.leituras.listAllDashboard.invalidate(); }}
+      />
 
       {/* Estatísticas */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
