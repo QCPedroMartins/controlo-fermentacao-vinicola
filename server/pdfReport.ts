@@ -11,6 +11,7 @@ type LeituraRow = {
   id: number;
   dataLeitura: Date | string;
   diaNr: number | null;
+  hora: string | null;
   densL1: string | null;
   baumeL1?: string | null;
   tempL1: string | null;
@@ -74,7 +75,7 @@ function formatDate(d: Date | string): string {
 // ── Gerador de gráfico PNG ──────────────────────────────────
 function gerarGraficoPng(params: {
   titulo: string;
-  dados: { x: number; series: { label: string; cor: string; valor: number | null }[] }[];
+  dados: { x: number; xLabel?: string; series: { label: string; cor: string; valor: number | null }[] }[];
   unidade?: string;
   marcadores?: { dia: number; index: number }[];
   linhaRef?: { valor: number; label: string; cor: string };
@@ -148,9 +149,14 @@ function gerarGraficoPng(params: {
     ctx.fillText(val.toFixed(decimais), PAD.left - 4, y + 3);
   }
 
-  // Labels X
+  // Labels X (usa xLabel se disponível, caso contrário o valor numérico)
   ctx.fillStyle = "#666"; ctx.font = "9px sans-serif"; ctx.textAlign = "center";
-  params.dados.forEach((d) => ctx.fillText(String(d.x), toX(d.x), PAD.top + plotH + 10));
+  // Mostrar no máximo 12 labels para não sobrepor
+  const step = Math.max(1, Math.ceil(params.dados.length / 12));
+  params.dados.forEach((d, i) => {
+    if (i % step !== 0 && i !== params.dados.length - 1) return;
+    ctx.fillText(d.xLabel ?? String(d.x), toX(d.x), PAD.top + plotH + 10);
+  });
 
   // Unidade Y
   if (params.unidade) {
@@ -265,8 +271,10 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
     return { dia: diaProximo, index: idx + 1 };
   });
 
-  const chartData = leituras.map((l) => ({
-    x: l.diaNr ?? 0,
+  // Usar índice sequencial como X para distribuir pontos mesmo quando são do mesmo dia
+  const chartData = leituras.map((l, idx) => ({
+    x: idx,
+    xLabel: l.hora ? l.hora.substring(0, 5) : String(l.diaNr ?? idx), // HH:MM ou dia
     densL1: l.densL1 ? parseFloat(l.densL1) : null,
     baumeL1: l.baumeL1 ? parseFloat(l.baumeL1) : null,
     tempL1: l.tempL1 ? parseFloat(l.tempL1) : null,
@@ -368,6 +376,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
               : undefined,
             dados: chartData.map((d) => ({
               x: d.x,
+              xLabel: d.xLabel,
               series: [
                 { label: "Baumé", cor: CORES.l1, valor: d.baumeL1 },
               ],
@@ -381,6 +390,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
             marcadores: marcadoresGrafico,
             dados: chartData.map((d) => ({
               x: d.x,
+              xLabel: d.xLabel,
               series: [
                 { label: "Densidade", cor: CORES.l1, valor: d.densL1 },
               ],
@@ -402,6 +412,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
           : undefined,
         dados: chartData.map((d) => ({
           x: d.x,
+          xLabel: d.xLabel,
           series: [
             { label: "Temperatura", cor: CORES.l1, valor: d.tempL1 },
           ],
@@ -425,6 +436,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
           marcadores: marcadoresGrafico,
           dados: chartData.map((d) => ({
             x: d.x,
+            xLabel: d.xLabel,
             series: [{ label: "O₂ Dissolvido", cor: CORES.o2, valor: d.o2 }],
           })),
           largura: CHART_W * 2,
@@ -446,6 +458,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
           marcadores: marcadoresGrafico,
           dados: chartData.map((d) => ({
             x: d.x,
+            xLabel: d.xLabel,
             series: [{ label: "Potencial Redox", cor: CORES.redox, valor: d.redox }],
           })),
           largura: CHART_W * 2,

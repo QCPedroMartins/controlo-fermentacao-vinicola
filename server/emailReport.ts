@@ -24,6 +24,7 @@ type LeituraRow = {
   id: number;
   dataLeitura: Date | string;
   diaNr: number | null;
+  hora: string | null;
   densL1: string | null;
   baumeL1?: string | null;
   tempL1: string | null;
@@ -67,7 +68,7 @@ type CubaInfo = {
 // ── Gerador de gráfico PNG via canvas ─────────────────────
 function gerarGraficoLinha(params: {
   titulo: string;
-  dados: { x: number; series: { label: string; cor: string; valor: number | null }[] }[];
+  dados: { x: number; xLabel?: string; series: { label: string; cor: string; valor: number | null }[] }[];
   largura?: number;
   altura?: number;
   unidade?: string;
@@ -146,13 +147,16 @@ function gerarGraficoLinha(params: {
     ctx.fillText(val.toFixed(decimais), PAD.left - 5, y + 4);
   }
 
-  // Eixo X — labels de dia (imediatamente abaixo do gráfico)
+  // Eixo X — labels (hora HH:MM ou dia de fermentação)
   ctx.fillStyle = "#666";
   ctx.font = "10px sans-serif";
   ctx.textAlign = "center";
-  params.dados.forEach((d) => {
+  // Mostrar no máximo 14 labels para não sobrepor
+  const stepX = Math.max(1, Math.ceil(params.dados.length / 14));
+  params.dados.forEach((d, i) => {
+    if (i % stepX !== 0 && i !== params.dados.length - 1) return;
     const x = toX(d.x);
-    ctx.fillText(String(d.x), x, PAD.top + plotH + 14);
+    ctx.fillText(d.xLabel ?? String(d.x), x, PAD.top + plotH + 14);
   });
 
   // Unidade Y
@@ -422,8 +426,10 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   wsG.getCell("A1").alignment = { horizontal: "center" };
 
   const isPorto = cuba.tipoCuba === "porto";
-  const chartData = leituras.map((l) => ({
-    x: l.diaNr ?? 0,
+  // Usar índice sequencial como X para distribuir pontos mesmo quando são do mesmo dia
+  const chartData = leituras.map((l, idx) => ({
+    x: idx,
+    xLabel: l.hora ? l.hora.substring(0, 5) : String(l.diaNr ?? idx), // HH:MM ou dia
     densL1: l.densL1 ? parseFloat(l.densL1) : null,
     baumeL1: l.baumeL1 ? parseFloat(l.baumeL1) : null,
     tempL1: l.tempL1 ? parseFloat(l.tempL1) : null,
@@ -459,6 +465,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
           : undefined,
         dados: chartData.map((d) => ({
           x: d.x,
+          xLabel: d.xLabel,
           series: [
             { label: "Baumé", cor: CORES_HEX.densL1, valor: d.baumeL1 },
           ],
@@ -470,6 +477,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
         marcadores: marcadoresGrafico,
         dados: chartData.map((d) => ({
           x: d.x,
+          xLabel: d.xLabel,
           series: [
             { label: "Densidade", cor: CORES_HEX.densL1, valor: d.densL1 },
           ],
@@ -490,6 +498,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       : undefined,
     dados: chartData.map((d) => ({
       x: d.x,
+      xLabel: d.xLabel,
       series: [
         { label: "Temperatura", cor: CORES_HEX.tempL1, valor: d.tempL1 },
       ],
@@ -509,6 +518,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       marcadores: marcadoresGrafico,
       dados: chartData.map((d) => ({
         x: d.x,
+        xLabel: d.xLabel,
         series: [{ label: "O₂ Dissolvido", cor: CORES_HEX.o2, valor: d.o2 }],
       })),
     });
@@ -527,6 +537,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       marcadores: marcadoresGrafico,
       dados: chartData.map((d) => ({
         x: d.x,
+        xLabel: d.xLabel,
         series: [{ label: "Potencial Redox", cor: CORES_HEX.redox, valor: d.redox }],
       })),
     });
