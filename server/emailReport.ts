@@ -81,13 +81,15 @@ function gerarGraficoLinha(params: {
   marcadores?: { dia: number; label: string; index: number }[];
   linhaRef?: { valor: number; label: string; cor: string }; // linha horizontal de referência (ex: temp pretendida, aguardentação)
 }): { buffer: Buffer; height: number } {
-  const W = params.largura ?? 800;
-  // Calcular altura necessária para a legenda: cada série ocupa 90px na horizontal, máx 3 por linha
+  const W = params.largura ?? 900;
   const nSeries = params.dados[0]?.series.length ?? 0;
-  const nLinhasLegenda = Math.ceil(nSeries / 8); // até 8 séries por linha
-  const alturaLegenda = nLinhasLegenda * 20 + (params.linhaRef ? 20 : 0) + 10;
-  const H = (params.altura ?? 300) + alturaLegenda;
-  const PAD = { top: 40, right: 30, bottom: 20 + alturaLegenda, left: 65 };
+  // Cada série ocupa 130px; máx 6 por linha
+  const nLinhasLegenda = Math.ceil(nSeries / 6);
+  // Espaço da legenda: 20px por linha + 20px para a linhaRef + 20px para o label do eixo X + 20px de margem
+  const alturaLegenda = nLinhasLegenda * 24 + (params.linhaRef ? 24 : 0) + 20 + 20;
+  const H = (params.altura ?? 320) + alturaLegenda;
+  // PAD.bottom inclui: 18px para labels X + alturaLegenda
+  const PAD = { top: 45, right: 40, bottom: 18 + alturaLegenda, left: 70 };
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
@@ -142,13 +144,13 @@ function gerarGraficoLinha(params: {
     ctx.fillText(val.toFixed(decimais), PAD.left - 5, y + 4);
   }
 
-  // Eixo X — labels de dia
+  // Eixo X — labels de dia (imediatamente abaixo do gráfico)
   ctx.fillStyle = "#666";
   ctx.font = "10px sans-serif";
   ctx.textAlign = "center";
   params.dados.forEach((d) => {
     const x = toX(d.x);
-    ctx.fillText(String(d.x), x, PAD.top + plotH + 12);
+    ctx.fillText(String(d.x), x, PAD.top + plotH + 14);
   });
 
   // Unidade Y
@@ -229,35 +231,39 @@ function gerarGraficoLinha(params: {
     });
   });
 
-  // Legenda das séries (abaixo do gráfico)
-  const legendaY = PAD.top + plotH + 18;
+  // Legenda das séries (abaixo dos labels do eixo X, com espaço suficiente)
+  // labels X estão em plotH+14; legenda começa em plotH+36
+  const legendaY = PAD.top + plotH + 36;
   seriesLabels.forEach((label, si) => {
     const cor = params.dados[0]?.series[si]?.cor ?? "888888";
-    const lx = PAD.left + si * 100;
-    const ly = legendaY;
+    const linhaIdx = Math.floor(si / 6);
+    const colIdx = si % 6;
+    const lx = PAD.left + colIdx * 130;
+    const ly = legendaY + linhaIdx * 24;
     // Linha colorida
     ctx.strokeStyle = "#" + cor;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(lx, ly);
-    ctx.lineTo(lx + 20, ly);
+    ctx.lineTo(lx + 22, ly);
     ctx.stroke();
     // Ponto central
     ctx.fillStyle = "#" + cor;
     ctx.beginPath();
-    ctx.arc(lx + 10, ly, 4, 0, Math.PI * 2);
+    ctx.arc(lx + 11, ly, 4, 0, Math.PI * 2);
     ctx.fill();
     // Texto
     ctx.fillStyle = "#222";
     ctx.font = "bold 11px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(label, lx + 26, ly + 4);
+    ctx.fillText(label, lx + 28, ly + 4);
   });
 
-  // Legenda da linha de referência (se existir)
+  // Legenda da linha de referência (se existir) — na linha seguinte às séries
   if (params.linhaRef) {
-    const lx = PAD.left + seriesLabels.length * 100;
-    const ly = legendaY;
+    const nLinhasUsadas = Math.ceil(seriesLabels.length / 6);
+    const lx = PAD.left;
+    const ly = legendaY + nLinhasUsadas * 24;
     ctx.save();
     ctx.strokeStyle = params.linhaRef.cor;
     ctx.lineWidth = 1.5;
@@ -274,11 +280,13 @@ function gerarGraficoLinha(params: {
     ctx.fillText(params.linhaRef.label, lx + 26, ly + 4);
   }
 
-  // Label eixo X
+  // Label eixo X (no fundo, abaixo de tudo)
+  const nLinhasUsadas2 = Math.ceil(seriesLabels.length / 6);
+  const labelXY = legendaY + nLinhasUsadas2 * 24 + (params.linhaRef ? 24 : 0) + 14;
   ctx.fillStyle = "#444";
   ctx.font = "11px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("Dia de fermentação", PAD.left + plotW / 2, legendaY + (params.linhaRef ? 22 : 18));
+  ctx.fillText("Dia de fermentação", PAD.left + plotW / 2, labelXY);
 
   return { buffer: canvas.toBuffer("image/png"), height: H };
 }

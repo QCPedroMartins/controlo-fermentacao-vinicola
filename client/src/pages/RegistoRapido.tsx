@@ -6,9 +6,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Save, RotateCcw, CheckCircle2, XCircle, Loader2, LogIn, ChevronDown, ChevronUp } from "lucide-react";
+import { Save, RotateCcw, CheckCircle2, XCircle, Loader2, LogIn } from "lucide-react";
 
-const TODAS_CUBAS = [
+const CUBAS_VINHO = [
   'CF1','CF2','CF3','CF4','CF5','CF6','CF7','CF8','CF9','CF10',
   'CF11','CF12','CF13','CF14','CF15','CF16','CF17','CF18','CF19','CF20',
   'CF21','CF22','CF23','CF24','CF25','CF26','CF27','CF28','CF29','CF30',
@@ -19,8 +19,13 @@ const TODAS_CUBAS = [
   'CF200','CF201','CF202','CF203','CF204','CF205','CF206','CF207','CF208','CF209','CF210',
 ];
 
+const CUBAS_PORTO = ['VP01','VP02','VP03','VP04','VP05'];
+
+const TODAS_CUBAS = [...CUBAS_VINHO, ...CUBAS_PORTO];
+
 type LinhaLeitura = {
   densL1: string; densL2: string; densL3: string;
+  baumeL1: string; baumeL2: string; baumeL3: string;
   tempL1: string; tempL2: string; tempL3: string;
   o2: string; redox: string;
 };
@@ -28,7 +33,12 @@ type LinhaLeitura = {
 type EstadoLinha = "idle" | "ok" | "erro";
 
 function linhaVazia(): LinhaLeitura {
-  return { densL1: "", densL2: "", densL3: "", tempL1: "", tempL2: "", tempL3: "", o2: "", redox: "" };
+  return {
+    densL1: "", densL2: "", densL3: "",
+    baumeL1: "", baumeL2: "", baumeL3: "",
+    tempL1: "", tempL2: "", tempL3: "",
+    o2: "", redox: "",
+  };
 }
 
 function temDados(linha: LinhaLeitura): boolean {
@@ -84,12 +94,16 @@ export default function RegistoRapido() {
     const payload = linhasComDados.map((codigo) => {
       const cuba = cubaMap[codigo.toUpperCase()];
       const l = linhas[codigo];
+      const isPorto = CUBAS_PORTO.includes(codigo);
       return {
         cubaId: cuba.id,
         fermentacaoNum: cuba.fermentacaoNum,
-        densL1: toNullable(l.densL1),
-        densL2: toNullable(l.densL2),
-        densL3: toNullable(l.densL3),
+        densL1: isPorto ? null : toNullable(l.densL1),
+        densL2: isPorto ? null : toNullable(l.densL2),
+        densL3: isPorto ? null : toNullable(l.densL3),
+        baumeL1: isPorto ? toNullable(l.baumeL1) : null,
+        baumeL2: isPorto ? toNullable(l.baumeL2) : null,
+        baumeL3: isPorto ? toNullable(l.baumeL3) : null,
         tempL1: toNullable(l.tempL1),
         tempL2: toNullable(l.tempL2),
         tempL3: toNullable(l.tempL3),
@@ -107,7 +121,6 @@ export default function RegistoRapido() {
       });
       setEstados(novosEstados);
       toast.success(`${resultado.sucesso} de ${resultado.total} cubas registadas com sucesso!`);
-      // Limpar linhas com sucesso
       setLinhas((prev) => {
         const novo = { ...prev };
         resultado.resultados.forEach((r) => {
@@ -128,7 +141,7 @@ export default function RegistoRapido() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <p className="text-[var(--color-vinho)] font-semibold text-lg">Precisa de iniciar sessão para registar leituras.</p>
         <a href={getLoginUrl()}>
-          <Button className="bg-[var(--color-vinho)] text-white gap-2">
+          <Button className="gap-2 bg-[var(--color-vinho)] text-white">
             <LogIn size={16} /> Iniciar Sessão
           </Button>
         </a>
@@ -136,14 +149,20 @@ export default function RegistoRapido() {
     );
   }
 
+  const cubasVinhoVisiveis = mostrarSemDados
+    ? CUBAS_VINHO
+    : CUBAS_VINHO.filter((c) => temDados(linhas[c]));
+
+  const cubasPortoVisiveis = mostrarSemDados
+    ? CUBAS_PORTO
+    : CUBAS_PORTO.filter((c) => temDados(linhas[c]));
+
   return (
-    <div className="p-4 md:p-6 max-w-full">
+    <div className="p-4 sm:p-6 max-w-full animate-fade-in">
       {/* Cabeçalho */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--color-vinho)]" style={{ fontFamily: "var(--font-serif)" }}>
-          Registo Rápido
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold text-[var(--color-vinho)] mb-1">Registo Rápido</h1>
+        <p className="text-gray-500 text-sm">
           Preencha as leituras de várias cubas de uma só vez e clique em "Registar Tudo".
         </p>
       </div>
@@ -151,179 +170,223 @@ export default function RegistoRapido() {
       {/* Barra de controlo */}
       <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-white rounded-xl border border-[var(--color-dourado)]/30 shadow-sm">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-semibold text-[var(--color-vinho)]">Data:</label>
+          <label className="text-xs font-medium text-gray-600">Data:</label>
           <Input
             type="date"
             value={data}
             onChange={(e) => setData(e.target.value)}
-            className="w-40 text-sm border-[var(--color-dourado)]/40 focus:border-[var(--color-vinho)]"
+            className="h-8 text-xs w-36"
           />
         </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <Badge variant="outline" className="text-xs border-[var(--color-vinho)]/30 text-[var(--color-vinho)]">
-            {cubasComDados.length} cubas com dados
-          </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={limparTudo}
-            className="gap-1.5 text-xs border-gray-300 text-gray-600 hover:text-red-600 hover:border-red-300"
-          >
-            <RotateCcw size={13} /> Limpar tudo
-          </Button>
-          <Button
-            size="sm"
-            onClick={registar}
-            disabled={registarLote.isPending || cubasComDados.length === 0}
-            className="gap-1.5 text-xs bg-[var(--color-vinho)] hover:bg-[var(--color-vinho)]/90 text-white"
-          >
-            {registarLote.isPending ? (
-              <><Loader2 size={13} className="animate-spin" /> A registar...</>
-            ) : (
-              <><Save size={13} /> Registar Tudo ({cubasComDados.length})</>
-            )}
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setMostrarSemDados((v) => !v)}
+          className="text-xs gap-1.5"
+        >
+          {mostrarSemDados ? "Ocultar vazias" : `Mostrar todas (${cubasSemDados.length} vazias)`}
+        </Button>
+        <Badge variant="secondary" className="text-xs">
+          {cubasComDados.length} cubas com dados
+        </Badge>
+        <Button variant="outline" size="sm" onClick={limparTudo} className="text-xs gap-1.5">
+          <RotateCcw size={12} /> Limpar
+        </Button>
+        <Button
+          size="sm"
+          onClick={registar}
+          disabled={registarLote.isPending || cubasComDados.length === 0}
+          className="gap-1.5 text-xs bg-[var(--color-vinho)] hover:bg-[var(--color-vinho)]/90 text-white"
+        >
+          {registarLote.isPending ? (
+            <><Loader2 size={13} className="animate-spin" /> A registar...</>
+          ) : (
+            <><Save size={13} /> Registar Tudo ({cubasComDados.length})</>
+          )}
+        </Button>
       </div>
 
-      {/* Tabela */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-[var(--color-vinho)] text-white">
-                <th className="sticky left-0 z-10 bg-[var(--color-vinho)] px-3 py-3 text-left font-semibold w-20">Cuba</th>
-                <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Dens. L1</th>
-                <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Temp. L1</th>
-                <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Dens. L2</th>
-                <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Temp. L2</th>
-                <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Dens. L3</th>
-                <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Temp. L3</th>
-                <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
-                <th className="px-2 py-3 text-center font-semibold text-purple-300 w-20">Redox (mV)</th>
-                <th className="px-2 py-3 text-center font-semibold w-16">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {TODAS_CUBAS.map((codigo, idx) => {
-                const linha = linhas[codigo];
-                const estado = estados[codigo] ?? "idle";
-                const temDadosLinha = temDados(linha);
-                const rowBg = temDadosLinha
-                  ? "bg-amber-50"
-                  : idx % 2 === 0
-                  ? "bg-white"
-                  : "bg-gray-50/60";
-
-                return (
-                  <tr key={codigo} className={`${rowBg} hover:bg-amber-50/80 transition-colors border-b border-gray-100`}>
-                    {/* Cuba */}
-                    <td className={`sticky left-0 z-10 ${rowBg} px-3 py-1.5`}>
-                      <span className="font-bold text-[var(--color-vinho)] text-xs">{codigo}</span>
-                    </td>
-                    {/* Dens L1 */}
-                    <td className="px-1 py-1">
-                      <Input
-                        type="number"
-                        step="0.001"
-                        placeholder="—"
-                        value={linha.densL1}
-                        onChange={(e) => updateCampo(codigo, "densL1", e.target.value)}
-                        className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1"
-                      />
-                    </td>
-                    {/* Temp L1 */}
-                    <td className="px-1 py-1">
-                      <Input
-                        type="number"
-                        step="0.1"
-                        placeholder="—"
-                        value={linha.tempL1}
-                        onChange={(e) => updateCampo(codigo, "tempL1", e.target.value)}
-                        className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1"
-                      />
-                    </td>
-                    {/* Dens L2 */}
-                    <td className="px-1 py-1">
-                      <Input
-                        type="number"
-                        step="0.001"
-                        placeholder="—"
-                        value={linha.densL2}
-                        onChange={(e) => updateCampo(codigo, "densL2", e.target.value)}
-                        className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1"
-                      />
-                    </td>
-                    {/* Temp L2 */}
-                    <td className="px-1 py-1">
-                      <Input
-                        type="number"
-                        step="0.1"
-                        placeholder="—"
-                        value={linha.tempL2}
-                        onChange={(e) => updateCampo(codigo, "tempL2", e.target.value)}
-                        className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1"
-                      />
-                    </td>
-                    {/* Dens L3 */}
-                    <td className="px-1 py-1">
-                      <Input
-                        type="number"
-                        step="0.001"
-                        placeholder="—"
-                        value={linha.densL3}
-                        onChange={(e) => updateCampo(codigo, "densL3", e.target.value)}
-                        className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1"
-                      />
-                    </td>
-                    {/* Temp L3 */}
-                    <td className="px-1 py-1">
-                      <Input
-                        type="number"
-                        step="0.1"
-                        placeholder="—"
-                        value={linha.tempL3}
-                        onChange={(e) => updateCampo(codigo, "tempL3", e.target.value)}
-                        className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1"
-                      />
-                    </td>
-                    {/* O2 */}
-                    <td className="px-1 py-1">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="—"
-                        value={linha.o2}
-                        onChange={(e) => updateCampo(codigo, "o2", e.target.value)}
-                        className="h-7 text-xs text-center border-cyan-200 focus:border-cyan-500 px-1"
-                      />
-                    </td>
-                    {/* Redox */}
-                    <td className="px-1 py-1">
-                      <Input
-                        type="number"
-                        step="1"
-                        placeholder="—"
-                        value={linha.redox}
-                        onChange={(e) => updateCampo(codigo, "redox", e.target.value)}
-                        className="h-7 text-xs text-center border-purple-200 focus:border-purple-500 px-1"
-                      />
-                    </td>
-                    {/* Estado */}
-                    <td className="px-2 py-1 text-center">
-                      {estado === "ok" && <CheckCircle2 size={16} className="text-green-500 mx-auto" />}
-                      {estado === "erro" && <XCircle size={16} className="text-red-500 mx-auto" />}
-                      {estado === "idle" && temDadosLinha && (
-                        <div className="w-2 h-2 rounded-full bg-amber-400 mx-auto" title="Por registar" />
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* ── Tabela Cubas de Vinho ─────────────────────────── */}
+      {cubasVinhoVisiveis.length > 0 && (
+        <div className="mb-8 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-2 bg-[var(--color-vinho)]/5 border-b border-[var(--color-vinho)]/20">
+            <span className="text-sm font-semibold text-[var(--color-vinho)]">Cubas de Vinho — CF / LF</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-[var(--color-vinho)] text-white">
+                  <th className="sticky left-0 z-10 bg-[var(--color-vinho)] px-3 py-3 text-left font-semibold w-20">Cuba</th>
+                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Dens. L1</th>
+                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Temp. L1</th>
+                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Dens. L2</th>
+                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Temp. L2</th>
+                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Dens. L3</th>
+                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Temp. L3</th>
+                  <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
+                  <th className="px-2 py-3 text-center font-semibold text-purple-300 w-20">Redox (mV)</th>
+                  <th className="px-2 py-3 text-center font-semibold w-16">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cubasVinhoVisiveis.map((codigo, idx) => {
+                  const linha = linhas[codigo];
+                  const estado = estados[codigo] ?? "idle";
+                  const temDadosLinha = temDados(linha);
+                  const rowBg = temDadosLinha ? "bg-amber-50" : idx % 2 === 0 ? "bg-white" : "bg-gray-50/60";
+                  return (
+                    <tr key={codigo} className={`${rowBg} hover:bg-amber-50/80 transition-colors border-b border-gray-100`}>
+                      <td className={`sticky left-0 z-10 ${rowBg} px-3 py-1.5`}>
+                        <span className="font-bold text-[var(--color-vinho)] text-xs">{codigo}</span>
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.001" placeholder="—" value={linha.densL1}
+                          onChange={(e) => updateCampo(codigo, "densL1", e.target.value)}
+                          className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL1}
+                          onChange={(e) => updateCampo(codigo, "tempL1", e.target.value)}
+                          className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.001" placeholder="—" value={linha.densL2}
+                          onChange={(e) => updateCampo(codigo, "densL2", e.target.value)}
+                          className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL2}
+                          onChange={(e) => updateCampo(codigo, "tempL2", e.target.value)}
+                          className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.001" placeholder="—" value={linha.densL3}
+                          onChange={(e) => updateCampo(codigo, "densL3", e.target.value)}
+                          className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL3}
+                          onChange={(e) => updateCampo(codigo, "tempL3", e.target.value)}
+                          className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.01" placeholder="—" value={linha.o2}
+                          onChange={(e) => updateCampo(codigo, "o2", e.target.value)}
+                          className="h-7 text-xs text-center border-cyan-200 focus:border-cyan-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="1" placeholder="—" value={linha.redox}
+                          onChange={(e) => updateCampo(codigo, "redox", e.target.value)}
+                          className="h-7 text-xs text-center border-purple-200 focus:border-purple-500 px-1" />
+                      </td>
+                      <td className="px-2 py-1 text-center">
+                        {estado === "ok" && <CheckCircle2 size={16} className="text-green-500 mx-auto" />}
+                        {estado === "erro" && <XCircle size={16} className="text-red-500 mx-auto" />}
+                        {estado === "idle" && temDadosLinha && (
+                          <div className="w-2 h-2 rounded-full bg-amber-400 mx-auto" title="Por registar" />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Tabela Cubas de Vinho do Porto ───────────────── */}
+      {cubasPortoVisiveis.length > 0 && (
+        <div className="mb-8 bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+            <span className="text-sm font-semibold text-amber-800">Cubas de Vinho do Porto — VP</span>
+            <span className="text-[10px] font-bold bg-amber-800 text-amber-100 px-1.5 py-0.5 rounded">BAUMÉ</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-amber-800 text-white">
+                  <th className="sticky left-0 z-10 bg-amber-800 px-3 py-3 text-left font-semibold w-20">Cuba</th>
+                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Baumé L1</th>
+                  <th className="px-2 py-3 text-center font-semibold text-green-300 w-20">Temp. L1</th>
+                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Baumé L2</th>
+                  <th className="px-2 py-3 text-center font-semibold text-blue-300 w-20">Temp. L2</th>
+                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Baumé L3</th>
+                  <th className="px-2 py-3 text-center font-semibold text-red-300 w-20">Temp. L3</th>
+                  <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
+                  <th className="px-2 py-3 text-center font-semibold text-purple-300 w-20">Redox (mV)</th>
+                  <th className="px-2 py-3 text-center font-semibold w-16">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cubasPortoVisiveis.map((codigo, idx) => {
+                  const linha = linhas[codigo];
+                  const estado = estados[codigo] ?? "idle";
+                  const temDadosLinha = temDados(linha);
+                  const rowBg = temDadosLinha ? "bg-amber-50" : idx % 2 === 0 ? "bg-white" : "bg-amber-50/30";
+                  return (
+                    <tr key={codigo} className={`${rowBg} hover:bg-amber-50/80 transition-colors border-b border-amber-100`}>
+                      <td className={`sticky left-0 z-10 ${rowBg} px-3 py-1.5`}>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-amber-800 text-xs">{codigo}</span>
+                          <span className="text-[8px] font-bold bg-amber-800 text-amber-100 px-1 rounded">VP</span>
+                        </div>
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.baumeL1}
+                          onChange={(e) => updateCampo(codigo, "baumeL1", e.target.value)}
+                          className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL1}
+                          onChange={(e) => updateCampo(codigo, "tempL1", e.target.value)}
+                          className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.baumeL2}
+                          onChange={(e) => updateCampo(codigo, "baumeL2", e.target.value)}
+                          className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL2}
+                          onChange={(e) => updateCampo(codigo, "tempL2", e.target.value)}
+                          className="h-7 text-xs text-center border-blue-200 focus:border-blue-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.baumeL3}
+                          onChange={(e) => updateCampo(codigo, "baumeL3", e.target.value)}
+                          className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.tempL3}
+                          onChange={(e) => updateCampo(codigo, "tempL3", e.target.value)}
+                          className="h-7 text-xs text-center border-red-200 focus:border-red-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.01" placeholder="—" value={linha.o2}
+                          onChange={(e) => updateCampo(codigo, "o2", e.target.value)}
+                          className="h-7 text-xs text-center border-cyan-200 focus:border-cyan-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="1" placeholder="—" value={linha.redox}
+                          onChange={(e) => updateCampo(codigo, "redox", e.target.value)}
+                          className="h-7 text-xs text-center border-purple-200 focus:border-purple-500 px-1" />
+                      </td>
+                      <td className="px-2 py-1 text-center">
+                        {estado === "ok" && <CheckCircle2 size={16} className="text-green-500 mx-auto" />}
+                        {estado === "erro" && <XCircle size={16} className="text-red-500 mx-auto" />}
+                        {estado === "idle" && temDadosLinha && (
+                          <div className="w-2 h-2 rounded-full bg-amber-400 mx-auto" title="Por registar" />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Rodapé */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
