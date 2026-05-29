@@ -108,6 +108,8 @@ export const leituras = mysqlTable("leituras", {
   campanhaId: int("campanha_id"),
   /** Data da leitura (apenas data, sem hora) */
   dataLeitura: date("data_leitura").notNull(),
+  /** Hora da leitura no formato HH:MM:SS (vem do CSV da máquina) */
+  hora: varchar("hora", { length: 8 }),
   /** Dia de fermentação calculado (1, 2, 3...) */
   diaNr: int("dia_nr"),
   // Densidade — 1 leitura por dia (cubas de vinho), 4 casas decimais

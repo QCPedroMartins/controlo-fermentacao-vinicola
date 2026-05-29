@@ -1,0 +1,1 @@
+ALTER TABLE `leituras` ADD `hora` varchar(8);

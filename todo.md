@@ -252,8 +252,18 @@
 - [x] BD: alterar precisão de dens_l1/l2/l3 de (7,3) para (8,4) no schema Drizzle e migrar
 
 ## Simplificação v25: 1 leitura por campo
-- [ ] BD: remover dens_l2, dens_l3, temp_l2, temp_l3, baume_l2, baume_l3 da tabela leituras
-- [ ] Backend: actualizar db.ts e routers.ts para nova estrutura (dens, temp, baume, o2, redox)
-- [ ] Frontend: simplificar RegistoRapido.tsx (1 coluna densidade, 1 temperatura, 1 O₂, 1 Redox)
-- [ ] Frontend: simplificar ImportacaoCsvModal.tsx para nova estrutura
-- [ ] Frontend: garantir 4 casas decimais em gráficos, tabelas e formulários
+- [x] BD: remover dens_l2, dens_l3, temp_l2, temp_l3, baume_l2, baume_l3 da tabela leituras
+- [x] Backend: actualizar db.ts e routers.ts para nova estrutura (dens, temp, baume, o2, redox)
+- [x] Frontend: simplificar RegistoRapido.tsx (1 coluna densidade, 1 temperatura, 1 O₂, 1 Redox)
+- [x] Frontend: simplificar ImportacaoCsvModal.tsx para nova estrutura
+- [x] Frontend: garantir 4 casas decimais em gráficos, tabelas e formulários
+
+## Hora na BD e Duplicados por Cuba+Data+Hora (v26)
+- [x] Schema: adicionar coluna `hora` (varchar 8, ex: "14:10:25") na tabela `leituras`
+- [x] Migração SQL aplicada na BD
+- [x] Backend: leituraExistePorDataHora(cubaId, data, hora) — duplicado só se hora também igual
+- [x] Backend: importacaoRouter.ts passa hora ao confirmarCsv e ao createLeitura
+- [x] Backend: routers.ts registarLote aceita campo hora opcional
+- [x] Frontend: ImportacaoCsvModal passa hora no payload de confirmação
+- [x] Frontend: RegistoRapido passa hora (do CSV) ao registarLote
+- [x] Frontend: tabela histórico da cuba mostra coluna Hora

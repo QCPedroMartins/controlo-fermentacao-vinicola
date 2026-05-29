@@ -280,6 +280,7 @@ export async function createLeitura(data: {
   cubaId: number;
   fermentacaoNum: number;
   dataLeitura: string;
+  hora?: string | null;
   diaNr?: number;
   densL1?: string | null;
   tempL1?: string | null;
@@ -295,6 +296,7 @@ export async function createLeitura(data: {
     cubaId: data.cubaId,
     fermentacaoNum: data.fermentacaoNum,
     dataLeitura: toDate(data.dataLeitura),
+    hora: data.hora ?? null,
     diaNr: data.diaNr,
     densL1: data.densL1 ?? null,
     tempL1: data.tempL1 ?? null,
@@ -485,19 +487,39 @@ export async function getBaumeCalculo(cubaId: number) {
 }
 
 /**
- * Verifica se já existe uma leitura para uma cuba numa determinada data.
- * Usado na importação CSV para evitar duplicados.
+ * Verifica se já existe uma leitura para uma cuba numa determinada data e hora.
+ * Quando a hora é fornecida, o duplicado só é detectado se cuba + data + hora forem iguais.
+ * Sem hora, verifica apenas cuba + data (comportamento legado).
  */
-export async function leituraExistePorData(cubaId: number, dataLeituraIso: string): Promise<boolean> {
+export async function leituraExistePorData(
+  cubaId: number,
+  dataLeituraIso: string,
+  hora?: string | null
+): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
   const dataDate = toDate(dataLeituraIso);
-  const rows = await db
-    .select({ id: leituras.id })
-    .from(leituras)
-    .where(and(eq(leituras.cubaId, cubaId), eq(leituras.dataLeitura, dataDate)))
-    .limit(1);
-  return rows.length > 0;
+  if (hora) {
+    // Com hora: duplicado só se cuba + data + hora forem exactamente iguais
+    const rows = await db
+      .select({ id: leituras.id })
+      .from(leituras)
+      .where(and(
+        eq(leituras.cubaId, cubaId),
+        eq(leituras.dataLeitura, dataDate),
+        eq(leituras.hora, hora)
+      ))
+      .limit(1);
+    return rows.length > 0;
+  } else {
+    // Sem hora: verifica apenas cuba + data
+    const rows = await db
+      .select({ id: leituras.id })
+      .from(leituras)
+      .where(and(eq(leituras.cubaId, cubaId), eq(leituras.dataLeitura, dataDate)))
+      .limit(1);
+    return rows.length > 0;
+  }
 }
 
 export async function upsertBaumeCalculo(data: {

@@ -362,6 +362,7 @@ const leiturasRouter = router({
             z.object({
               cubaId: z.number(),
               fermentacaoNum: z.number(),
+              hora: z.string().nullable().optional(),
               densL1: z.string().nullable().optional(),
               tempL1: z.string().nullable().optional(),
               o2: z.string().nullable().optional(),
@@ -391,6 +392,7 @@ const leiturasRouter = router({
             cubaId: linha.cubaId,
             fermentacaoNum: linha.fermentacaoNum,
             dataLeitura: input.dataLeitura,
+            hora: linha.hora ?? null,
             diaNr,
             densL1: linha.densL1,
             tempL1: linha.tempL1,

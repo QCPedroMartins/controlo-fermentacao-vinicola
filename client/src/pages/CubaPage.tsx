@@ -63,6 +63,7 @@ const CORES = {
 type LeituraRow = {
   id: number;
   dataLeitura: Date | string;
+  hora?: string | null;
   diaNr: number | null;
   densL1: string | null;
   baumeL1?: string | null;
@@ -1036,6 +1037,7 @@ export default function CubaPage() {
               <thead>
                 <tr className="bg-[var(--color-vinho)] text-white">
                   <th className="px-3 py-3 text-left text-xs font-semibold">Data</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold">Hora</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold">Dia</th>
                   {cuba.tipoCuba === "porto" ? (
                     <>
@@ -1074,6 +1076,7 @@ export default function CubaPage() {
                             {new Date(l.dataLeitura).toLocaleDateString("pt-PT")}
                           </div>
                         </td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono text-gray-500">{(l as LeituraRow).hora ?? "—"}</td>
                         <td className="px-3 py-2.5 text-center text-xs font-bold text-[var(--color-vinho)]">{l.diaNr ?? "—"}</td>
                         {cuba.tipoCuba === "porto" ? (
                           <>

@@ -204,8 +204,8 @@ export const importacaoRouter = router({
           continue;
         }
 
-        // Verificar se já existe leitura para esta cuba nesta data (duplicado)
-        const isDuplicado = await leituraExistePorData(cuba.id, dataIso);
+        // Verificar se já existe leitura para esta cuba nesta data E hora (duplicado exacto)
+        const isDuplicado = await leituraExistePorData(cuba.id, dataIso, linha.hora);
 
         // Calcular dia de fermentação: contar leituras existentes + 1
         const leiturasExistentes = await getLeiturasByCuba(cuba.id);
@@ -263,8 +263,8 @@ export const importacaoRouter = router({
           const dataIso = dataParaIso(linha.data);
           if (!dataIso) { erros.push(`Data inválida para cuba ${linha.cubaCodigo}: ${linha.data}`); continue; }
 
-          // Verificar duplicado antes de criar
-          const isDuplicado = await leituraExistePorData(linha.cubaId, dataIso);
+          // Verificar duplicado antes de criar (cuba + data + hora)
+          const isDuplicado = await leituraExistePorData(linha.cubaId, dataIso, linha.hora);
           if (isDuplicado) {
             ignoradas++;
             continue;
@@ -286,6 +286,7 @@ export const importacaoRouter = router({
             cubaId: linha.cubaId,
             fermentacaoNum: cuba.fermentacaoNum,
             dataLeitura: dataIso,
+            hora: linha.hora || null,
             diaNr: diaFermentacao,
             densL1: String(linha.densidade),
             tempL1: String(linha.temperatura),

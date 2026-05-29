@@ -60,6 +60,8 @@ export default function RegistoRapido() {
   const [estados, setEstados] = useState<Record<string, EstadoLinha>>({});
   const [mostrarSemDados, setMostrarSemDados] = useState(true);
   const [dadosCsvInfo, setDadosCsvInfo] = useState<{ nCubas: number; importadoEm: string; cubas: { codigo: string; hora: string }[] } | null>(null);
+  // Mapa de hora por código de cuba (vem do CSV, para guardar na BD)
+  const [horasPorCuba, setHorasPorCuba] = useState<Record<string, string>>({});
 
   const { data: cubasData } = trpc.cubas.list.useQuery();
   const registarLote = trpc.leituras.registarLote.useMutation();
@@ -112,6 +114,14 @@ export default function RegistoRapido() {
       cubas: dadosCsv.cubas.map((c) => ({ codigo: normalizarCodigo(c.cubaCodigo), hora: c.hora ?? "" })),
     });
 
+    // Guardar mapa de horas por código normalizado
+    const horasMap: Record<string, string> = {};
+    for (const cuba of dadosCsv.cubas) {
+      const codigoNorm = normalizarCodigo(cuba.cubaCodigo);
+      if (cuba.hora) horasMap[codigoNorm] = cuba.hora;
+    }
+    setHorasPorCuba(horasMap);
+
     // Mostrar apenas as cubas com dados ao pré-preencher via CSV
     setMostrarSemDados(false);
   }, []);
@@ -157,6 +167,7 @@ export default function RegistoRapido() {
       return {
         cubaId: cuba.id,
         fermentacaoNum: cuba.fermentacaoNum,
+        hora: horasPorCuba[codigo] ?? null,
         densL1: isPorto ? null : toNullable(l.densL1),
         baumeL1: isPorto ? toNullable(l.baumeL1) : null,
         tempL1: toNullable(l.tempL1),
