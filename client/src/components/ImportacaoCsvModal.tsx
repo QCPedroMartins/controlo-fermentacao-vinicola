@@ -39,6 +39,7 @@ export interface DadosCsvParaRegistoRapido {
     cubaCodigo: string;   // ex: CF1, VP01
     densidade: string;    // 4 casas decimais, ex: "1.0523"
     temperatura: string;  // 1 casa decimal, ex: "18.5"
+    hora: string;         // HH:MM:SS da medição no CSV
     isPorto: boolean;
   }[];
   importadoEm: string;    // ISO timestamp
@@ -175,6 +176,8 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
         densidade: l.densidade.toFixed(4),
         // 1 casa decimal para temperatura
         temperatura: l.temperatura.toFixed(1),
+        // hora HH:MM:SS da medição
+        hora: l.hora ?? "",
         isPorto: CUBAS_PORTO.has(l.cubaCodigo.toUpperCase()),
       })),
       importadoEm: new Date().toISOString(),

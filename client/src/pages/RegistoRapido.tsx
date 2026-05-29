@@ -59,7 +59,7 @@ export default function RegistoRapido() {
   );
   const [estados, setEstados] = useState<Record<string, EstadoLinha>>({});
   const [mostrarSemDados, setMostrarSemDados] = useState(true);
-  const [dadosCsvInfo, setDadosCsvInfo] = useState<{ nCubas: number; importadoEm: string } | null>(null);
+  const [dadosCsvInfo, setDadosCsvInfo] = useState<{ nCubas: number; importadoEm: string; cubas: { codigo: string; hora: string }[] } | null>(null);
 
   const { data: cubasData } = trpc.cubas.list.useQuery();
   const registarLote = trpc.leituras.registarLote.useMutation();
@@ -104,6 +104,7 @@ export default function RegistoRapido() {
     setDadosCsvInfo({
       nCubas: dadosCsv.cubas.length,
       importadoEm: dadosCsv.importadoEm,
+      cubas: dadosCsv.cubas.map((c) => ({ codigo: c.cubaCodigo, hora: c.hora ?? "" })),
     });
 
     // Mostrar apenas as cubas com dados ao pré-preencher via CSV
@@ -225,23 +226,38 @@ export default function RegistoRapido() {
 
       {/* Banner de dados CSV pré-preenchidos */}
       {dadosCsvInfo && (
-        <div className="mb-4 flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
-          <FileText className="w-5 h-5 text-blue-600 shrink-0" />
-          <div className="flex-1">
-            <span className="font-semibold">Dados importados do CSV</span>
-            {" — "}
-            <span>{dadosCsvInfo.nCubas} cuba{dadosCsvInfo.nCubas !== 1 ? "s" : ""} pré-preenchida{dadosCsvInfo.nCubas !== 1 ? "s" : ""}.</span>
-            <span className="text-blue-600 ml-1 text-xs">
-              Reveja os valores, complete os campos em falta e clique em "Registar Tudo".
-            </span>
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+          <div className="flex items-center gap-3">
+            <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+            <div className="flex-1">
+              <span className="font-semibold">Dados importados do CSV</span>
+              {" — "}
+              <span>{dadosCsvInfo.nCubas} cuba{dadosCsvInfo.nCubas !== 1 ? "s" : ""} pré-preenchida{dadosCsvInfo.nCubas !== 1 ? "s" : ""}.</span>
+              <span className="text-blue-600 ml-1 text-xs">
+                Reveja os valores, complete os campos em falta e clique em "Registar Tudo".
+              </span>
+            </div>
+            <button
+              onClick={descartarCsv}
+              className="shrink-0 text-blue-400 hover:text-blue-700 transition-colors"
+              title="Descartar dados do CSV"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={descartarCsv}
-            className="shrink-0 text-blue-400 hover:text-blue-700 transition-colors"
-            title="Descartar dados do CSV"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {dadosCsvInfo.cubas.some((c) => c.hora) && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {dadosCsvInfo.cubas.map((c) => (
+                <span
+                  key={c.codigo}
+                  className="inline-flex items-center gap-1 bg-blue-100 border border-blue-200 rounded px-2 py-0.5 text-xs font-mono text-blue-900"
+                >
+                  <span className="font-semibold">{c.codigo}</span>
+                  {c.hora && <span className="text-blue-600">{c.hora}</span>}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

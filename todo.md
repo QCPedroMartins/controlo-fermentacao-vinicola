@@ -246,3 +246,7 @@
 - [x] Frontend: banner no Registo Rápido a indicar que os dados foram importados do CSV (com data e nº de cubas)
 - [x] Frontend: densidade do CSV com 4 casas decimais nos inputs do Registo Rápido
 - [x] Frontend: ao registar com sucesso, limpar os dados CSV do localStorage
+
+## Melhorias v23
+- [x] Frontend: guardar hora HH:MM:SS por cuba no localStorage e mostrar no banner do Registo Rápido
+- [x] BD: alterar precisão de dens_l1/l2/l3 de (7,3) para (8,4) no schema Drizzle e migrar

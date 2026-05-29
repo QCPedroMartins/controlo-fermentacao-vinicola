@@ -111,9 +111,9 @@ export const leituras = mysqlTable("leituras", {
   /** Dia de fermentação calculado (1, 2, 3...) */
   diaNr: int("dia_nr"),
   // Densidade — 3 leituras por dia (cubas de vinho)
-  densL1: decimal("dens_l1", { precision: 7, scale: 3 }),
-  densL2: decimal("dens_l2", { precision: 7, scale: 3 }),
-  densL3: decimal("dens_l3", { precision: 7, scale: 3 }),
+  densL1: decimal("dens_l1", { precision: 8, scale: 4 }),
+  densL2: decimal("dens_l2", { precision: 8, scale: 4 }),
+  densL3: decimal("dens_l3", { precision: 8, scale: 4 }),
   // Temperatura — 3 leituras por dia
   tempL1: decimal("temp_l1", { precision: 5, scale: 1 }),
   tempL2: decimal("temp_l2", { precision: 5, scale: 1 }),
