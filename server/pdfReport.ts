@@ -365,7 +365,8 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
 
       const CHART_W = CONTENT_W;
       const CHART_H_PX = 200; // altura do plot em px canvas
-      const CHART_H_PDF = 150; // altura no PDF em pontos
+      // altura no PDF: plot (150) + labels X (12) + legenda (30) + margem (8)
+      const CHART_H_PDF = 200; // altura no PDF em pontos (inclui legenda)
 
       // Gráfico 1: Densidade / Baumé
       const pngDens = isPorto

@@ -34,6 +34,7 @@ import {
   getBaumeCalculo,
   upsertBaumeCalculo,
   getDb,
+  leituraExistePorData,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { desc, eq } from "drizzle-orm";
@@ -380,6 +381,13 @@ const leiturasRouter = router({
 
       for (const linha of input.leituras) {
         try {
+          // Verificar duplicado antes de criar (cuba + data + hora)
+          const isDuplicado = await leituraExistePorData(linha.cubaId, input.dataLeitura, linha.hora ?? null);
+          if (isDuplicado) {
+            resultados.push({ cubaId: linha.cubaId, success: false, erro: "Leitura j\u00e1 existe para esta cuba, data e hora" });
+            continue;
+          }
+
           const existingLeituras = await getLeiturasByCuba(linha.cubaId, linha.fermentacaoNum);
           let diaNr = 1;
           if (existingLeituras.length > 0) {
