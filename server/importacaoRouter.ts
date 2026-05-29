@@ -57,12 +57,18 @@ export interface ResultadoPreview {
 
 // ── Parser CSV ────────────────────────────────────────────────────────────────
 
-function normalizarCodigo(raw: string): string {
+// Gera lista de variantes do código a tentar: CF01 → ["CF01", "CF1"], VP01 → ["VP01", "VP1"]
+function variantesCodigo(raw: string): string[] {
   const upper = raw.trim().toUpperCase();
-  // vp3 → VP03, cf1 → CF01, lf37 → LF37 (2+ dígitos mantêm)
-  return upper.replace(/^([A-Z]+)(\d+)$/, (_, prefix, num) =>
-    num.length === 1 ? prefix + "0" + num : prefix + num
-  );
+  const variants = new Set<string>();
+  variants.add(upper);
+  // Sem zero de preenchimento: CF01 → CF1
+  const semZero = upper.replace(/^([A-Z]+)0+(\d+)$/, (_, prefix, num) => prefix + num);
+  variants.add(semZero);
+  // Com zero de preenchimento (1 dígito → 2): CF1 → CF01
+  const comZero = upper.replace(/^([A-Z]+)(\d)$/, (_, prefix, num) => prefix + "0" + num);
+  variants.add(comZero);
+  return Array.from(variants);
 }
 
 function parsearDecimal(str: string): number | null {
@@ -140,9 +146,8 @@ export async function parsearCsv(csvContent: string): Promise<{
       continue;
     }
 
-    const cubaCodigo = normalizarCodigo(sampleId);
-
-    validas.push({ measNo, data, dataStr: dateStr, hora, cubaCodigo, densidade, temperatura });
+    // Guardar o sampleId original — a resolução para código de cuba será feita no router
+    validas.push({ measNo, data, dataStr: dateStr, hora, cubaCodigo: sampleId.trim().toUpperCase(), densidade, temperatura });
   }
 
   return { validas, ignoradas };
@@ -164,7 +169,12 @@ export const importacaoRouter = router({
       const linhasIgnoradasFinal: LinhaIgnorada[] = [...ignoradas];
 
       for (const linha of validas) {
-        const cuba = await getCubaByCodigo(linha.cubaCodigo);
+        // Tentar múltiplas variantes do código até encontrar a cuba
+        let cuba = null;
+        for (const variante of variantesCodigo(linha.cubaCodigo)) {
+          cuba = await getCubaByCodigo(variante);
+          if (cuba) break;
+        }
         if (!cuba) {
           linhasIgnoradasFinal.push({
             measNo: linha.measNo,
@@ -228,8 +238,12 @@ export const importacaoRouter = router({
           if (!m) { erros.push(`Data inválida para cuba ${linha.cubaCodigo}: ${linha.data}`); continue; }
           const dataIso = `${m[3]}-${m[2]}-${m[1]}`; // YYYY-MM-DD
 
-          // Obter cuba para saber fermentacaoNum actual
-          const cuba = await getCubaByCodigo(linha.cubaCodigo);
+          // Obter cuba para saber fermentacaoNum actual (tentar múltiplas variantes)
+          let cuba = null;
+          for (const variante of variantesCodigo(linha.cubaCodigo)) {
+            cuba = await getCubaByCodigo(variante);
+            if (cuba) break;
+          }
           if (!cuba) { erros.push(`Cuba não encontrada: ${linha.cubaCodigo}`); continue; }
 
           // Calcular dia de fermentação
