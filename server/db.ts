@@ -79,8 +79,19 @@ export async function getAllCubas() {
 export async function getCubaByCodigo(codigo: string) {
   const db = await getDb();
   if (!db) return undefined;
-  // Normalizar para maiúsculas para suportar URLs como /cuba/vp01 e /cuba/VP01
-  const result = await db.select().from(cubas).where(eq(cubas.codigo, codigo.toUpperCase())).limit(1);
+  // Normalizar o código: maiúsculas + zero de preenchimento se necessário
+  // Exemplos: vp3 → VP03, cf1 → CF01, VP01 → VP01, lf37 → LF37
+  const upper = codigo.toUpperCase();
+  // Se terminar em dígitos sem zero de preenchimento (ex: VP3, CF1), adicionar zero
+  const normalized = upper.replace(/^([A-Z]+)(\d+)$/, (_, prefix, num) => {
+    // Manter o formato original se já tiver 2+ dígitos; caso contrário adicionar zero
+    return num.length === 1 ? prefix + '0' + num : prefix + num;
+  });
+  // Tentar primeiro com o código normalizado, depois com o original em maiúsculas
+  let result = await db.select().from(cubas).where(eq(cubas.codigo, normalized)).limit(1);
+  if (!result[0] && normalized !== upper) {
+    result = await db.select().from(cubas).where(eq(cubas.codigo, upper)).limit(1);
+  }
   return result[0];
 }
 
