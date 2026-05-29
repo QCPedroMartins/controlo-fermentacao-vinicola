@@ -67,6 +67,8 @@ type CubaInfo = {
   fichaNtu: string | null;
   fichaGluconico: string | null;
   fichaAlcoolProvavel: string | null;
+  tipoCuba?: string | null;
+  pontoAguardentacao?: string | null;
 };
 
 // ── Gerador de gráfico PNG via canvas ─────────────────────
@@ -77,10 +79,15 @@ function gerarGraficoLinha(params: {
   altura?: number;
   unidade?: string;
   marcadores?: { dia: number; label: string; index: number }[];
+  linhaRef?: { valor: number; label: string; cor: string }; // linha horizontal de referência (ex: temp pretendida, aguardentação)
 }): Buffer {
   const W = params.largura ?? 800;
-  const H = params.altura ?? 320;
-  const PAD = { top: 40, right: 30, bottom: 50, left: 60 };
+  // Calcular altura necessária para a legenda: cada série ocupa 90px na horizontal, máx 3 por linha
+  const nSeries = params.dados[0]?.series.length ?? 0;
+  const nLinhasLegenda = Math.ceil(nSeries / 8); // até 8 séries por linha
+  const alturaLegenda = nLinhasLegenda * 20 + (params.linhaRef ? 20 : 0) + 10;
+  const H = (params.altura ?? 300) + alturaLegenda;
+  const PAD = { top: 40, right: 30, bottom: 20 + alturaLegenda, left: 65 };
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
@@ -130,7 +137,9 @@ function gerarGraficoLinha(params: {
     ctx.fillStyle = "#666";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText(val.toFixed(3), PAD.left - 5, y + 4);
+    // Formatar com casas decimais adequadas à unidade
+    const decimais = params.unidade === "mg/L" || params.unidade === "°C" || params.unidade === "mV" || params.unidade === "°" ? 1 : 3;
+    ctx.fillText(val.toFixed(decimais), PAD.left - 5, y + 4);
   }
 
   // Eixo X — labels de dia
@@ -139,11 +148,8 @@ function gerarGraficoLinha(params: {
   ctx.textAlign = "center";
   params.dados.forEach((d) => {
     const x = toX(d.x);
-    ctx.fillText(String(d.x), x, H - PAD.bottom + 16);
+    ctx.fillText(String(d.x), x, PAD.top + plotH + 12);
   });
-  ctx.fillStyle = "#444";
-  ctx.font = "11px sans-serif";
-  ctx.fillText("Dia de fermentação", PAD.left + plotW / 2, H - 8);
 
   // Unidade Y
   if (params.unidade) {
@@ -179,6 +185,21 @@ function gerarGraficoLinha(params: {
     });
   }
 
+  // Linha de referência horizontal (ex: temperatura pretendida, ponto de aguardentação)
+  if (params.linhaRef) {
+    const ry = toY(params.linhaRef.valor);
+    ctx.save();
+    ctx.strokeStyle = params.linhaRef.cor;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, ry);
+    ctx.lineTo(PAD.left + plotW, ry);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
   // Séries
   const seriesLabels = params.dados[0]?.series.map((s) => s.label) ?? [];
   seriesLabels.forEach((label, si) => {
@@ -206,17 +227,58 @@ function gerarGraficoLinha(params: {
       ctx.arc(toX(d.x), toY(v), 3.5, 0, Math.PI * 2);
       ctx.fill();
     });
-
-    // Legenda
-    const lx = PAD.left + si * 90;
-    const ly = H - PAD.bottom + 32;
-    ctx.fillStyle = "#" + cor;
-    ctx.fillRect(lx, ly, 16, 3);
-    ctx.fillStyle = "#333";
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(label, lx + 20, ly + 4);
   });
+
+  // Legenda das séries (abaixo do gráfico)
+  const legendaY = PAD.top + plotH + 18;
+  seriesLabels.forEach((label, si) => {
+    const cor = params.dados[0]?.series[si]?.cor ?? "888888";
+    const lx = PAD.left + si * 100;
+    const ly = legendaY;
+    // Linha colorida
+    ctx.strokeStyle = "#" + cor;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(lx + 20, ly);
+    ctx.stroke();
+    // Ponto central
+    ctx.fillStyle = "#" + cor;
+    ctx.beginPath();
+    ctx.arc(lx + 10, ly, 4, 0, Math.PI * 2);
+    ctx.fill();
+    // Texto
+    ctx.fillStyle = "#222";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(label, lx + 26, ly + 4);
+  });
+
+  // Legenda da linha de referência (se existir)
+  if (params.linhaRef) {
+    const lx = PAD.left + seriesLabels.length * 100;
+    const ly = legendaY;
+    ctx.save();
+    ctx.strokeStyle = params.linhaRef.cor;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(lx + 20, ly);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    ctx.fillStyle = "#222";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(params.linhaRef.label, lx + 26, ly + 4);
+  }
+
+  // Label eixo X
+  ctx.fillStyle = "#444";
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Dia de fermentação", PAD.left + plotW / 2, legendaY + (params.linhaRef ? 22 : 18));
 
   return canvas.toBuffer("image/png");
 }
@@ -357,11 +419,15 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   wsG.getCell("A1").font = { bold: true, size: 13, color: { argb: "FF5D1A2E" } };
   wsG.getCell("A1").alignment = { horizontal: "center" };
 
+  const isPorto = cuba.tipoCuba === "porto";
   const chartData = leituras.map((l) => ({
     x: l.diaNr ?? 0,
     densL1: l.densL1 ? parseFloat(l.densL1) : null,
     densL2: l.densL2 ? parseFloat(l.densL2) : null,
     densL3: l.densL3 ? parseFloat(l.densL3) : null,
+    baumeL1: (l as any).baumeL1 ? parseFloat((l as any).baumeL1) : null,
+    baumeL2: (l as any).baumeL2 ? parseFloat((l as any).baumeL2) : null,
+    baumeL3: (l as any).baumeL3 ? parseFloat((l as any).baumeL3) : null,
     tempL1: l.tempL1 ? parseFloat(l.tempL1) : null,
     tempL2: l.tempL2 ? parseFloat(l.tempL2) : null,
     tempL3: l.tempL3 ? parseFloat(l.tempL3) : null,
@@ -382,45 +448,69 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     return { dia: diaProximo, label, index: idx + 1 };
   });
 
-  // Gráfico de Densidade
-  const pngDens = gerarGraficoLinha({
-    titulo: "Densidade",
-    unidade: "Densidade",
-    marcadores: marcadoresGrafico,
-    dados: chartData.map((d) => ({
-      x: d.x,
-      series: [
-        { label: "L1", cor: CORES_HEX.densL1, valor: d.densL1 },
-        { label: "L2", cor: CORES_HEX.densL2, valor: d.densL2 },
-        { label: "L3", cor: CORES_HEX.densL3, valor: d.densL3 },
-      ],
-    })),
-  });
+  // Altura dos gráficos (com espaço para legendas)
+  const CHART_H = 360; // altura do canvas (300 plot + 60 legenda)
+  const CHART_ROWS = 22; // linhas Excel por gráfico
+
+  // Gráfico 1: Densidade (cubas normais) ou Baumé (cubas VP)
+  const pngDens = isPorto
+    ? gerarGraficoLinha({
+        titulo: "Baumé (°)",
+        unidade: "°",
+        marcadores: marcadoresGrafico,
+        linhaRef: cuba.pontoAguardentacao
+          ? { valor: parseFloat(cuba.pontoAguardentacao), label: `Ponto aguardentação (${cuba.pontoAguardentacao}°)`, cor: "#e53935" }
+          : undefined,
+        dados: chartData.map((d) => ({
+          x: d.x,
+          series: [
+            { label: "Baumé L1", cor: CORES_HEX.densL1, valor: d.baumeL1 },
+            { label: "Baumé L2", cor: CORES_HEX.densL2, valor: d.baumeL2 },
+            { label: "Baumé L3", cor: CORES_HEX.densL3, valor: d.baumeL3 },
+          ],
+        })),
+      })
+    : gerarGraficoLinha({
+        titulo: "Densidade",
+        unidade: "Densidade",
+        marcadores: marcadoresGrafico,
+        dados: chartData.map((d) => ({
+          x: d.x,
+          series: [
+            { label: "Densidade L1", cor: CORES_HEX.densL1, valor: d.densL1 },
+            { label: "Densidade L2", cor: CORES_HEX.densL2, valor: d.densL2 },
+            { label: "Densidade L3", cor: CORES_HEX.densL3, valor: d.densL3 },
+          ],
+        })),
+      });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const imgDens = (wb as any).addImage({ buffer: Buffer.from(pngDens), extension: "png" }) as number;
-  wsG.addImage(imgDens, { tl: { col: 0, row: 2 }, ext: { width: 800, height: 320 } });
+  wsG.addImage(imgDens, { tl: { col: 0, row: 2 }, ext: { width: 800, height: CHART_H } });
 
-  // Gráfico de Temperatura
+  // Gráfico 2: Temperatura
   const pngTemp = gerarGraficoLinha({
     titulo: "Temperatura (°C)",
     unidade: "°C",
     marcadores: marcadoresGrafico,
+    linhaRef: cuba.tempPretendida
+      ? { valor: parseFloat(cuba.tempPretendida), label: `Temp. pretendida (${cuba.tempPretendida}°C)`, cor: "#1565c0" }
+      : undefined,
     dados: chartData.map((d) => ({
       x: d.x,
       series: [
-        { label: "L1", cor: CORES_HEX.tempL1, valor: d.tempL1 },
-        { label: "L2", cor: CORES_HEX.tempL2, valor: d.tempL2 },
-        { label: "L3", cor: CORES_HEX.tempL3, valor: d.tempL3 },
+        { label: "Temperatura L1", cor: CORES_HEX.tempL1, valor: d.tempL1 },
+        { label: "Temperatura L2", cor: CORES_HEX.tempL2, valor: d.tempL2 },
+        { label: "Temperatura L3", cor: CORES_HEX.tempL3, valor: d.tempL3 },
       ],
     })),
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const imgTemp = (wb as any).addImage({ buffer: Buffer.from(pngTemp), extension: "png" }) as number;
-  wsG.addImage(imgTemp, { tl: { col: 0, row: 20 }, ext: { width: 800, height: 320 } });
+  wsG.addImage(imgTemp, { tl: { col: 0, row: 2 + CHART_ROWS }, ext: { width: 800, height: CHART_H } });
 
-  // Gráfico O₂ (se tiver dados)
+  // Gráfico 3: O₂ (se tiver dados)
   const hasO2 = chartData.some((d) => d.o2 !== null);
   if (hasO2) {
     const pngO2 = gerarGraficoLinha({
@@ -429,35 +519,36 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       marcadores: marcadoresGrafico,
       dados: chartData.map((d) => ({
         x: d.x,
-        series: [{ label: "O₂", cor: CORES_HEX.o2, valor: d.o2 }],
+        series: [{ label: "O₂ Dissolvido", cor: CORES_HEX.o2, valor: d.o2 }],
       })),
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const imgO2 = (wb as any).addImage({ buffer: Buffer.from(pngO2), extension: "png" }) as number;
-    wsG.addImage(imgO2, { tl: { col: 0, row: 38 }, ext: { width: 800, height: 280 } });
+    wsG.addImage(imgO2, { tl: { col: 0, row: 2 + CHART_ROWS * 2 }, ext: { width: 800, height: CHART_H } });
   }
 
-  // Gráfico Redox (se tiver dados)
+  // Gráfico 4: Redox (se tiver dados)
   const hasRedox = chartData.some((d) => d.redox !== null);
   if (hasRedox) {
-    const rowOffset = hasO2 ? 56 : 38;
+    const rowOffset = 2 + CHART_ROWS * (hasO2 ? 3 : 2);
     const pngRedox = gerarGraficoLinha({
       titulo: "Potencial Redox (mV)",
       unidade: "mV",
       marcadores: marcadoresGrafico,
       dados: chartData.map((d) => ({
         x: d.x,
-        series: [{ label: "Redox", cor: CORES_HEX.redox, valor: d.redox }],
+        series: [{ label: "Potencial Redox", cor: CORES_HEX.redox, valor: d.redox }],
       })),
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const imgRedox = (wb as any).addImage({ buffer: Buffer.from(pngRedox), extension: "png" }) as number;
-    wsG.addImage(imgRedox, { tl: { col: 0, row: rowOffset }, ext: { width: 800, height: 280 } });
+    wsG.addImage(imgRedox, { tl: { col: 0, row: rowOffset }, ext: { width: 800, height: CHART_H } });
   }
 
   // ── Legenda de adições na folha Gráficos ────────────────
   if (marcadoresGrafico.length > 0) {
-    const legendaRowStart = hasO2 && hasRedox ? 75 : hasO2 || hasRedox ? 57 : 39;
+    const nGraficos = 2 + (hasO2 ? 1 : 0) + (hasRedox ? 1 : 0);
+    const legendaRowStart = 2 + CHART_ROWS * nGraficos + 2;
     const legendaTitulo = wsG.getRow(legendaRowStart);
     const tituloCell = legendaTitulo.getCell(1);
     tituloCell.value = "ADIÇÕES / NOTAS";

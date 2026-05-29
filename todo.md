@@ -173,3 +173,14 @@
 - [x] Menu lateral: grupo "VP01 – VP05 (Vinho do Porto)" adicionado
 - [x] Testes Vitest: 33 testes a passar
 - [x] Checkpoint e deploy
+
+## Excel, PDF e Dashboard VP (v15)
+- [x] Excel: legendas nas séries ("Densidade L1/L2/L3", "Temperatura L1/L2/L3") com linha colorida + ponto + texto
+- [x] Excel: linha de referência tracejada para temperatura pretendida e ponto de aguardentação VP
+- [x] Excel: séries VP com "Baumé L1/L2/L3" em vez de "Densidade L1/L2/L3"
+- [x] PDF: gráficos gerados com @napi-rs/canvas (Densidade/Baumé, Temperatura, O₂, Redox) em página própria
+- [x] PDF: linha de referência tracejada para temperatura pretendida e ponto de aguardentação VP
+- [x] PDF: tabela de leituras adaptada para VP (Baumé L1/L2/L3 em vez de Dens. L1/L2/L3)
+- [x] Dashboard: cubas VP01-VP05 já incluídas na query (select all), badge VP visível no grid
+- [x] Testes Vitest: 33 testes a passar
+- [x] Checkpoint e deploy
