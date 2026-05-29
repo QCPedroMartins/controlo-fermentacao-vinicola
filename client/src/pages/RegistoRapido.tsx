@@ -77,11 +77,16 @@ export default function RegistoRapido() {
     // Pré-preencher a data
     setData(dadosCsv.data);
 
+    // Normaliza código: remove zeros à frente no número (ex: CF03 → CF3, VP01 → VP01)
+    function normalizarCodigo(codigo: string): string {
+      return codigo.toUpperCase().replace(/^([A-Z]+)(0+)(\d+)$/, (_, prefix, _zeros, num) => prefix + num);
+    }
+
     // Pré-preencher as linhas com os dados do CSV
     setLinhas((prev) => {
       const novo = { ...prev };
       for (const cuba of dadosCsv.cubas) {
-        const codigoUpper = cuba.cubaCodigo.toUpperCase();
+        const codigoUpper = normalizarCodigo(cuba.cubaCodigo);
         if (codigoUpper in novo) {
           if (cuba.isPorto) {
             novo[codigoUpper] = {
@@ -104,7 +109,7 @@ export default function RegistoRapido() {
     setDadosCsvInfo({
       nCubas: dadosCsv.cubas.length,
       importadoEm: dadosCsv.importadoEm,
-      cubas: dadosCsv.cubas.map((c) => ({ codigo: c.cubaCodigo, hora: c.hora ?? "" })),
+      cubas: dadosCsv.cubas.map((c) => ({ codigo: normalizarCodigo(c.cubaCodigo), hora: c.hora ?? "" })),
     });
 
     // Mostrar apenas as cubas com dados ao pré-preencher via CSV
