@@ -415,7 +415,23 @@ export async function createArquivo(data: {
 export async function getDashboardCubas() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(cubas).orderBy(asc(cubas.id));
+  const todasCubas = await db.select().from(cubas).orderBy(asc(cubas.id));
+  // Para cada cuba em fermentação, obter a última leitura (densL1 ou baumeL1)
+  const resultado = await Promise.all(
+    todasCubas.map(async (cuba) => {
+      if (cuba.estado !== "em_fermentacao") return { ...cuba, ultimaDensidade: null as string | null };
+      const ultimaLeitura = await db
+        .select({ densL1: leituras.densL1, baumeL1: leituras.baumeL1 })
+        .from(leituras)
+        .where(and(eq(leituras.cubaId, cuba.id), eq(leituras.fermentacaoNum, cuba.fermentacaoNum)))
+        .orderBy(desc(leituras.dataLeitura), desc(leituras.hora))
+        .limit(1);
+      const ul = ultimaLeitura[0];
+      const ultimaDensidade = ul ? (ul.baumeL1 ?? ul.densL1 ?? null) : null;
+      return { ...cuba, ultimaDensidade };
+    })
+  );
+  return resultado;
 }
 
 // ── Campanhas ─────────────────────────────────────────────

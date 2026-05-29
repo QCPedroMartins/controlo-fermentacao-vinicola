@@ -243,7 +243,12 @@ export default function Dashboard() {
                   <p className="text-xs font-semibold text-gray-700 truncate leading-tight">
                     {cuba.nomeLote ?? "—"}
                   </p>
-                  <div className={`mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${
+                  {(cuba as { ultimaDensidade?: string | null }).ultimaDensidade && (
+                    <p className="text-[10px] font-mono text-gray-500 mt-0.5 truncate">
+                      {parseFloat((cuba as { ultimaDensidade: string }).ultimaDensidade).toFixed(4)}
+                    </p>
+                  )}
+                  <div className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${
                     temAlerta ? "bg-red-100 text-red-700" : cfg.badge
                   }`}>
                     {temAlerta ? <AlertTriangle size={9} /> : cfg.icon}

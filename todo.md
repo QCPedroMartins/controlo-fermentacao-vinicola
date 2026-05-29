@@ -286,3 +286,10 @@
 - [x] Hora global aplica-se a todas as cubas sem hora individual definida
 - [x] Hora individual por cuba sobrepõe a hora global
 - [x] Horas vindas do CSV mantêm-se inalteradas
+
+## Registo Directo CSV e Dashboard com Densidade (v35)
+- [x] Backend: endpoint tRPC `leituras.registarLoteCsv` que aceita array completo de leituras (com hora, cubaId, fermentacaoNum, densidade, temperatura, baumeL1, tipoCuba)
+- [x] Backend: query dashboard actualizada para incluir última densidade e nome do lote por cuba
+- [x] Frontend: modal CSV passa a ter botão "Registar seleccionadas (N)" que envia directamente para a BD
+- [x] Frontend: remover botão "Ir para Registo Rápido" do fluxo CSV (ou manter como alternativa)
+- [x] Frontend: cartões do Dashboard mostram nome do lote (se definido) e última densidade registada

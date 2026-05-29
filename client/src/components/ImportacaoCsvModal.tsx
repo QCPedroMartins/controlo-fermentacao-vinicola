@@ -1,11 +1,10 @@
-import { useState, useRef } from "react";
-import { Upload, FileText, CheckCircle2, AlertTriangle, X, ChevronDown, ChevronUp, Copy, ArrowRight } from "lucide-react";
+import { useRef, useState } from "react";
+import { Upload, FileText, CheckCircle2, AlertTriangle, X, ChevronDown, ChevronUp, Copy, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { useLocation } from "wouter";
 
 interface LinhaPreview {
   measNo: string;
@@ -18,6 +17,7 @@ interface LinhaPreview {
   temperatura: number;
   diaFermentacao?: number;
   duplicado?: boolean;
+  isPorto?: boolean;
 }
 
 interface LinhaIgnorada {
@@ -32,17 +32,17 @@ interface ResultadoPreview {
   totalLinhas: number;
 }
 
-/** Estrutura guardada no localStorage para pré-preencher o Registo Rápido */
+/** Estrutura guardada no localStorage para pré-preencher o Registo Rápido (mantida para compatibilidade) */
 export interface DadosCsvParaRegistoRapido {
-  data: string;           // YYYY-MM-DD
+  data: string;
   cubas: {
-    cubaCodigo: string;   // ex: CF1, VP01
-    densidade: string;    // 4 casas decimais, ex: "1.0523"
-    temperatura: string;  // 1 casa decimal, ex: "18.5"
-    hora: string;         // HH:MM:SS da medição no CSV
+    cubaCodigo: string;
+    densidade: string;
+    temperatura: string;
+    hora: string;
     isPorto: boolean;
   }[];
-  importadoEm: string;    // ISO timestamp
+  importadoEm: string;
 }
 
 const LS_KEY = "csv_registo_rapido";
@@ -65,34 +65,29 @@ export function limparDadosCsvDoStorage() {
   localStorage.removeItem(LS_KEY);
 }
 
-const CUBAS_PORTO = new Set(["VP01", "VP02", "VP03", "VP04", "VP05"]);
-
-/** Converte data DD.MM.YYYY → YYYY-MM-DD */
-function ddmmyyyyParaIso(dataStr: string): string {
-  const m = dataStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  if (!m) return new Date().toISOString().split("T")[0];
-  return `${m[3]}-${m[2]}-${m[1]}`;
-}
-
 interface Props {
   open: boolean;
   onClose: () => void;
   onImportado?: () => void;
 }
 
+type EtapaRegistar = "idle" | "a_registar" | "concluido";
+
 export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props) {
-  const [, navigate] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [etapa, setEtapa] = useState<"upload" | "preview">("upload");
   const [preview, setPreview] = useState<ResultadoPreview | null>(null);
   const [linhasSelecionadas, setLinhasSelecionadas] = useState<Set<number>>(new Set());
   const [mostrarIgnoradas, setMostrarIgnoradas] = useState(false);
   const [mostrarDuplicadas, setMostrarDuplicadas] = useState(false);
+  const [etapaRegistar, setEtapaRegistar] = useState<EtapaRegistar>("idle");
+  const [resultadoRegisto, setResultadoRegisto] = useState<{ criadas: number; ignoradas: number; erros: string[] } | null>(null);
+
+  const utils = trpc.useUtils();
 
   const processarMutation = trpc.importacao.processarCsv.useMutation({
     onSuccess: (data) => {
       setPreview(data);
-        // Seleccionar todas as linhas novas por defeito (por índice dentro de linhasNovas)
       const linhasNovasArr = data.linhasValidas.filter((l) => !l.duplicado);
       const novasSelecionadas = new Set(linhasNovasArr.map((_, i) => i));
       setLinhasSelecionadas(novasSelecionadas);
@@ -100,6 +95,26 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
     },
     onError: (err) => {
       toast.error("Erro ao processar CSV: " + err.message);
+    },
+  });
+
+  const confirmarMutation = trpc.importacao.confirmarCsv.useMutation({
+    onSuccess: (data) => {
+      setResultadoRegisto(data);
+      setEtapaRegistar("concluido");
+      utils.cubas.dashboard.invalidate();
+      utils.leituras.listAllDashboard.invalidate();
+      onImportado?.();
+      if (data.criadas > 0) {
+        toast.success(`${data.criadas} leitura${data.criadas !== 1 ? "s" : ""} registada${data.criadas !== 1 ? "s" : ""} com sucesso.`);
+      }
+      if (data.erros.length > 0) {
+        toast.error(`${data.erros.length} erro${data.erros.length !== 1 ? "s" : ""} ao registar.`);
+      }
+    },
+    onError: (err) => {
+      setEtapaRegistar("idle");
+      toast.error("Erro ao registar leituras: " + err.message);
     },
   });
 
@@ -127,7 +142,6 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
   }
 
   function toggleLinha(idx: number) {
-    // idx é o índice dentro de linhasNovas (não do array original)
     setLinhasSelecionadas((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx);
@@ -146,41 +160,25 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
     }
   }
 
-  function handleIrParaRegistoRapido() {
+  function handleRegistarDirectamente() {
     if (!preview) return;
-
-    // Recolher as linhas seleccionadas de linhasNovas (por índice dentro de linhasNovas)
     const linhasSel = linhasNovas.filter((_, i) => linhasSelecionadas.has(i));
-
     if (linhasSel.length === 0) {
-      toast.error("Seleccione pelo menos uma leitura para continuar.");
+      toast.error("Seleccione pelo menos uma leitura para registar.");
       return;
     }
-
-    // Determinar a data: usar a data da primeira linha seleccionada
-    const dataIso = ddmmyyyyParaIso(linhasSel[0].data);
-
-    // Construir payload para o Registo Rápido
-    const dadosCsv: DadosCsvParaRegistoRapido = {
-      data: dataIso,
-      cubas: linhasSel.map((l) => ({
+    setEtapaRegistar("a_registar");
+    confirmarMutation.mutate({
+      linhas: linhasSel.map((l) => ({
+        cubaId: l.cubaId,
         cubaCodigo: l.cubaCodigo,
-        // 4 casas decimais para densidade
-        densidade: l.densidade.toFixed(4),
-        // 1 casa decimal para temperatura
-        temperatura: l.temperatura.toFixed(1),
-        // hora HH:MM:SS da medição
-        hora: l.hora ?? "",
-        isPorto: CUBAS_PORTO.has(l.cubaCodigo.toUpperCase()),
+        data: l.data,
+        hora: l.hora,
+        densidade: l.densidade,
+        temperatura: l.temperatura,
+        isPorto: l.isPorto ?? false,
       })),
-      importadoEm: new Date().toISOString(),
-    };
-
-    guardarDadosCsvNoStorage(dadosCsv);
-    onImportado?.();
-    handleFechar();
-    navigate("/registo-rapido");
-    toast.success(`${linhasSel.length} leitura${linhasSel.length !== 1 ? "s" : ""} pré-preenchida${linhasSel.length !== 1 ? "s" : ""} no Registo Rápido.`);
+    });
   }
 
   function handleFechar() {
@@ -189,13 +187,14 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
     setLinhasSelecionadas(new Set());
     setMostrarIgnoradas(false);
     setMostrarDuplicadas(false);
+    setEtapaRegistar("idle");
+    setResultadoRegisto(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     onClose();
   }
 
   const linhasNovas = preview?.linhasValidas.filter((l) => !l.duplicado) ?? [];
   const linhasDuplicadas = preview?.linhasValidas.filter((l) => l.duplicado) ?? [];
-
 
   return (
     <Dialog open={open} onOpenChange={handleFechar}>
@@ -216,7 +215,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
               <strong>Densidade SG 20/20 (L)</strong> e <strong>Temperatura (O)</strong>.
             </p>
             <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-              Os dados serão pré-preenchidos no <strong>Registo Rápido</strong> para revisão antes de serem guardados.
+              Poderá rever todas as leituras antes de as registar directamente na base de dados.
             </p>
 
             <div
@@ -249,34 +248,58 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
         {/* ── Etapa 2: Preview ─────────────────────────────────────── */}
         {etapa === "preview" && preview && (
           <div className="space-y-4">
+
+            {/* Resultado do registo (após confirmar) */}
+            {etapaRegistar === "concluido" && resultadoRegisto && (
+              <div className="rounded-lg border border-green-300 bg-green-50 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-green-700 font-semibold">
+                  <CheckCircle2 className="w-5 h-5" />
+                  Registo concluído
+                </div>
+                <p className="text-sm text-green-700">
+                  <strong>{resultadoRegisto.criadas}</strong> leitura{resultadoRegisto.criadas !== 1 ? "s" : ""} registada{resultadoRegisto.criadas !== 1 ? "s" : ""} com sucesso.
+                  {resultadoRegisto.ignoradas > 0 && ` ${resultadoRegisto.ignoradas} ignorada${resultadoRegisto.ignoradas !== 1 ? "s" : ""} (duplicadas).`}
+                </p>
+                {resultadoRegisto.erros.length > 0 && (
+                  <div className="text-xs text-red-700 bg-red-50 rounded p-2 space-y-1">
+                    {resultadoRegisto.erros.map((e, i) => <p key={i}>• {e}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Resumo */}
-            <div className="flex gap-3 flex-wrap">
-              <Badge variant="outline" className="text-green-700 border-green-300 bg-green-50">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
-                {linhasNovas.length} leitura{linhasNovas.length !== 1 ? "s" : ""} nova{linhasNovas.length !== 1 ? "s" : ""}
-              </Badge>
-              {linhasDuplicadas.length > 0 && (
-                <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
-                  <Copy className="w-3 h-3 mr-1" />
-                  {linhasDuplicadas.length} duplicada{linhasDuplicadas.length !== 1 ? "s" : ""} (já existe)
+            {etapaRegistar !== "concluido" && (
+              <div className="flex gap-3 flex-wrap">
+                <Badge variant="outline" className="text-green-700 border-green-300 bg-green-50">
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  {linhasNovas.length} leitura{linhasNovas.length !== 1 ? "s" : ""} nova{linhasNovas.length !== 1 ? "s" : ""}
                 </Badge>
-              )}
-              {preview.linhasIgnoradas.length > 0 && (
-                <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">
-                  <AlertTriangle className="w-3 h-3 mr-1" />
-                  {preview.linhasIgnoradas.length} ignorada{preview.linhasIgnoradas.length !== 1 ? "s" : ""}
+                {linhasDuplicadas.length > 0 && (
+                  <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                    <Copy className="w-3 h-3 mr-1" />
+                    {linhasDuplicadas.length} duplicada{linhasDuplicadas.length !== 1 ? "s" : ""} (já existe)
+                  </Badge>
+                )}
+                {preview.linhasIgnoradas.length > 0 && (
+                  <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">
+                    <AlertTriangle className="w-3 h-3 mr-1" />
+                    {preview.linhasIgnoradas.length} ignorada{preview.linhasIgnoradas.length !== 1 ? "s" : ""}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="text-muted-foreground">
+                  Total: {preview.totalLinhas} linhas
                 </Badge>
-              )}
-              <Badge variant="outline" className="text-muted-foreground">
-                Total: {preview.totalLinhas} linhas
-              </Badge>
-            </div>
+              </div>
+            )}
 
             {/* Tabela de leituras novas */}
-            {linhasNovas.length > 0 && (
+            {linhasNovas.length > 0 && etapaRegistar !== "concluido" && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-semibold text-green-700">Leituras a pré-preencher no Registo Rápido</h4>
+                  <h4 className="text-sm font-semibold text-green-700">
+                    Leituras novas — reveja e seleccione as que pretende registar
+                  </h4>
                   <Button variant="ghost" size="sm" onClick={toggleTodas} className="text-xs h-7">
                     {linhasSelecionadas.size === linhasNovas.length ? "Desseleccionar todas" : "Seleccionar todas"}
                   </Button>
@@ -291,6 +314,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                         <th className="p-2 text-left">Hora</th>
                         <th className="p-2 text-right">Densidade (4 dec.)</th>
                         <th className="p-2 text-right">Temp. (°C)</th>
+                        <th className="p-2 text-center">Tipo</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -316,6 +340,12 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
                           <td className="p-2 text-muted-foreground">{linha.hora}</td>
                           <td className="p-2 text-right font-mono">{linha.densidade.toFixed(4)}</td>
                           <td className="p-2 text-right font-mono">{linha.temperatura.toFixed(1)}</td>
+                          <td className="p-2 text-center">
+                            {linha.isPorto
+                              ? <span className="text-[9px] font-bold bg-amber-800 text-amber-100 px-1 rounded">VP</span>
+                              : <span className="text-[9px] text-muted-foreground">CF</span>
+                            }
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -410,7 +440,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
               </div>
             )}
 
-            {linhasNovas.length === 0 && linhasDuplicadas.length > 0 && (
+            {linhasNovas.length === 0 && linhasDuplicadas.length > 0 && etapaRegistar !== "concluido" && (
               <div className="text-center py-4 text-amber-700 bg-amber-50 rounded-lg">
                 <Copy className="w-8 h-8 mx-auto mb-2 text-amber-500" />
                 <p className="text-sm font-medium">Todas as leituras já existem na base de dados.</p>
@@ -424,20 +454,35 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
           {etapa === "upload" && (
             <Button variant="outline" onClick={handleFechar}>Cancelar</Button>
           )}
-          {etapa === "preview" && (
+          {etapa === "preview" && etapaRegistar !== "concluido" && (
             <>
               <Button variant="outline" onClick={() => { setEtapa("upload"); setPreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}>
                 <X className="w-4 h-4 mr-1" /> Voltar
               </Button>
               <Button
-                onClick={handleIrParaRegistoRapido}
-                disabled={linhasSelecionadas.size === 0}
-                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={handleRegistarDirectamente}
+                disabled={linhasSelecionadas.size === 0 || etapaRegistar === "a_registar"}
+                className="bg-green-700 hover:bg-green-800 text-white"
               >
-                <ArrowRight className="w-4 h-4 mr-1" />
-                Ir para Registo Rápido ({linhasSelecionadas.size})
+                {etapaRegistar === "a_registar" ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    A registar…
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4 mr-1" />
+                    Registar seleccionadas ({linhasSelecionadas.size})
+                  </>
+                )}
               </Button>
             </>
+          )}
+          {etapa === "preview" && etapaRegistar === "concluido" && (
+            <Button onClick={handleFechar} className="bg-green-700 hover:bg-green-800 text-white">
+              <CheckCircle2 className="w-4 h-4 mr-1" />
+              Fechar
+            </Button>
           )}
         </DialogFooter>
       </DialogContent>

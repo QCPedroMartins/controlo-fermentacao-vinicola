@@ -24,13 +24,10 @@
  *   Col P (16) = Unit
  *   Col Q (17) = State
  */
-
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
 import { getCubaByCodigo, createLeitura, getLeiturasByCuba, leituraExistePorData } from "./db";
-
 // ── Tipos ─────────────────────────────────────────────────────────────────────
-
 export interface LinhaPreview {
   measNo: string;
   data: string;           // DD.MM.YYYY
@@ -42,22 +39,19 @@ export interface LinhaPreview {
   temperatura: number;    // °C
   diaFermentacao?: number; // calculado a partir das leituras existentes
   duplicado?: boolean;    // true se já existe leitura para esta cuba+data
+  isPorto?: boolean;      // true se é cuba VP
 }
-
 export interface LinhaIgnorada {
   measNo: string;
   motivo: string;
   raw: string;
 }
-
 export interface ResultadoPreview {
   linhasValidas: LinhaPreview[];
   linhasIgnoradas: LinhaIgnorada[];
   totalLinhas: number;
 }
-
 // ── Parser CSV ────────────────────────────────────────────────────────────────
-
 // Gera lista de variantes do código a tentar: CF01 → ["CF01", "CF1"], VP01 → ["VP01", "VP1"]
 function variantesCodigo(raw: string): string[] {
   const upper = raw.trim().toUpperCase();
@@ -71,26 +65,25 @@ function variantesCodigo(raw: string): string[] {
   variants.add(comZero);
   return Array.from(variants);
 }
-
 function parsearDecimal(str: string): number | null {
   if (!str || str.trim() === "" || str.trim() === "-") return null;
   const n = parseFloat(str.trim().replace(",", "."));
   return isNaN(n) ? null : n;
 }
-
 function parsearData(str: string): Date | null {
   // DD.MM.YYYY
   const m = str.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   if (!m) return null;
   return new Date(`${m[3]}-${m[2]}-${m[1]}T12:00:00.000Z`);
 }
-
 /** Converte data DD.MM.YYYY → string ISO YYYY-MM-DD */
 function dataParaIso(dataStr: string): string | null {
   const m = dataStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   if (!m) return null;
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
+
+const CUBAS_PORTO = new Set(["VP01", "VP02", "VP03", "VP04", "VP05"]);
 
 export async function parsearCsv(csvContent: string): Promise<{
   validas: Array<{
@@ -115,13 +108,11 @@ export async function parsearCsv(csvContent: string): Promise<{
     temperatura: number;
   }> = [];
   const ignoradas: LinhaIgnorada[] = [];
-
   // Saltar cabeçalho (linha 1)
   for (let i = 1; i < linhas.length; i++) {
     const raw = linhas[i];
     // Separar por ; respeitando aspas
     const cols = raw.split(";").map((c) => c.trim().replace(/^"|"$/g, ""));
-
     const measNo = cols[0] || String(i);
     const dateStr = cols[1] || "";
     const hora = cols[2] || "";
@@ -129,40 +120,32 @@ export async function parsearCsv(csvContent: string): Promise<{
     const sampleId = cols[4] || "";
     const densidadeStr = cols[11] || ""; // Col L (índice 11)
     const temperaturaStr = cols[14] || ""; // Col O (índice 14)
-
     // Ignorar WaterCheck ou linhas sem Sample ID
     if (method === "WaterCheck" || sampleId === "") {
       ignoradas.push({ measNo, motivo: method === "WaterCheck" ? "WaterCheck (calibração)" : "Sem Sample ID", raw });
       continue;
     }
-
     const data = parsearData(dateStr);
     if (!data) {
       ignoradas.push({ measNo, motivo: `Data inválida: "${dateStr}"`, raw });
       continue;
     }
-
     const densidade = parsearDecimal(densidadeStr);
     if (densidade === null || densidade <= 0 || densidade > 2) {
       ignoradas.push({ measNo, motivo: `Densidade inválida: "${densidadeStr}"`, raw });
       continue;
     }
-
     const temperatura = parsearDecimal(temperaturaStr);
     if (temperatura === null) {
       ignoradas.push({ measNo, motivo: `Temperatura inválida: "${temperaturaStr}"`, raw });
       continue;
     }
-
     // Guardar o sampleId original — a resolução para código de cuba será feita no router
     validas.push({ measNo, data, dataStr: dateStr, hora, cubaCodigo: sampleId.trim().toUpperCase(), densidade, temperatura });
   }
-
   return { validas, ignoradas };
 }
-
 // ── Router ────────────────────────────────────────────────────────────────────
-
 export const importacaoRouter = router({
   /**
    * Processa o CSV e devolve um preview das leituras a criar.
@@ -211,6 +194,9 @@ export const importacaoRouter = router({
         const leiturasExistentes = await getLeiturasByCuba(cuba.id);
         const diaFermentacao = leiturasExistentes.length + 1;
 
+        const codigoNorm = linha.cubaCodigo.toUpperCase().replace(/^([A-Z]+)0+(\d+)$/, (_, p, n) => p + n);
+        const isPorto = CUBAS_PORTO.has(codigoNorm) || CUBAS_PORTO.has(linha.cubaCodigo.toUpperCase());
+
         linhasValidas.push({
           measNo: linha.measNo,
           data: linha.dataStr,
@@ -222,6 +208,7 @@ export const importacaoRouter = router({
           temperatura: linha.temperatura,
           diaFermentacao,
           duplicado: isDuplicado,
+          isPorto,
         });
       }
 
@@ -235,7 +222,8 @@ export const importacaoRouter = router({
   /**
    * Confirma a importação e persiste as leituras na BD.
    * Recebe apenas as linhas que o utilizador aprovou.
-   * Ignora silenciosamente linhas duplicadas (mesma cuba + data já existe na BD).
+   * Ignora silenciosamente linhas duplicadas (mesma cuba + data + hora já existe na BD).
+   * Suporta cubas VP (baumeL1) e cubas normais (densL1).
    */
   confirmarCsv: protectedProcedure
     .input(
@@ -248,6 +236,7 @@ export const importacaoRouter = router({
             hora: z.string(),
             densidade: z.number(),
             temperatura: z.number(),
+            isPorto: z.boolean().optional().default(false),
           })
         ),
       })
@@ -278,21 +267,27 @@ export const importacaoRouter = router({
           }
           if (!cuba) { erros.push(`Cuba não encontrada: ${linha.cubaCodigo}`); continue; }
 
-          // Calcular dia de fermentação
-          const leiturasExistentes = await getLeiturasByCuba(linha.cubaId);
-          const diaFermentacao = leiturasExistentes.length + 1;
+          // Calcular dia de fermentação baseado na data (não apenas na contagem)
+          const leiturasExistentes = await getLeiturasByCuba(linha.cubaId, cuba.fermentacaoNum);
+          let diaFermentacao = 1;
+          if (leiturasExistentes.length > 0) {
+            const firstDate = new Date(leiturasExistentes[0].dataLeitura as unknown as string);
+            const currentDate = new Date(dataIso);
+            diaFermentacao = Math.floor((currentDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          }
 
+          const isPorto = linha.isPorto ?? false;
           await createLeitura({
             cubaId: linha.cubaId,
             fermentacaoNum: cuba.fermentacaoNum,
             dataLeitura: dataIso,
             hora: linha.hora || null,
             diaNr: diaFermentacao,
-            densL1: String(linha.densidade),
+            densL1: isPorto ? null : String(linha.densidade),
             tempL1: String(linha.temperatura),
             o2: null,
             redox: null,
-            baumeL1: null,
+            baumeL1: isPorto ? String(linha.densidade) : null,
             userId: ctx.user.id,
             userName: ctx.user.name || ctx.user.email || "CSV Import",
           });
