@@ -196,3 +196,13 @@
 - [x] Valores negativos/inválidos tratados com mensagem de aviso
 - [x] Testes Vitest: 33 testes a passar
 - [x] Checkpoint e deploy
+
+## Calculadora de Baumé de Envasilhamento VP (v18)
+- [x] Componente CalculadoraBaumeEnvasilhamento.tsx com fórmulas do Excel bédeenvasilhamento.xlsx
+- [x] Inputs editáveis: Mosto Fresco (L) [azul], Bé Lágrima Mosto Fresco [laranja], Álcool V/V [amarelo], Bé actual [verde], Grau Vínica (por defeito 77%)
+- [x] Cálculos: M=E×0.26, N=M+F, O=D-N, P=O×0.26, Q=N-P (Bé a abafar final), I=(C×(E-O))/(G-E) (AD necessária), K=I+C (volume final), L=K/550 (pipas), J=I/L (AD por pipa)
+- [x] Resultados agrupados: Bé a abafar (Q, O), Aguardente (I, J), Volume final (K, L)
+- [x] Volume pré-preenchido com fichaLitros da cuba VP
+- [x] Visível apenas nas cubas VP (tipoCuba === 'porto')
+- [x] Testes Vitest: 33 testes a passar
+- [x] Checkpoint e deploy

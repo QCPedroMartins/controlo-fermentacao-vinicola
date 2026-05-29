@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 
 import CalculadoraCorrecao from "@/components/CalculadoraCorrecao";
+import CalculadoraBaumeEnvasilhamento from "@/components/CalculadoraBaumeEnvasilhamento";
 
 // ── Cores fixas dos gráficos ──────────────────────────────
 const CORES = {
@@ -1365,6 +1366,13 @@ export default function CubaPage() {
 
       {/* Calculadoras de Correcção de Álcool — visíveis em todas as tabs */}
       <CalculadoraCorrecao volumeCuba={cuba?.fichaLitros ? Number(cuba.fichaLitros) : undefined} />
+
+      {/* Calculadora de Baumé de Envasilhamento — apenas cubas VP (Vinho do Porto) */}
+      {cuba?.tipoCuba === "porto" && (
+        <CalculadoraBaumeEnvasilhamento
+          volumeCuba={cuba?.fichaLitros ? Number(cuba.fichaLitros) : undefined}
+        />
+      )}
 
       {/* Tab: Adições e Notas */}
       {activeTab === "adicoes" && (
