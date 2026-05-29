@@ -370,7 +370,8 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
 
       const CHART_W = CONTENT_W;
       const CHART_H_PX = 200; // altura do plot em px canvas
-      // altura no PDF: plot (150) + labels X (12) + legenda (30) + margem (8)
+      // O canvas é gerado com a mesma largura do PDF (1:1) para que a legenda lateral não fique cortada
+      const CANVAS_W = Math.round(CHART_W); // mesma largura que o PDF
       const CHART_H_PDF = 200; // altura no PDF em pontos (inclui legenda)
 
       // Gráfico 1: Densidade / Baumé
@@ -389,7 +390,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
                 { label: "Baumé", cor: CORES.l1, valor: d.baumeL1 },
               ],
             })),
-            largura: CHART_W * 2,
+            largura: CANVAS_W,
             altura: CHART_H_PX,
           })
         : gerarGraficoPng({
@@ -403,7 +404,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
                 { label: "Densidade", cor: CORES.l1, valor: d.densL1 },
               ],
             })),
-            largura: CHART_W * 2,
+            largura: CANVAS_W,
             altura: CHART_H_PX,
           });
 
@@ -425,7 +426,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
             { label: "Temperatura", cor: CORES.l1, valor: d.tempL1 },
           ],
         })),
-        largura: CHART_W * 2,
+        largura: CANVAS_W,
         altura: CHART_H_PX,
       });
 
@@ -447,7 +448,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
             xLabel: d.xLabel,
             series: [{ label: "O₂ Dissolvido", cor: CORES.o2, valor: d.o2 }],
           })),
-          largura: CHART_W * 2,
+          largura: CANVAS_W,
           altura: CHART_H_PX,
         });
         doc.image(pngO2, MARGIN, y, { width: CHART_W, height: CHART_H_PDF });
@@ -469,7 +470,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
             xLabel: d.xLabel,
             series: [{ label: "Potencial Redox", cor: CORES.redox, valor: d.redox }],
           })),
-          largura: CHART_W * 2,
+          largura: CANVAS_W,
           altura: CHART_H_PX,
         });
         doc.image(pngRedox, MARGIN, y, { width: CHART_W, height: CHART_H_PDF });
