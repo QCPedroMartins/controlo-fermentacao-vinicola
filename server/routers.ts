@@ -557,8 +557,8 @@ const arquivoRouter = router({
       let tempMax: string | null = null;
 
       if (rows.length > 0) {
-        dataInicio = rows[0].dataLeitura instanceof Date ? rows[0].dataLeitura.toISOString().split('T')[0] : String(rows[0].dataLeitura);
-        dataFim = rows[rows.length - 1].dataLeitura instanceof Date ? rows[rows.length - 1].dataLeitura.toISOString().split('T')[0] : String(rows[rows.length - 1].dataLeitura);
+        dataInicio = rows[0].dataLeitura;
+        dataFim = rows[rows.length - 1].dataLeitura;
         totalDias = rows[rows.length - 1].diaNr ?? rows.length;
         const allDens = rows.map((r) => r.densL1).filter((v): v is string => v !== null).map(Number);
         const allTemp = rows.map((r) => r.tempL1).filter((v): v is string => v !== null).map(Number);

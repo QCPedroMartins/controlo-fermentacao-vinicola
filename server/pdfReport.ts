@@ -84,12 +84,10 @@ function gerarGraficoPng(params: {
 }): Buffer {
   const W = params.largura ?? 760;
   const nSeries = params.dados[0]?.series.length ?? 0;
-  // Cada série ocupa 140px; máx 4 por linha
-  const nLinhasLegenda = Math.ceil(nSeries / 4);
-  const altLegenda = nLinhasLegenda * 22 + (params.linhaRef ? 24 : 0) + 16;
-  // bottom: 16px para labels X + 8px espaço + altLegenda
-  const H = (params.altura ?? 200) + 24 + altLegenda;
-  const PAD = { top: 36, right: 20, bottom: 24 + altLegenda, left: 62 };
+  // Legenda lateral direita: largura fixa de 160px
+  const LEGEND_W = 160;
+  const H = (params.altura ?? 200) + 24; // apenas espaço para labels X
+  const PAD = { top: 36, right: LEGEND_W + 10, bottom: 28, left: 62 };
 
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
@@ -216,40 +214,47 @@ function gerarGraficoPng(params: {
     });
   }
 
-  // Legenda das séries (maior e mais visível)
-  // +24 para dar espaço aos labels X que ficam em plotH + 10
-  const legendaY = PAD.top + plotH + 32;
+  // Legenda das séries — lateral direita
+  const legendaX = W - LEGEND_W + 8;
+  let legendaY = PAD.top + 4;
   for (let si = 0; si < nSeries; si++) {
     const label = params.dados[0]?.series[si]?.label ?? "";
     const cor = params.dados[0]?.series[si]?.cor ?? "888888";
-    const linhaIdx = Math.floor(si / 4);
-    const colIdx = si % 4;
-    const lx = PAD.left + colIdx * 140;
-    const ly = legendaY + linhaIdx * 22;
+    const ly = legendaY + si * 22;
     // Linha colorida
     ctx.strokeStyle = "#" + cor; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 22, ly); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(legendaX, ly); ctx.lineTo(legendaX + 20, ly); ctx.stroke();
     // Ponto central
     ctx.fillStyle = "#" + cor;
-    ctx.beginPath(); ctx.arc(lx + 11, ly, 5, 0, Math.PI * 2); ctx.fill();
-    // Texto
-    ctx.fillStyle = "#111"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "left";
-    ctx.fillText(label, lx + 30, ly + 4);
+    ctx.beginPath(); ctx.arc(legendaX + 10, ly, 4, 0, Math.PI * 2); ctx.fill();
+    // Texto (com quebra de linha se necessário)
+    ctx.fillStyle = "#111"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "left";
+    ctx.fillText(label, legendaX + 26, ly + 4);
   }
 
-  // Legenda da linha de referência
+  // Legenda da linha de referência — lateral direita, abaixo das séries
   if (params.linhaRef) {
-    const nLinhasUsadas = Math.ceil(nSeries / 4);
-    const lx = PAD.left;
-    const ly = legendaY + nLinhasUsadas * 22;
+    const ly = legendaY + nSeries * 22 + 6;
     ctx.save();
     ctx.strokeStyle = params.linhaRef.cor; ctx.lineWidth = 1.8;
     ctx.setLineDash([6, 4]);
-    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 22, ly); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(legendaX, ly); ctx.lineTo(legendaX + 20, ly); ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
-    ctx.fillStyle = "#111"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "left";
-    ctx.fillText(params.linhaRef.label, lx + 30, ly + 4);
+    // Texto da referência (pode ser longo — quebrar em 2 linhas)
+    const refLabel = params.linhaRef.label;
+    const maxW = LEGEND_W - 32;
+    ctx.fillStyle = "#111"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "left";
+    // Dividir em palavras e desenhar em até 2 linhas
+    const words = refLabel.split(" ");
+    let line1 = ""; let line2 = "";
+    for (const w of words) {
+      const test = line1 ? line1 + " " + w : w;
+      if (ctx.measureText(test).width <= maxW) { line1 = test; }
+      else { line2 = line2 ? line2 + " " + w : w; }
+    }
+    ctx.fillText(line1, legendaX + 26, ly + 3);
+    if (line2) ctx.fillText(line2, legendaX + 26, ly + 14);
   }
 
   return canvas.toBuffer("image/png");

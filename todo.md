@@ -272,3 +272,10 @@
 - [x] Excel: corrigir escala Y com 1 ponto, legenda visível, 4 casas decimais
 - [x] PDF: corrigir escala Y com 1 ponto, legenda maior (11px bold), 4 casas decimais
 - [x] Email: corrigir escala Y com 1 ponto, 4 casas decimais na densidade
+
+## Correcção de Timezone e Legenda Lateral (v32)
+- [x] BD: schema date fields alterados para mode:'string' para evitar shift de timezone UTC
+- [x] Backend: db.ts usa strings ISO directamente (sem toDate()) em createLeitura, createAdicao, createArquivo
+- [x] Backend: routers.ts removidos instanceof Date checks (dataLeitura é sempre string)
+- [x] PDF: gerarGraficoPng redesenhado com legenda na lateral direita (160px) em vez de em baixo
+- [x] Excel/Email: gerarGraficoLinha redesenhado com legenda na lateral direita (180px) em vez de em baixo

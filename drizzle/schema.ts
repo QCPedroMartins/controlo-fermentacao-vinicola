@@ -107,7 +107,7 @@ export const leituras = mysqlTable("leituras", {
   /** Campanha a que esta leitura pertence */
   campanhaId: int("campanha_id"),
   /** Data da leitura (apenas data, sem hora) */
-  dataLeitura: date("data_leitura").notNull(),
+  dataLeitura: date("data_leitura", { mode: "string" }).notNull(),
   /** Hora da leitura no formato HH:MM:SS (vem do CSV da máquina) */
   hora: varchar("hora", { length: 8 }),
   /** Dia de fermentação calculado (1, 2, 3...) */
@@ -143,7 +143,7 @@ export const adicoes = mysqlTable("adicoes", {
   fermentacaoNum: int("fermentacao_num").default(1).notNull(),
   /** Campanha a que esta adição pertence */
   campanhaId: int("campanha_id"),
-  dataAdicao: date("data_adicao").notNull(),
+  dataAdicao: date("data_adicao", { mode: "string" }).notNull(),
   produto: varchar("produto", { length: 200 }),
   dose: varchar("dose", { length: 100 }),
   observacoes: text("observacoes"),
@@ -163,8 +163,8 @@ export const fermentacoesArquivo = mysqlTable("fermentacoes_arquivo", {
   /** Campanha a que esta fermentação pertence */
   campanhaId: int("campanha_id"),
   nomeLote: varchar("nome_lote", { length: 120 }),
-  dataInicio: date("data_inicio"),
-  dataFim: date("data_fim"),
+  dataInicio: date("data_inicio", { mode: "string" }),
+  dataFim: date("data_fim", { mode: "string" }),
   totalDias: int("total_dias"),
   densMin: decimal("dens_min", { precision: 7, scale: 3 }),
   tempMax: decimal("temp_max", { precision: 5, scale: 1 }),

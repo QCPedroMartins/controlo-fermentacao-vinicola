@@ -295,7 +295,7 @@ export async function createLeitura(data: {
   await db.insert(leituras).values({
     cubaId: data.cubaId,
     fermentacaoNum: data.fermentacaoNum,
-    dataLeitura: toDate(data.dataLeitura),
+    dataLeitura: data.dataLeitura,
     hora: data.hora ?? null,
     diaNr: data.diaNr,
     densL1: data.densL1 ?? null,
@@ -359,7 +359,7 @@ export async function createAdicao(data: {
   await db.insert(adicoes).values({
     cubaId: data.cubaId,
     fermentacaoNum: data.fermentacaoNum,
-    dataAdicao: toDate(data.dataAdicao),
+    dataAdicao: data.dataAdicao,
     produto: data.produto ?? null,
     dose: data.dose ?? null,
     observacoes: data.observacoes ?? null,
@@ -402,8 +402,8 @@ export async function createArquivo(data: {
     cubaId: data.cubaId,
     fermentacaoNum: data.fermentacaoNum,
     nomeLote: data.nomeLote ?? null,
-    dataInicio: data.dataInicio ? toDate(data.dataInicio) : null,
-    dataFim: data.dataFim ? toDate(data.dataFim) : null,
+    dataInicio: data.dataInicio ?? null,
+    dataFim: data.dataFim ?? null,
     totalDias: data.totalDias ?? null,
     densMin: data.densMin ?? null,
     tempMax: data.tempMax ?? null,
@@ -498,7 +498,6 @@ export async function leituraExistePorData(
 ): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
-  const dataDate = toDate(dataLeituraIso);
   if (hora) {
     // Com hora: duplicado só se cuba + data + hora forem exactamente iguais
     const rows = await db
@@ -506,7 +505,7 @@ export async function leituraExistePorData(
       .from(leituras)
       .where(and(
         eq(leituras.cubaId, cubaId),
-        eq(leituras.dataLeitura, dataDate),
+        eq(leituras.dataLeitura, dataLeituraIso),
         eq(leituras.hora, hora)
       ))
       .limit(1);
@@ -516,7 +515,7 @@ export async function leituraExistePorData(
     const rows = await db
       .select({ id: leituras.id })
       .from(leituras)
-      .where(and(eq(leituras.cubaId, cubaId), eq(leituras.dataLeitura, dataDate)))
+      .where(and(eq(leituras.cubaId, cubaId), eq(leituras.dataLeitura, dataLeituraIso)))
       .limit(1);
     return rows.length > 0;
   }

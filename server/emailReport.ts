@@ -77,13 +77,11 @@ function gerarGraficoLinha(params: {
 }): { buffer: Buffer; height: number } {
   const W = params.largura ?? 900;
   const nSeries = params.dados[0]?.series.length ?? 0;
-  // Cada série ocupa 130px; máx 6 por linha
-  const nLinhasLegenda = Math.ceil(nSeries / 6);
-  // Espaço da legenda: 20px por linha + 20px para a linhaRef + 20px para o label do eixo X + 20px de margem
-  const alturaLegenda = nLinhasLegenda * 24 + (params.linhaRef ? 24 : 0) + 20 + 20;
-  const H = (params.altura ?? 320) + alturaLegenda;
-  // PAD.bottom inclui: 18px para labels X + alturaLegenda
-  const PAD = { top: 45, right: 40, bottom: 18 + alturaLegenda, left: 70 };
+  // Legenda lateral direita: largura fixa de 180px
+  const LEGEND_W = 180;
+  const H = (params.altura ?? 320) + 28; // apenas espaço para labels X
+  // PAD.bottom: 22px para labels X; PAD.right: área da legenda
+  const PAD = { top: 45, right: LEGEND_W + 16, bottom: 28, left: 70 };
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext("2d");
 
@@ -237,62 +235,59 @@ function gerarGraficoLinha(params: {
     });
   });
 
-  // Legenda das séries (abaixo dos labels do eixo X, com espaço suficiente)
-  // labels X estão em plotH+14; legenda começa em plotH+36
-  const legendaY = PAD.top + plotH + 36;
+  // Legenda das séries — lateral direita
+  const legendaX = W - LEGEND_W + 10;
   seriesLabels.forEach((label, si) => {
     const cor = params.dados[0]?.series[si]?.cor ?? "888888";
-    const linhaIdx = Math.floor(si / 6);
-    const colIdx = si % 6;
-    const lx = PAD.left + colIdx * 130;
-    const ly = legendaY + linhaIdx * 24;
+    const ly = PAD.top + 4 + si * 26;
     // Linha colorida
     ctx.strokeStyle = "#" + cor;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(lx, ly);
-    ctx.lineTo(lx + 22, ly);
+    ctx.moveTo(legendaX, ly);
+    ctx.lineTo(legendaX + 22, ly);
     ctx.stroke();
     // Ponto central
     ctx.fillStyle = "#" + cor;
     ctx.beginPath();
-    ctx.arc(lx + 11, ly, 4, 0, Math.PI * 2);
+    ctx.arc(legendaX + 11, ly, 4, 0, Math.PI * 2);
     ctx.fill();
     // Texto
     ctx.fillStyle = "#222";
-    ctx.font = "bold 11px sans-serif";
+    ctx.font = "bold 12px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(label, lx + 28, ly + 4);
+    ctx.fillText(label, legendaX + 30, ly + 4);
   });
 
-  // Legenda da linha de referência (se existir) — na linha seguinte às séries
+  // Legenda da linha de referência — lateral direita, abaixo das séries
   if (params.linhaRef) {
-    const nLinhasUsadas = Math.ceil(seriesLabels.length / 6);
-    const lx = PAD.left;
-    const ly = legendaY + nLinhasUsadas * 24;
+    const ly = PAD.top + 4 + seriesLabels.length * 26 + 8;
     ctx.save();
     ctx.strokeStyle = params.linhaRef.cor;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([6, 4]);
     ctx.beginPath();
-    ctx.moveTo(lx, ly);
-    ctx.lineTo(lx + 20, ly);
+    ctx.moveTo(legendaX, ly);
+    ctx.lineTo(legendaX + 22, ly);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
+    // Texto (quebrar em 2 linhas se necessário)
+    const refLabel = params.linhaRef.label;
+    const maxW = LEGEND_W - 36;
     ctx.fillStyle = "#222";
-    ctx.font = "bold 11px sans-serif";
+    ctx.font = "bold 10px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(params.linhaRef.label, lx + 26, ly + 4);
+    const words = refLabel.split(" ");
+    let line1 = ""; let line2 = "";
+    for (const w of words) {
+      const test = line1 ? line1 + " " + w : w;
+      if (ctx.measureText(test).width <= maxW) { line1 = test; }
+      else { line2 = line2 ? line2 + " " + w : w; }
+    }
+    ctx.fillText(line1, legendaX + 30, ly + 3);
+    if (line2) ctx.fillText(line2, legendaX + 30, ly + 16);
   }
-
-  // Label eixo X (no fundo, abaixo de tudo)
-  const nLinhasUsadas2 = Math.ceil(seriesLabels.length / 6);
-  const labelXY = legendaY + nLinhasUsadas2 * 24 + (params.linhaRef ? 24 : 0) + 14;
-  ctx.fillStyle = "#444";
-  ctx.font = "11px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("Dia de fermentação", PAD.left + plotW / 2, labelXY);
 
   return { buffer: canvas.toBuffer("image/png"), height: H };
 }
