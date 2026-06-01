@@ -245,6 +245,7 @@ export const importacaoRouter = router({
       let criadas = 0;
       let ignoradas = 0;
       const erros: string[] = [];
+      const alertasCubas: { cubaId: number; codigo: string; nomeLote: string | null; densidadeAtual: string; densidadeLimite: string }[] = [];
 
       for (const linha of input.linhas) {
         try {
@@ -292,11 +293,26 @@ export const importacaoRouter = router({
             userName: ctx.user.name || ctx.user.email || "CSV Import",
           });
           criadas++;
+          // Verificar se atingiu o limite de densidade
+          const densAtual = isPorto ? (linha.densidade != null ? String(linha.densidade) : null) : (linha.densidade != null ? String(linha.densidade) : null);
+          const limite = cuba.densidadeLimite ?? "1.000";
+          if (densAtual && parseFloat(densAtual) <= parseFloat(limite) && cuba.estado !== "completa") {
+            // Evitar duplicados no array (mesma cuba)
+            if (!alertasCubas.some((a) => a.cubaId === cuba.id)) {
+              alertasCubas.push({
+                cubaId: cuba.id,
+                codigo: cuba.codigo,
+                nomeLote: cuba.nomeLote ?? null,
+                densidadeAtual: densAtual,
+                densidadeLimite: limite,
+              });
+            }
+          }
         } catch (err) {
           erros.push(`Erro ao criar leitura para cuba ${linha.cubaCodigo}: ${String(err)}`);
         }
       }
 
-      return { criadas, ignoradas, erros };
+      return { criadas, ignoradas, erros, alertasCubas };
     }),
 });

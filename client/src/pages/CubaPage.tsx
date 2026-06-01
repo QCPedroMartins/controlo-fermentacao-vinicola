@@ -197,6 +197,9 @@ export default function CubaPage() {
   const [showTerminarFerm, setShowTerminarFerm] = useState(false);
   const [nomeLoteTerminar, setNomeLoteTerminar] = useState("");
 
+  // Estado alerta de limite de densidade atingido
+  const [alertaLimiteDens, setAlertaLimiteDens] = useState<{ densidadeAtual: string; densidadeLimite: string } | null>(null);
+
   // Estado edição densidade limite
   const [editingLimite, setEditingLimite] = useState(false);
   const [limiteTemp, setLimiteTemp] = useState("");
@@ -279,10 +282,16 @@ export default function CubaPage() {
   const criarLeitura = trpc.leituras.create.useMutation({
     onSuccess: (data) => {
       let msg = "Leitura registada com sucesso!";
-      if (data.fermentacaoCompleta) msg += " 🍷 Fermentação completa!";
       toast.success(msg);
       if (data.alertas && data.alertas.length > 0) {
         data.alertas.forEach((a) => toast.warning("⚠️ " + a));
+      }
+      // Verificar se atingiu o limite de densidade
+      if (data.fermentacaoCompleta && cuba && cuba.estado !== "completa") {
+        setAlertaLimiteDens({
+          densidadeAtual: form.densL1 || form.baumeL1 || "",
+          densidadeLimite: cuba.densidadeLimite ?? "1.000",
+        });
       }
       setForm({ dataLeitura: new Date().toISOString().split("T")[0], densL1: "", tempL1: "", o2: "", redox: "", baumeL1: "" });
       utils.leituras.listByCuba.invalidate();
@@ -1897,6 +1906,51 @@ export default function CubaPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Diálogo: Limite de densidade atingido */}
+      {alertaLimiteDens && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md animate-fade-in">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle2 size={20} className="text-green-700" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-green-800" style={{ fontFamily: "var(--font-serif)" }}>
+                  Limite de Densidade Atingido
+                </h2>
+                <p className="text-xs text-gray-500">{cuba?.codigo?.toUpperCase()}</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 mb-2">
+              A densidade registada <strong>{parseFloat(alertaLimiteDens.densidadeAtual).toFixed(4)}</strong> atingiu
+              ou ultrapassou o limite configurado de <strong>{alertaLimiteDens.densidadeLimite}</strong>.
+            </p>
+            <p className="text-sm text-gray-600 mb-5">
+              Deseja <strong>terminar a fermentação</strong> desta cuba? Será arquivada e enviado o relatório por email.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setAlertaLimiteDens(null)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Não, continuar
+              </button>
+              <button
+                onClick={() => {
+                  setAlertaLimiteDens(null);
+                  if (cuba) setNomeLoteTerminar(cuba.nomeLote ?? "");
+                  setShowTerminarFerm(true);
+                }}
+                className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800"
+              >
+                <CheckCircle2 size={14} />
+                Sim, terminar fermentação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

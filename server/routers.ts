@@ -377,6 +377,7 @@ const leiturasRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const resultados: { cubaId: number; success: boolean; alertas?: string[]; erro?: string }[] = [];
+      const alertasCubas: { cubaId: number; codigo: string; nomeLote: string | null; densidadeAtual: string; densidadeLimite: string }[] = [];
       const userName = ctx.user.name ?? ctx.user.email ?? "Utilizador";
 
       for (const linha of input.leituras) {
@@ -434,6 +435,18 @@ const leiturasRouter = router({
               userName,
             });
             alertas = resultado.alertas;
+            // Verificar se atingiu o limite de densidade (sem marcar completa — utilizador confirma)
+            const densAtual = linha.densL1 ?? null;
+            const limite = cuba.densidadeLimite ?? "1.000";
+            if (densAtual && parseFloat(densAtual) <= parseFloat(limite) && cuba.estado !== "completa") {
+              alertasCubas.push({
+                cubaId: cuba.id,
+                codigo: cuba.codigo,
+                nomeLote: cuba.nomeLote ?? null,
+                densidadeAtual: densAtual,
+                densidadeLimite: limite,
+              });
+            }
           }
 
           resultados.push({ cubaId: linha.cubaId, success: true, alertas });
@@ -442,7 +455,7 @@ const leiturasRouter = router({
         }
       }
 
-      return { resultados, total: input.leituras.length, sucesso: resultados.filter((r) => r.success).length };
+      return { resultados, total: input.leituras.length, sucesso: resultados.filter((r) => r.success).length, alertasCubas };
     }),
 
   listAllDashboard: publicProcedure.query(async () => {

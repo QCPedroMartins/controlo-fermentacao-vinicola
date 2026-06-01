@@ -67,6 +67,16 @@ export default function RegistoRapido() {
 
   const { data: cubasData } = trpc.cubas.list.useQuery();
   const registarLote = trpc.leituras.registarLote.useMutation();
+  const novaFermentacao = trpc.arquivo.novaFermentacao.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Fermentação terminada! Nova fermentação Nº ${data.novaFermentacaoNum} iniciada.`);
+      setAlertasCubasLimite((prev) => prev.slice(1));
+    },
+    onError: (e) => { toast.error("Erro ao terminar: " + e.message); setAlertasCubasLimite((prev) => prev.slice(1)); },
+  });
+
+  // Estado para alertas de limite de densidade (fila de cubas a confirmar)
+  const [alertasCubasLimite, setAlertasCubasLimite] = useState<{ cubaId: number; codigo: string; nomeLote: string | null; densidadeAtual: string; densidadeLimite: string }[]>([]);
 
   const cubaMap = useMemo(() => {
     if (!cubasData) return {};
@@ -200,6 +210,10 @@ export default function RegistoRapido() {
       });
       setEstados(novosEstados);
       toast.success(`${resultado.sucesso} de ${resultado.total} cubas registadas com sucesso!`);
+      // Verificar alertas de limite de densidade
+      if (resultado.alertasCubas && resultado.alertasCubas.length > 0) {
+        setAlertasCubasLimite(resultado.alertasCubas);
+      }
       // Limpar dados CSV do localStorage após registo com sucesso
       limparDadosCsvDoStorage();
       setDadosCsvInfo(null);
@@ -240,6 +254,7 @@ export default function RegistoRapido() {
     : CUBAS_PORTO.filter((c) => temDados(linhas[c]));
 
   return (
+    <>
     <div className="p-4 sm:p-6 max-w-full animate-fade-in">
       {/* Cabeçalho */}
       <div className="mb-5">
@@ -518,5 +533,58 @@ export default function RegistoRapido() {
         </Button>
       </div>
     </div>
+
+    {/* Diálogo: Limite de densidade atingido (fila sequencial) */}
+    {alertasCubasLimite.length > 0 && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle2 size={20} className="text-green-700" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-green-800">Limite de Densidade Atingido</h2>
+              <p className="text-xs text-gray-500">
+                {alertasCubasLimite[0].codigo.toUpperCase()}
+                {alertasCubasLimite[0].nomeLote ? ` — ${alertasCubasLimite[0].nomeLote}` : ""}
+              </p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-700 mb-2">
+            A densidade registada{" "}
+            <strong>{parseFloat(alertasCubasLimite[0].densidadeAtual).toFixed(4)}</strong> atingiu o limite
+            configurado de <strong>{alertasCubasLimite[0].densidadeLimite}</strong>.
+          </p>
+          <p className="text-sm text-gray-600 mb-5">
+            Deseja <strong>terminar a fermentação</strong> desta cuba? Será arquivada e enviado o relatório por email.
+          </p>
+          {alertasCubasLimite.length > 1 && (
+            <p className="text-xs text-amber-600 mb-4">
+              ⚠️ Mais {alertasCubasLimite.length - 1} cuba(s) atingiram o limite. Serão apresentadas a seguir.
+            </p>
+          )}
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setAlertasCubasLimite((prev) => prev.slice(1))}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Não, continuar
+            </button>
+            <button
+              onClick={() => novaFermentacao.mutate({
+                cubaId: alertasCubasLimite[0].cubaId,
+                nomeLoteNovo: alertasCubasLimite[0].nomeLote || undefined,
+              })}
+              disabled={novaFermentacao.isPending}
+              className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 disabled:opacity-50"
+            >
+              <CheckCircle2 size={14} />
+              {novaFermentacao.isPending ? "A terminar..." : "Sim, terminar fermentação"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

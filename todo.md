@@ -293,3 +293,11 @@
 - [x] Frontend: modal CSV passa a ter botão "Registar seleccionadas (N)" que envia directamente para a BD
 - [x] Frontend: remover botão "Ir para Registo Rápido" do fluxo CSV (ou manter como alternativa)
 - [x] Frontend: cartões do Dashboard mostram nome do lote (se definido) e última densidade registada
+
+## Alerta de Limite de Densidade ao Registar (v39)
+
+- [ ] Backend: após registar leitura (registarLote e confirmarCsv), verificar se densL1/baumeL1 <= densidadeLimite e retornar `alertasCubas` (array com cubaId, codigo, nomeLote, densidadeAtual, densidadeLimite)
+- [ ] Frontend CubaPage: após registar leitura, se alertaLimite=true mostrar diálogo "Densidade atingiu o limite (X). Deseja terminar a fermentação?"
+- [ ] Frontend RegistoRápido: após submissão, mostrar diálogo sequencial para cada cuba com alertaLimite
+- [ ] Frontend modal CSV: após registo directo, mostrar diálogo sequencial para cada cuba com alertaLimite
+- [ ] Ao confirmar terminar: abrir modal de terminar fermentação (já existente) pré-preenchido
