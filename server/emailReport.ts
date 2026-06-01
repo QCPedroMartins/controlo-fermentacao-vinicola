@@ -454,6 +454,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     ? gerarGraficoLinha({
         titulo: "Baumé (°)",
         unidade: "°",
+        largura: 800,
         marcadores: marcadoresGrafico,
         linhaRef: cuba.pontoAguardentacao
           ? { valor: parseFloat(cuba.pontoAguardentacao), label: `Ponto aguardentação (${cuba.pontoAguardentacao}°)`, cor: "#e53935" }
@@ -469,6 +470,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     : gerarGraficoLinha({
         titulo: "Densidade",
         unidade: "Densidade",
+        largura: 800,
         marcadores: marcadoresGrafico,
         dados: chartData.map((d) => ({
           x: d.x,
@@ -487,6 +489,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   const pngTemp = gerarGraficoLinha({
     titulo: "Temperatura (°C)",
     unidade: "°C",
+    largura: 800,
     marcadores: marcadoresGrafico,
     linhaRef: cuba.tempPretendida
       ? { valor: parseFloat(cuba.tempPretendida), label: `Temp. pretendida (${cuba.tempPretendida}°C)`, cor: "#1565c0" }
@@ -510,6 +513,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     const pngO2 = gerarGraficoLinha({
       titulo: "O₂ Dissolvido (mg/L)",
       unidade: "mg/L",
+      largura: 800,
       marcadores: marcadoresGrafico,
       dados: chartData.map((d) => ({
         x: d.x,
@@ -529,6 +533,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     const pngRedox = gerarGraficoLinha({
       titulo: "Potencial Redox (mV)",
       unidade: "mV",
+      largura: 800,
       marcadores: marcadoresGrafico,
       dados: chartData.map((d) => ({
         x: d.x,
