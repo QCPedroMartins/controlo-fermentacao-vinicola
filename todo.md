@@ -307,3 +307,13 @@
 - [ ] PDF do arquivo deve incluir gráficos, adições, ficha inicial e toda a informação da cuba (actualmente só tem tabela de leituras)
 - [ ] Excel do arquivo deve incluir todas as séries (temperatura, O2, redox) além da densidade
 - [ ] Botão de exportar PDF e Excel na tab Arquivo de cada cuba (por fermentação arquivada)
+
+## Campanhas de Vindima na Sidebar e Correcções PDF (v22)
+- [x] PDF: corrigir legenda sem texto — registar fontes NotoSans explicitamente em pdfReport.ts e emailReport.ts
+- [x] PDF: corrigir página 1 em branco — adicionar secção "INFORMAÇÕES DA CUBA" sempre visível na página 1
+- [x] PDF: gráficos ficam na mesma página 1 quando há espaço (sem addPage desnecessário)
+- [x] Sidebar: adicionar item "Campanhas de Vindima" com ícone Grape no AppLayout.tsx
+- [x] Backend: novo endpoint tRPC campanhas.fermentacoesByCampanha para listar todas as fermentações de uma campanha com dados da cuba
+- [x] Frontend: página Campanhas.tsx melhorada — cartões expansíveis com lista de fermentações terminadas dentro de cada campanha
+- [x] Frontend: cada fermentação mostra cuba, nº, lote, datas, dias, densidade mínima, link para arquivo
+- [x] Testes Vitest: 33 testes a passar

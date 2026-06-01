@@ -490,6 +490,33 @@ export async function getArquivoByCubaCampanha(cubaId: number, campanhaId?: numb
     .orderBy(desc(fermentacoesArquivo.fermentacaoNum));
 }
 
+/** Todas as fermentações arquivadas de uma campanha, com dados da cuba */
+export async function getFermentacoesByCampanha(campanhaId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: fermentacoesArquivo.id,
+      cubaId: fermentacoesArquivo.cubaId,
+      fermentacaoNum: fermentacoesArquivo.fermentacaoNum,
+      campanhaId: fermentacoesArquivo.campanhaId,
+      nomeLote: fermentacoesArquivo.nomeLote,
+      dataInicio: fermentacoesArquivo.dataInicio,
+      dataFim: fermentacoesArquivo.dataFim,
+      totalDias: fermentacoesArquivo.totalDias,
+      densMin: fermentacoesArquivo.densMin,
+      tempMax: fermentacoesArquivo.tempMax,
+      archivedBy: fermentacoesArquivo.archivedBy,
+      createdAt: fermentacoesArquivo.createdAt,
+      cubaCodigo: cubas.codigo,
+      cubaTipo: cubas.tipoCuba,
+    })
+    .from(fermentacoesArquivo)
+    .innerJoin(cubas, eq(fermentacoesArquivo.cubaId, cubas.id))
+    .where(eq(fermentacoesArquivo.campanhaId, campanhaId))
+    .orderBy(desc(fermentacoesArquivo.dataFim));
+}
+
 // ── Cálculo de Baumé de Envasilhamento (Vinho do Porto) ───
 export async function getBaumeCalculo(cubaId: number) {
   const db = await getDb();

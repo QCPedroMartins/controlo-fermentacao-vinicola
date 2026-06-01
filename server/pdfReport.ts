@@ -4,8 +4,16 @@
  */
 
 import PDFDocument from "pdfkit";
-import { createCanvas } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { getLeiturasByCuba, getAdicoesByCuba } from "./db";
+
+// Registar fontes para o canvas (necessário no servidor Node.js)
+try {
+  GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "NotoSans");
+  GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "NotoSans");
+} catch (_e) {
+  // Fontes podem já estar registadas ou não disponíveis — usar fallback
+}
 
 type LeituraRow = {
   id: number;
@@ -98,7 +106,7 @@ function gerarGraficoPng(params: {
 
   // Título
   ctx.fillStyle = COR_BORDO;
-  ctx.font = "bold 12px sans-serif";
+  ctx.font = "bold 12px NotoSans, sans-serif";
   ctx.textAlign = "left";
   ctx.fillText(params.titulo, PAD.left, 20);
 
@@ -113,7 +121,7 @@ function gerarGraficoPng(params: {
 
   if (allVals.length === 0) {
     ctx.fillStyle = "#999";
-    ctx.font = "11px sans-serif";
+    ctx.font = "11px NotoSans, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Sem dados", PAD.left + plotW / 2, PAD.top + plotH / 2);
     return canvas.toBuffer("image/png");
@@ -144,12 +152,12 @@ function gerarGraficoPng(params: {
     const y = PAD.top + (i / 4) * plotH;
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + plotW, y); ctx.stroke();
     const val = yMax - (i / 4) * (yMax - yMin);
-    ctx.fillStyle = "#666"; ctx.font = "9px sans-serif"; ctx.textAlign = "right";
+    ctx.fillStyle = "#666"; ctx.font = "9px NotoSans, sans-serif"; ctx.textAlign = "right";
     ctx.fillText(val.toFixed(decimais), PAD.left - 4, y + 3);
   }
 
   // Labels X (usa xLabel se disponível, caso contrário o valor numérico)
-  ctx.fillStyle = "#666"; ctx.font = "9px sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = "#666"; ctx.font = "9px NotoSans, sans-serif"; ctx.textAlign = "center";
   // Mostrar no máximo 12 labels para não sobrepor
   const step = Math.max(1, Math.ceil(params.dados.length / 12));
   params.dados.forEach((d, i) => {
@@ -162,7 +170,7 @@ function gerarGraficoPng(params: {
     ctx.save();
     ctx.translate(12, PAD.top + plotH / 2);
     ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = "center"; ctx.fillStyle = "#444"; ctx.font = "9px sans-serif";
+    ctx.textAlign = "center"; ctx.fillStyle = "#444"; ctx.font = "9px NotoSans, sans-serif";
     ctx.fillText(params.unidade, 0, 0);
     ctx.restore();
   }
@@ -176,7 +184,7 @@ function gerarGraficoPng(params: {
       ctx.setLineDash([3, 3]);
       ctx.beginPath(); ctx.moveTo(mx, PAD.top); ctx.lineTo(mx, PAD.top + plotH); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "#7c3aed"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
+      ctx.fillStyle = "#7c3aed"; ctx.font = "bold 9px NotoSans, sans-serif"; ctx.textAlign = "center";
       ctx.fillText(`▼${m.index}`, mx, PAD.top + 10);
       ctx.restore();
     });
@@ -228,7 +236,7 @@ function gerarGraficoPng(params: {
     ctx.fillStyle = "#" + cor;
     ctx.beginPath(); ctx.arc(legendaX + 10, ly, 4, 0, Math.PI * 2); ctx.fill();
     // Texto (com quebra de linha se necessário)
-    ctx.fillStyle = "#111"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "left";
+    ctx.fillStyle = "#111111"; ctx.font = "bold 10px NotoSans, sans-serif"; ctx.textAlign = "left";
     ctx.fillText(label, legendaX + 26, ly + 4);
   }
 
@@ -244,7 +252,7 @@ function gerarGraficoPng(params: {
     // Texto da referência (pode ser longo — quebrar em 2 linhas)
     const refLabel = params.linhaRef.label;
     const maxW = LEGEND_W - 32;
-    ctx.fillStyle = "#111"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "left";
+    ctx.fillStyle = "#111111"; ctx.font = "bold 9px NotoSans, sans-serif"; ctx.textAlign = "left";
     // Dividir em palavras e desenhar em até 2 linhas
     const words = refLabel.split(" ");
     let line1 = ""; let line2 = "";
@@ -319,9 +327,43 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
 
     let y = MARGIN + 58;
 
-    // ── Ficha Inicial ──────────────────────────────────────
+    // ── Ficha Inicial ───────────────────────────────────────────────────────────
     const temFicha = cuba.fichaKilos || cuba.fichaLitros || cuba.fichaPh || cuba.fichaAt ||
       cuba.fichaAv || cuba.fichaNfa || cuba.fichaNtu || cuba.fichaGluconico || cuba.fichaAlcoolProvavel;
+
+    // Secção de configurações sempre visível na página 1
+    {
+      const configFields: [string, string][] = [
+        ["Código", cuba.codigo.toUpperCase()],
+        ["Tipo", cuba.tipoCuba === "porto" ? "Vinho do Porto (Baumé)" : "Ferment. Normal (Densidade)"],
+        ["Nº Fermentação", String(cuba.fermentacaoNum)],
+        ["Estado", cuba.estado === "completa" ? "Terminada" : cuba.estado === "em_fermentacao" ? "Em Fermentação" : cuba.estado],
+        ["Temp. Pretendida", cuba.tempPretendida ? `${cuba.tempPretendida}°C` : "—"],
+        ...(cuba.tipoCuba === "porto" && cuba.pontoAguardentacao
+          ? [["Ponto Aguardentação", `${cuba.pontoAguardentacao}° Baumé`] as [string, string]]
+          : []),
+      ];
+
+      doc.rect(MARGIN, y, CONTENT_W, 16).fill(COR_BORDO);
+      doc.fillColor("#FFFFFF").fontSize(9).font("Helvetica-Bold")
+        .text("INFORMAÇÕES DA CUBA", MARGIN, y + 3, { width: CONTENT_W, align: "center" });
+      y += 18;
+
+      const colW2 = CONTENT_W / configFields.length;
+      doc.rect(MARGIN, y, CONTENT_W, 14).fill("#FDF0F3");
+      configFields.forEach(([label], i) => {
+        doc.fillColor(COR_BORDO).fontSize(7).font("Helvetica-Bold")
+          .text(label, MARGIN + i * colW2, y + 3, { width: colW2, align: "center" });
+      });
+      y += 14;
+
+      doc.rect(MARGIN, y, CONTENT_W, 14).fill("#FFFFFF");
+      configFields.forEach(([, val], i) => {
+        doc.fillColor("#333333").fontSize(8).font("Helvetica")
+          .text(val, MARGIN + i * colW2, y + 3, { width: colW2, align: "center" });
+      });
+      y += 20;
+    }
 
     if (temFicha) {
       doc.fillColor("#FFFFFF").rect(MARGIN, y, CONTENT_W, 16).fill(COR_BORDO);
@@ -359,8 +401,12 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
 
     // ── Gráficos ───────────────────────────────────────────
     if (chartData.length > 0) {
-      doc.addPage({ size: "A4", layout: "landscape" });
-      y = MARGIN;
+      // Só adicionar nova página se não há espaço suficiente na página actual
+      const CHART_H_NEEDED = 220; // altura mínima necessária para um gráfico
+      if (y + CHART_H_NEEDED > doc.page.height - 50) {
+        doc.addPage({ size: "A4", layout: "landscape" });
+        y = MARGIN;
+      }
 
       // Título da secção de gráficos
       doc.rect(MARGIN, y, CONTENT_W, 16).fill(COR_BORDO);

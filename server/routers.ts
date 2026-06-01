@@ -31,6 +31,7 @@ import {
   getCampanhaAtiva,
   createCampanha,
   ativarCampanha,
+  getFermentacoesByCampanha,
   getBaumeCalculo,
   upsertBaumeCalculo,
   getDb,
@@ -841,6 +842,9 @@ const campanhasRouter = router({
   arquivoByCuba: publicProcedure
     .input(z.object({ cubaId: z.number(), campanhaId: z.number().optional() }))
     .query(async ({ input }) => getArquivoByCubaCampanha(input.cubaId, input.campanhaId)),
+  fermentacoesByCampanha: publicProcedure
+    .input(z.object({ campanhaId: z.number() }))
+    .query(async ({ input }) => getFermentacoesByCampanha(input.campanhaId)),
 });
 
 // ── App Router ────────────────────────────────────────────
