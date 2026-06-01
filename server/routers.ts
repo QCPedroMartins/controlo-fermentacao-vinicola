@@ -631,12 +631,14 @@ const arquivoRouter = router({
         console.warn("[Campanhas] Erro ao associar campanha ao arquivo:", campErr);
       }
 
-      // Estado = completa, fermentacaoNum NÃO muda, nomeLote actualizado se fornecido
+      // Estado = completa, fermentacaoNum incrementa (cuba fica limpa para nova fermentação)
+      const novoFermentacaoNum = fermentacaoAtual + 1;
       await db
         .update(cubas)
         .set({
-          nomeLote: nomeLoteArquivo,
+          nomeLote: null, // limpar nome do lote — cuba fica vazia
           estado: "completa",
+          fermentacaoNum: novoFermentacaoNum,
         })
         .where(eq(cubas.id, input.cubaId));
 
@@ -706,18 +708,17 @@ const arquivoRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "A cuba tem de estar no estado 'completa' para iniciar nova fermentação" });
       }
 
-      const novoNum = cuba[0].fermentacaoNum + 1;
-
+      // fermentacaoNum já foi incrementado pelo terminarFermentacao
+      // Apenas mudar estado e definir nome do lote
       await db
         .update(cubas)
         .set({
-          fermentacaoNum: novoNum,
           nomeLote: input.nomeLoteNovo ?? null,
           estado: "em_fermentacao",
         })
         .where(eq(cubas.id, input.cubaId));
 
-      return { success: true, novaFermentacaoNum: novoNum };
+      return { success: true, novaFermentacaoNum: cuba[0].fermentacaoNum };
     }),
 });
 

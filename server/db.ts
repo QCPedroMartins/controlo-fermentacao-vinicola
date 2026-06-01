@@ -415,12 +415,10 @@ export async function getDashboardCubas() {
   const db = await getDb();
   if (!db) return [];
   const todasCubas = await db.select().from(cubas).orderBy(asc(cubas.id));
-  // Para cada cuba em fermentação (ou completa com leituras activas), obter a última leitura
+  // Para cada cuba em fermentação, obter a última leitura (densL1 ou baumeL1)
   const resultado = await Promise.all(
     todasCubas.map(async (cuba) => {
-      if (cuba.estado !== "em_fermentacao" && cuba.estado !== "completa") {
-        return { ...cuba, ultimaDensidade: null as string | null };
-      }
+      if (cuba.estado !== "em_fermentacao") return { ...cuba, ultimaDensidade: null as string | null };
       const ultimaLeitura = await db
         .select({ densL1: leituras.densL1, baumeL1: leituras.baumeL1 })
         .from(leituras)
@@ -429,10 +427,6 @@ export async function getDashboardCubas() {
         .limit(1);
       const ul = ultimaLeitura[0];
       const ultimaDensidade = ul ? (ul.baumeL1 ?? ul.densL1 ?? null) : null;
-      // Se cuba está 'completa' mas tem leituras activas, tratar como 'em_fermentacao' no dashboard
-      if (cuba.estado === "completa" && ultimaDensidade) {
-        return { ...cuba, estado: "em_fermentacao" as const, ultimaDensidade };
-      }
       return { ...cuba, ultimaDensidade };
     })
   );
