@@ -177,14 +177,17 @@ async function processarAlertas(params: {
     params.cuba.densidadeLimite ?? "1.000"
   );
   if (fermentacaoCompleta && estadoAnterior !== "completa") {
+    // Apenas notificar — o estado NÃO muda automaticamente para 'completa'
+    // O utilizador decide quando terminar a fermentação clicando 'Terminar Fermentação'
     const nomeCuba = params.cuba.nomeLote
       ? `${params.cuba.codigo} (${params.cuba.nomeLote})`
       : params.cuba.codigo;
     await notifyOwner({
-      title: `🍷 Fermentação Completa — ${nomeCuba.toUpperCase()}`,
-      content: `A cuba ${nomeCuba} atingiu a densidade limite de ${params.cuba.densidadeLimite} g/L.\nDia de fermentação: ${params.diaNr}\nRegistado por: ${params.userName}`,
+      title: `⚠️ Densidade Limite Atingida — ${nomeCuba.toUpperCase()}`,
+      content: `A cuba ${nomeCuba} atingiu a densidade limite de ${params.cuba.densidadeLimite} g/L.\nPode agora terminar a fermentação.\nDia de fermentação: ${params.diaNr}\nRegistado por: ${params.userName}`,
     }).catch(() => {});
-  } else if (!fermentacaoCompleta) {
+  } else if (!fermentacaoCompleta && estadoAnterior !== "completa") {
+    // Só repor em_fermentacao se a cuba não foi já terminada manualmente
     await updateCubaEstado(params.cuba.id, "em_fermentacao");
   }
 
@@ -543,11 +546,13 @@ const arquivoRouter = router({
       return getArquivoByCuba(input.cubaId);
     }),
 
-  novaFermentacao: protectedProcedure
+  // terminarFermentacao: arquiva a fermentação actual, envia email, estado=completa
+  // O fermentacaoNum NÃO muda — a cuba fica vazia mas com o mesmo número arquivado
+  terminarFermentacao: protectedProcedure
     .input(
       z.object({
         cubaId: z.number(),
-        nomeLoteNovo: z.string().optional(),
+        nomeLote: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -580,10 +585,13 @@ const arquivoRouter = router({
         if (allTemp.length > 0) tempMax = Math.max(...allTemp).toFixed(1);
       }
 
+      // Usar nomeLote fornecido ou manter o actual
+      const nomeLoteArquivo = input.nomeLote ?? cuba[0].nomeLote;
+
       await createArquivo({
         cubaId: input.cubaId,
         fermentacaoNum: fermentacaoAtual,
-        nomeLote: cuba[0].nomeLote,
+        nomeLote: nomeLoteArquivo,
         dataInicio,
         dataFim,
         totalDias,
@@ -609,11 +617,11 @@ const arquivoRouter = router({
         console.warn("[Campanhas] Erro ao associar campanha ao arquivo:", campErr);
       }
 
+      // Estado = completa, fermentacaoNum NÃO muda, nomeLote actualizado se fornecido
       await db
         .update(cubas)
         .set({
-          fermentacaoNum: fermentacaoAtual + 1,
-          nomeLote: input.nomeLoteNovo ?? null,
+          nomeLote: nomeLoteArquivo,
           estado: "completa",
         })
         .where(eq(cubas.id, input.cubaId));
@@ -658,7 +666,44 @@ const arquivoRouter = router({
         console.error("[Email] Erro ao importar emailReport:", importErr);
       });
 
-      return { success: true, novaFermentacaoNum: fermentacaoAtual + 1 };
+      return { success: true, fermentacaoArquivadaNum: fermentacaoAtual };
+    }),
+
+  // novaFermentacao: reinicia a cuba (só disponível quando estado=completa)
+  // Incrementa fermentacaoNum, limpa nomeLote, estado=em_fermentacao
+  novaFermentacao: protectedProcedure
+    .input(
+      z.object({
+        cubaId: z.number(),
+        nomeLoteNovo: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const cuba = await db
+        .select()
+        .from(cubas)
+        .where(eq(cubas.id, input.cubaId))
+        .limit(1);
+      if (!cuba[0]) throw new TRPCError({ code: "NOT_FOUND" });
+      if (cuba[0].estado !== "completa") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "A cuba tem de estar no estado 'completa' para iniciar nova fermentação" });
+      }
+
+      const novoNum = cuba[0].fermentacaoNum + 1;
+
+      await db
+        .update(cubas)
+        .set({
+          fermentacaoNum: novoNum,
+          nomeLote: input.nomeLoteNovo ?? null,
+          estado: "em_fermentacao",
+        })
+        .where(eq(cubas.id, input.cubaId));
+
+      return { success: true, novaFermentacaoNum: novoNum };
     }),
 });
 

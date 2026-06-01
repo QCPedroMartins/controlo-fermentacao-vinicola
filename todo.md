@@ -324,3 +324,14 @@
 - [x] CubaPage: banner quando estado=completa renomeado para 'Cuba vazia' com botão 'Iniciar Nova Fermentação' (não obrigatório)
 - [x] PDF: fontes NotoSans empacotadas em server/fonts/ — garantido em produção sem depender do sistema operativo
 - [x] Excel: fontes NotoSans empacotadas em server/fonts/ — garantido em produção sem depender do sistema operativo
+
+## Correcção Fluxo de Estados (v24)
+- [x] Backend: verificarFermentacaoCompleta não muda estado automaticamente — só notifica
+- [x] Backend: processarAlertas — quando densidade atinge limite, apenas envia aviso (estado permanece em_fermentacao)
+- [x] Backend: novo procedimento arquivo.terminarFermentacao — arquiva, envia email, estado=completa, fermentacaoNum NÃO muda
+- [x] Backend: arquivo.novaFermentacao — só disponível quando estado=completa, incrementa num, estado=em_fermentacao
+- [x] CubaPage: terminarFermentacao usa novo endpoint terminarFermentacao
+- [x] CubaPage: novaFermentacao usa endpoint separado (reinicia cuba)
+- [x] CubaPage: diálogo de alerta de densidade limite reformulado como aviso (não força terminar)
+- [x] RegistoRapido: terminarFermentacaoRapido usa novo endpoint terminarFermentacao
+- [x] Testes: fermentacao.test.ts actualizado para terminarFermentacao — 33 testes a passar

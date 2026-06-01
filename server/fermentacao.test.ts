@@ -368,29 +368,28 @@ describe("relatorio.exportarExcelCuba", () => {
   });
 });
 
-// ── Testes de arquivo.novaFermentacao ─────────────────────
-describe("arquivo.novaFermentacao (terminar fermentação)", () => {
+// ── Testes de arquivo.terminarFermentacao ─────────────────────
+describe("arquivo.terminarFermentacao (arquivar fermentação activa)", () => {
   it("rejeita utilizadores não autenticados", async () => {
     const caller = appRouter.createCaller(makeCtx(false));
     await expect(
-      caller.arquivo.novaFermentacao({ cubaId: 1 })
+      caller.arquivo.terminarFermentacao({ cubaId: 1 })
     ).rejects.toThrow();
   });
 
-  it("aceita utilizadores autenticados e retorna novaFermentacaoNum", async () => {
+  it("aceita utilizadores autenticados e retorna fermentacaoArquivadaNum", async () => {
     const caller = appRouter.createCaller(makeCtx(true));
-    const result = await caller.arquivo.novaFermentacao({ cubaId: 1 });
+    const result = await caller.arquivo.terminarFermentacao({ cubaId: 1 });
     expect(result).toHaveProperty("success", true);
-    expect(result).toHaveProperty("novaFermentacaoNum");
-    expect(typeof result.novaFermentacaoNum).toBe("number");
-    expect(result.novaFermentacaoNum).toBeGreaterThan(0);
+    expect(result).toHaveProperty("fermentacaoArquivadaNum");
+    expect(typeof result.fermentacaoArquivadaNum).toBe("number");
+    expect(result.fermentacaoArquivadaNum).toBeGreaterThan(0);
   });
-
   it("aceita nome de lote opcional", async () => {
     const caller = appRouter.createCaller(makeCtx(true));
-    const result = await caller.arquivo.novaFermentacao({
+    const result = await caller.arquivo.terminarFermentacao({
       cubaId: 1,
-      nomeLoteNovo: "Tinto Reserva 2025",
+      nomeLote: "Tinto Reserva 2025",
     });
     expect(result).toHaveProperty("success", true);
   });

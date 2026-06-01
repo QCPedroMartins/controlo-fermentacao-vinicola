@@ -67,12 +67,12 @@ export default function RegistoRapido() {
 
   const { data: cubasData } = trpc.cubas.list.useQuery();
   const registarLote = trpc.leituras.registarLote.useMutation();
-  const novaFermentacao = trpc.arquivo.novaFermentacao.useMutation({
+  const terminarFermentacaoRapido = trpc.arquivo.terminarFermentacao.useMutation({
     onSuccess: (data) => {
-      toast.success(`Fermentação terminada! Nova fermentação Nº ${data.novaFermentacaoNum} iniciada.`);
+      toast.success(`Fermentação Nº${data.fermentacaoArquivadaNum} terminada e arquivada! Email enviado.`);
       setAlertasCubasLimite((prev) => prev.slice(1));
     },
-    onError: (e) => { toast.error("Erro ao terminar: " + e.message); setAlertasCubasLimite((prev) => prev.slice(1)); },
+    onError: (e: { message: string }) => { toast.error("Erro ao terminar: " + e.message); setAlertasCubasLimite((prev) => prev.slice(1)); },
   });
 
   // Estado para alertas de limite de densidade (fila de cubas a confirmar)
@@ -571,15 +571,15 @@ export default function RegistoRapido() {
               Não, continuar
             </button>
             <button
-              onClick={() => novaFermentacao.mutate({
+              onClick={() => terminarFermentacaoRapido.mutate({
                 cubaId: alertasCubasLimite[0].cubaId,
-                nomeLoteNovo: alertasCubasLimite[0].nomeLote || undefined,
+                nomeLote: alertasCubasLimite[0].nomeLote || undefined,
               })}
-              disabled={novaFermentacao.isPending}
-              className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 disabled:opacity-50"
+              disabled={terminarFermentacaoRapido.isPending}
+              className="flex items-center gap-2 px-5 py-2 bg-[var(--color-vinho)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--color-vinho-light)] disabled:opacity-50"
             >
               <CheckCircle2 size={14} />
-              {novaFermentacao.isPending ? "A terminar..." : "Sim, terminar fermentação"}
+              {terminarFermentacaoRapido.isPending ? "A terminar..." : "Sim, terminar fermentação"}
             </button>
           </div>
         </div>

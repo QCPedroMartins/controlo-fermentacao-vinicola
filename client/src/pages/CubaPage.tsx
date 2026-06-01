@@ -424,10 +424,10 @@ export default function CubaPage() {
     onError: (e) => toast.error("Erro ao exportar PDF: " + e.message),
   });
 
-  // Terminar fermentação (arquivar + email automático)
-  const terminarFermentacao = trpc.arquivo.novaFermentacao.useMutation({
+  // Terminar fermentação: arquiva, envia email, estado=completa (fermentacaoNum não muda)
+  const terminarFermentacao = trpc.arquivo.terminarFermentacao.useMutation({
     onSuccess: (data) => {
-      toast.success(`Fermentação terminada e arquivada! Email enviado para geral@castelares.com. Nova fermentação Nº ${data.novaFermentacaoNum} iniciada.`);
+      toast.success(`Fermentação Nº${data.fermentacaoArquivadaNum} terminada e arquivada! Email enviado para geral@castelares.com.`);
       setShowTerminarFerm(false);
       setNomeLoteTerminar("");
       utils.cubas.get.invalidate();
@@ -436,12 +436,13 @@ export default function CubaPage() {
       utils.arquivo.listByCuba.invalidate();
       utils.cubas.dashboard.invalidate();
     },
-    onError: (e) => toast.error("Erro: " + e.message),
+    onError: (e: { message: string }) => toast.error("Erro: " + e.message),
   });
 
+  // Iniciar nova fermentação: só disponível quando estado=completa, incrementa num, estado=em_fermentacao
   const novaFermentacao = trpc.arquivo.novaFermentacao.useMutation({
     onSuccess: (data) => {
-      toast.success(`Fermentação arquivada! Nova fermentação Nº ${data.novaFermentacaoNum} iniciada.`);
+      toast.success(`Nova fermentação Nº${data.novaFermentacaoNum} iniciada!`);
       setShowNovaFerm(false);
       setNomeLoteNovo("");
       utils.cubas.get.invalidate();
@@ -450,7 +451,7 @@ export default function CubaPage() {
       utils.arquivo.listByCuba.invalidate();
       utils.cubas.dashboard.invalidate();
     },
-    onError: (e) => toast.error("Erro: " + e.message),
+    onError: (e: { message: string }) => toast.error("Erro: " + e.message),
   });
 
   // ── Alertas calculados no cliente ─────────────────────
@@ -1516,7 +1517,7 @@ export default function CubaPage() {
                 Cancelar
               </button>
               <button
-                onClick={() => terminarFermentacao.mutate({ cubaId: cuba.id, nomeLoteNovo: nomeLoteTerminar || undefined })}
+                onClick={() => terminarFermentacao.mutate({ cubaId: cuba.id, nomeLote: nomeLoteTerminar || undefined })}
                 disabled={terminarFermentacao.isPending}
                 className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 disabled:opacity-50"
               >
@@ -1926,12 +1927,12 @@ export default function CubaPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md animate-fade-in">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                <CheckCircle2 size={20} className="text-green-700" />
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-amber-700" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-green-800" style={{ fontFamily: "var(--font-serif)" }}>
-                  Limite de Densidade Atingido
+                <h2 className="text-lg font-bold text-amber-800" style={{ fontFamily: "var(--font-serif)" }}>
+                  Densidade Limite Atingida
                 </h2>
                 <p className="text-xs text-gray-500">{cuba?.codigo?.toUpperCase()}</p>
               </div>
@@ -1941,14 +1942,14 @@ export default function CubaPage() {
               ou ultrapassou o limite configurado de <strong>{alertaLimiteDens.densidadeLimite}</strong>.
             </p>
             <p className="text-sm text-gray-600 mb-5">
-              Deseja <strong>terminar a fermentação</strong> desta cuba? Será arquivada e enviado o relatório por email.
+              A fermentação continua ativa. Pode terminar agora ou continuar a registar leituras e terminar mais tarde.
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setAlertaLimiteDens(null)}
                 className="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50"
               >
-                Não, continuar
+                Continuar fermentação
               </button>
               <button
                 onClick={() => {
@@ -1956,10 +1957,10 @@ export default function CubaPage() {
                   if (cuba) setNomeLoteTerminar(cuba.nomeLote ?? "");
                   setShowTerminarFerm(true);
                 }}
-                className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800"
+                className="flex items-center gap-2 px-5 py-2 bg-[var(--color-vinho)] text-white rounded-lg text-sm font-semibold hover:bg-[var(--color-vinho-light)]"
               >
                 <CheckCircle2 size={14} />
-                Sim, terminar fermentação
+                Terminar agora
               </button>
             </div>
           </div>

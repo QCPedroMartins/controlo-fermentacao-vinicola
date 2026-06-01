@@ -174,9 +174,8 @@ export async function verificarFermentacaoCompleta(
   const atingiu = densidades
     .filter((d): d is string => d !== null && d !== undefined && d !== "")
     .some((d) => parseFloat(d) <= limite);
-  if (atingiu) {
-    await updateCubaEstado(cubaId, "completa");
-  }
+  // NÃO mudar o estado automaticamente — o utilizador decide quando terminar a fermentação
+  // O estado 'completa' só é definido quando o utilizador clica 'Terminar Fermentação'
   return atingiu;
 }
 
