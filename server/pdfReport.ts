@@ -16,13 +16,13 @@ try {
   const FONT_DIR = join(__dirname_pdf, "fonts");
   const regularBuf = readFileSync(join(FONT_DIR, "NotoSans-Regular.ttf"));
   const boldBuf = readFileSync(join(FONT_DIR, "NotoSans-Bold.ttf"));
-  GlobalFonts.register(regularBuf, "NotoSans");
-  GlobalFonts.register(boldBuf, "NotoSans");
+  GlobalFonts.register(regularBuf, "Noto Sans");
+  GlobalFonts.register(boldBuf, "Noto Sans");
 } catch (_e) {
   // Fallback: tentar caminhos do sistema
   try {
-    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "NotoSans");
-    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "NotoSans");
+    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "Noto Sans");
+    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "Noto Sans");
   } catch (_e2) { /* ignorar */ }
 }
 
@@ -117,7 +117,7 @@ function gerarGraficoPng(params: {
 
   // Título
   ctx.fillStyle = COR_BORDO;
-  ctx.font = "bold 12px NotoSans, sans-serif";
+  ctx.font = "bold 12px Noto Sans, sans-serif";
   ctx.textAlign = "left";
   ctx.fillText(params.titulo, PAD.left, 20);
 
@@ -132,7 +132,7 @@ function gerarGraficoPng(params: {
 
   if (allVals.length === 0) {
     ctx.fillStyle = "#999";
-    ctx.font = "11px NotoSans, sans-serif";
+    ctx.font = "11px Noto Sans, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Sem dados", PAD.left + plotW / 2, PAD.top + plotH / 2);
     return canvas.toBuffer("image/png");
@@ -163,12 +163,12 @@ function gerarGraficoPng(params: {
     const y = PAD.top + (i / 4) * plotH;
     ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + plotW, y); ctx.stroke();
     const val = yMax - (i / 4) * (yMax - yMin);
-    ctx.fillStyle = "#666"; ctx.font = "9px NotoSans, sans-serif"; ctx.textAlign = "right";
+    ctx.fillStyle = "#666"; ctx.font = "9px Noto Sans, sans-serif"; ctx.textAlign = "right";
     ctx.fillText(val.toFixed(decimais), PAD.left - 4, y + 3);
   }
 
   // Labels X (usa xLabel se disponível, caso contrário o valor numérico)
-  ctx.fillStyle = "#666"; ctx.font = "9px NotoSans, sans-serif"; ctx.textAlign = "center";
+  ctx.fillStyle = "#666"; ctx.font = "9px Noto Sans, sans-serif"; ctx.textAlign = "center";
   // Mostrar no máximo 12 labels para não sobrepor
   const step = Math.max(1, Math.ceil(params.dados.length / 12));
   params.dados.forEach((d, i) => {
@@ -181,7 +181,7 @@ function gerarGraficoPng(params: {
     ctx.save();
     ctx.translate(12, PAD.top + plotH / 2);
     ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = "center"; ctx.fillStyle = "#444"; ctx.font = "9px NotoSans, sans-serif";
+    ctx.textAlign = "center"; ctx.fillStyle = "#444"; ctx.font = "9px Noto Sans, sans-serif";
     ctx.fillText(params.unidade, 0, 0);
     ctx.restore();
   }
@@ -195,7 +195,7 @@ function gerarGraficoPng(params: {
       ctx.setLineDash([3, 3]);
       ctx.beginPath(); ctx.moveTo(mx, PAD.top); ctx.lineTo(mx, PAD.top + plotH); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "#7c3aed"; ctx.font = "bold 9px NotoSans, sans-serif"; ctx.textAlign = "center";
+      ctx.fillStyle = "#7c3aed"; ctx.font = "bold 9px Noto Sans, sans-serif"; ctx.textAlign = "center";
       ctx.fillText(`▼${m.index}`, mx, PAD.top + 10);
       ctx.restore();
     });
@@ -247,7 +247,7 @@ function gerarGraficoPng(params: {
     ctx.fillStyle = "#" + cor;
     ctx.beginPath(); ctx.arc(legendaX + 10, ly, 4, 0, Math.PI * 2); ctx.fill();
     // Texto (com quebra de linha se necessário)
-    ctx.fillStyle = "#111111"; ctx.font = "bold 10px NotoSans, sans-serif"; ctx.textAlign = "left";
+    ctx.fillStyle = "#111111"; ctx.font = "bold 10px Noto Sans, sans-serif"; ctx.textAlign = "left";
     ctx.fillText(label, legendaX + 26, ly + 4);
   }
 
@@ -263,7 +263,7 @@ function gerarGraficoPng(params: {
     // Texto da referência (pode ser longo — quebrar em 2 linhas)
     const refLabel = params.linhaRef.label;
     const maxW = LEGEND_W - 32;
-    ctx.fillStyle = "#111111"; ctx.font = "bold 9px NotoSans, sans-serif"; ctx.textAlign = "left";
+    ctx.fillStyle = "#111111"; ctx.font = "bold 9px Noto Sans, sans-serif"; ctx.textAlign = "left";
     // Dividir em palavras e desenhar em até 2 linhas
     const words = refLabel.split(" ");
     let line1 = ""; let line2 = "";

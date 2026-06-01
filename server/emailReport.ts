@@ -17,13 +17,13 @@ try {
   const FONT_DIR_EMAIL = join(__dirname_email, "fonts");
   const regularBuf = readFileSync(join(FONT_DIR_EMAIL, "NotoSans-Regular.ttf"));
   const boldBuf = readFileSync(join(FONT_DIR_EMAIL, "NotoSans-Bold.ttf"));
-  GlobalFonts.register(regularBuf, "NotoSans");
-  GlobalFonts.register(boldBuf, "NotoSans");
+  GlobalFonts.register(regularBuf, "Noto Sans");
+  GlobalFonts.register(boldBuf, "Noto Sans");
 } catch (_e) {
   // Fallback: tentar caminhos do sistema
   try {
-    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "NotoSans");
-    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "NotoSans");
+    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "Noto Sans");
+    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "Noto Sans");
   } catch (_e2) { /* ignorar */ }
 }
 
@@ -110,7 +110,7 @@ function gerarGraficoLinha(params: {
 
   // Título
   ctx.fillStyle = "#5d1a2e";
-  ctx.font = "bold 14px NotoSans, sans-serif";
+  ctx.font = "bold 14px Noto Sans, sans-serif";
   ctx.fillText(params.titulo, PAD.left, 24);
 
   const plotW = W - PAD.left - PAD.right;
@@ -122,7 +122,7 @@ function gerarGraficoLinha(params: {
   );
   if (allVals.length === 0) {
     ctx.fillStyle = "#999";
-    ctx.font = "12px NotoSans, sans-serif";
+    ctx.font = "12px Noto Sans, sans-serif";
     ctx.fillText("Sem dados", PAD.left + plotW / 2 - 30, PAD.top + plotH / 2);
     return { buffer: canvas.toBuffer("image/png"), height: H };
   }
@@ -157,7 +157,7 @@ function gerarGraficoLinha(params: {
     // Label Y
     const val = yMax - (i / nLines) * (yMax - yMin);
     ctx.fillStyle = "#666";
-    ctx.font = "10px NotoSans, sans-serif";
+    ctx.font = "10px Noto Sans, sans-serif";
     ctx.textAlign = "right";
     // Formatar com casas decimais adequadas à unidade (densidade sempre com 4 casas)
     const decimais = params.unidade === "mg/L" || params.unidade === "°C" || params.unidade === "mV" || params.unidade === "°" ? 1 : 4;
@@ -166,7 +166,7 @@ function gerarGraficoLinha(params: {
 
   // Eixo X — labels (hora HH:MM ou dia de fermentação)
   ctx.fillStyle = "#666";
-  ctx.font = "10px NotoSans, sans-serif";
+  ctx.font = "10px Noto Sans, sans-serif";
   ctx.textAlign = "center";
   // Mostrar no máximo 14 labels para não sobrepor
   const stepX = Math.max(1, Math.ceil(params.dados.length / 14));
@@ -183,7 +183,7 @@ function gerarGraficoLinha(params: {
     ctx.rotate(-Math.PI / 2);
     ctx.textAlign = "center";
     ctx.fillStyle = "#444";
-    ctx.font = "11px NotoSans, sans-serif";
+    ctx.font = "11px Noto Sans, sans-serif";
     ctx.fillText(params.unidade, 0, 0);
     ctx.restore();
   }
@@ -203,7 +203,7 @@ function gerarGraficoLinha(params: {
       ctx.setLineDash([]);
       // Número do marcador (▼N)
       ctx.fillStyle = "#7c3aed";
-      ctx.font = "bold 11px NotoSans, sans-serif";
+      ctx.font = "bold 11px Noto Sans, sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(`\u25BC${m.index}`, mx, PAD.top + 14);
       ctx.restore();
@@ -273,7 +273,7 @@ function gerarGraficoLinha(params: {
     ctx.fill();
     // Texto
     ctx.fillStyle = "#222222";
-    ctx.font = "bold 12px NotoSans, sans-serif";
+    ctx.font = "bold 12px Noto Sans, sans-serif";
     ctx.textAlign = "left";
     ctx.fillText(label, legendaX + 30, ly + 4);
   });
@@ -295,7 +295,7 @@ function gerarGraficoLinha(params: {
     const refLabel = params.linhaRef.label;
     const maxW = LEGEND_W - 36;
     ctx.fillStyle = "#222222";
-    ctx.font = "bold 10px NotoSans, sans-serif";
+    ctx.font = "bold 10px Noto Sans, sans-serif";
     ctx.textAlign = "left";
     const words = refLabel.split(" ");
     let line1 = ""; let line2 = "";

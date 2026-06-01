@@ -354,3 +354,10 @@
 - [x] Backend: campanhas.criar retorna { success, cubasFechadas } para feedback ao utilizador
 - [x] Frontend: aviso no modal de criar campanha com lista das 3 acções que irão acontecer
 - [x] Frontend: toast de sucesso mostra quantas fermentações foram arquivadas automaticamente
+
+## Controlo de Acesso por Role (v30)
+- [ ] Backend: adminProcedure para cubas.criar, cubas.update, cubas.delete
+- [ ] Backend: adminProcedure para campanhas.criar, campanhas.ativar
+- [ ] Backend: utilizadores convidados podem usar leituras, adicoes, arquivo.terminarFermentacao, arquivo.novaFermentacao, importacao
+- [ ] Frontend: ocultar botões admin-only (criar cuba, editar cuba, eliminar cuba, nova campanha) para utilizadores não-admin
+- [ ] BD: promover o owner (administrador) a role=admin na base de dados

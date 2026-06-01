@@ -146,7 +146,7 @@ describe("cubas.dashboard", () => {
   });
 });
 
-describe("cubas.updateAlertas (protectedProcedure)", () => {
+describe("cubas.updateAlertas (adminProcedure)", () => {
   it("rejeita utilizadores não autenticados", async () => {
     const caller = appRouter.createCaller(makeCtx(false));
     await expect(
@@ -154,8 +154,20 @@ describe("cubas.updateAlertas (protectedProcedure)", () => {
     ).rejects.toThrow();
   });
 
-  it("aceita utilizadores autenticados e guarda configurações", async () => {
-    const caller = appRouter.createCaller(makeCtx(true));
+  it("rejeita utilizadores autenticados sem role admin", async () => {
+    const caller = appRouter.createCaller(makeCtx(true)); // role: 'user'
+    await expect(
+      caller.cubas.updateAlertas({ id: 1, tempPretendida: "18.0", desvioTempAlerta: "5.0", desvioDesnsAlerta: "0.010" })
+    ).rejects.toThrow();
+  });
+
+  it("aceita utilizadores admin e guarda configurações", async () => {
+    const adminCtx: TrpcContext = {
+      user: { id: 1, openId: "admin-1", name: "Admin", email: "admin@adega.pt", loginMethod: "manus", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() },
+      req: { protocol: "https", headers: {} } as TrpcContext["req"],
+      res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
+    };
+    const caller = appRouter.createCaller(adminCtx);
     const result = await caller.cubas.updateAlertas({
       id: 1,
       tempPretendida: "18.0",

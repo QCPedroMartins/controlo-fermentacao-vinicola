@@ -3,7 +3,7 @@ import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { importacaoRouter } from "./importacaoRouter";
 import {
   getAllCubas,
@@ -62,14 +62,14 @@ const cubasRouter = router({
       return { success: true };
     }),
 
-  updateDensidadeLimite: protectedProcedure
+  updateDensidadeLimite: adminProcedure
     .input(z.object({ id: z.number(), densidadeLimite: z.string() }))
     .mutation(async ({ input }) => {
       await updateCubaDensidadeLimite(input.id, input.densidadeLimite);
       return { success: true };
     }),
 
-  updateAlertas: protectedProcedure
+  updateAlertas: adminProcedure
     .input(
       z.object({
         id: z.number(),
@@ -93,7 +93,7 @@ const cubasRouter = router({
       return { success: true };
     }),
 
-  updateFichaInicial: protectedProcedure
+  updateFichaInicial: adminProcedure
     .input(
       z.object({
         id: z.number(),
@@ -124,7 +124,7 @@ const cubasRouter = router({
       return getBaumeCalculo(input.cubaId);
     }),
 
-  saveBaumeCalculo: protectedProcedure
+  saveBaumeCalculo: adminProcedure
     .input(
       z.object({
         cubaId: z.number(),
@@ -950,7 +950,7 @@ const relatorioRouter = router({
 const campanhasRouter = router({
   list: publicProcedure.query(async () => getAllCampanhas()),
   ativa: publicProcedure.query(async () => (await getCampanhaAtiva()) ?? null),
-  criar: protectedProcedure
+  criar: adminProcedure
     .input(z.object({ nome: z.string().min(1).max(60), descricao: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
@@ -983,7 +983,7 @@ const campanhasRouter = router({
       console.log(`[Campanha] Nova campanha '${input.nome}' criada. ${cubasFechadas} fermentações fechadas automaticamente.`);
       return { success: true, cubasFechadas };
     }),
-  ativar: protectedProcedure
+  ativar: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await ativarCampanha(input.id);
