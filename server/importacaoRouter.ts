@@ -26,7 +26,7 @@
  */
 import { z } from "zod";
 import { protectedProcedure, router } from "./_core/trpc";
-import { getCubaByCodigo, createLeitura, getLeiturasByCuba, leituraExistePorData } from "./db";
+import { getCubaByCodigo, createLeitura, getLeiturasByCuba, leituraExistePorData, updateCubaEstado } from "./db";
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 export interface LinhaPreview {
   measNo: string;
@@ -293,10 +293,15 @@ export const importacaoRouter = router({
             userName: ctx.user.name || ctx.user.email || "CSV Import",
           });
           criadas++;
+          // Se a cuba está 'completa' ou 'sem_dados', mudar para 'em_fermentacao' (novo vinho entrou)
+          if (cuba.estado === "completa" || cuba.estado === "sem_dados") {
+            await updateCubaEstado(cuba.id, "em_fermentacao");
+            cuba = { ...cuba, estado: "em_fermentacao" };
+          }
           // Verificar se atingiu o limite de densidade
           const densAtual = isPorto ? (linha.densidade != null ? String(linha.densidade) : null) : (linha.densidade != null ? String(linha.densidade) : null);
           const limite = cuba.densidadeLimite ?? "1.000";
-          if (densAtual && parseFloat(densAtual) <= parseFloat(limite) && cuba.estado !== "completa") {
+          if (densAtual && parseFloat(densAtual) <= parseFloat(limite) && cuba.estado === "em_fermentacao") {
             // Evitar duplicados no array (mesma cuba)
             if (!alertasCubas.some((a) => a.cubaId === cuba.id)) {
               alertasCubas.push({

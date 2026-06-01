@@ -272,6 +272,13 @@ const leiturasRouter = router({
       let alertas: string[] = [];
 
       if (cuba) {
+        // Se a cuba está 'completa' ou 'sem_dados' e estão a ser inseridas leituras,
+        // mudar automaticamente para 'em_fermentacao' (novo vinho entrou)
+        if (cuba.estado === "completa" || cuba.estado === "sem_dados") {
+          await updateCubaEstado(cuba.id, "em_fermentacao");
+          cuba.estado = "em_fermentacao";
+        }
+
         const leituraAnterior = existingLeituras.length > 0
           ? existingLeituras[existingLeituras.length - 1]
           : null;
@@ -419,6 +426,12 @@ const leiturasRouter = router({
           const cuba = cubaRows[0];
           let alertas: string[] = [];
           if (cuba) {
+            // Se a cuba está 'completa' ou 'sem_dados', mudar para 'em_fermentacao' (novo vinho entrou)
+            if (cuba.estado === "completa" || cuba.estado === "sem_dados") {
+              await updateCubaEstado(cuba.id, "em_fermentacao");
+              cuba.estado = "em_fermentacao";
+            }
+
             const leituraAnterior = existingLeituras.length > 0
               ? existingLeituras[existingLeituras.length - 1]
               : null;
@@ -442,7 +455,8 @@ const leiturasRouter = router({
             // Verificar se atingiu o limite de densidade (sem marcar completa — utilizador confirma)
             const densAtual = linha.densL1 ?? null;
             const limite = cuba.densidadeLimite ?? "1.000";
-            if (densAtual && parseFloat(densAtual) <= parseFloat(limite) && cuba.estado !== "completa") {
+            // cuba.estado já foi actualizado acima para 'em_fermentacao' se era 'completa'
+            if (densAtual && parseFloat(densAtual) <= parseFloat(limite) && cuba.estado === "em_fermentacao") {
               alertasCubas.push({
                 cubaId: cuba.id,
                 codigo: cuba.codigo,

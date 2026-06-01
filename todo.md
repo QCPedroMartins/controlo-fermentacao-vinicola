@@ -335,3 +335,11 @@
 - [x] CubaPage: diálogo de alerta de densidade limite reformulado como aviso (não força terminar)
 - [x] RegistoRapido: terminarFermentacaoRapido usa novo endpoint terminarFermentacao
 - [x] Testes: fermentacao.test.ts actualizado para terminarFermentacao — 33 testes a passar
+
+## Correcção Estado Cuba com Leituras (v25)
+- [x] Backend: ao inserir leitura numa cuba 'completa' ou 'sem_dados', mudar estado para 'em_fermentacao' automaticamente
+- [x] Backend: registo em lote (CSV) também muda estado para 'em_fermentacao' quando cuba está 'completa'
+- [x] Backend: importação CSV (confirmarCsv) também muda estado para 'em_fermentacao'
+- [x] CubaPage: se estado='completa' mas há leituras no fermentacaoNum actual, mostrar botão 'Terminar Fermentação' em vez de banner 'Iniciar Nova Fermentação'
+- [x] Dashboard: getDashboardCubas trata cubas 'completa' com leituras activas como 'em_fermentacao'
+- [x] ImportacaoCsvModal: botão de alerta de densidade usa terminarFermentacao (não novaFermentacao)

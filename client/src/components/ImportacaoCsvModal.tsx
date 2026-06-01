@@ -99,12 +99,12 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
     },
   });
 
-  const novaFermentacaoMutation = trpc.arquivo.novaFermentacao.useMutation({
+  const terminarFermentacaoMutation = trpc.arquivo.terminarFermentacao.useMutation({
     onSuccess: (data) => {
-      toast.success(`Fermentação terminada! Nova fermentação Nº ${data.novaFermentacaoNum} iniciada.`);
+      toast.success(`Fermentação Nº${data.fermentacaoArquivadaNum} terminada e arquivada! Email enviado.`);
       setAlertasCubasLimite((prev) => prev.slice(1));
     },
-    onError: (e) => { toast.error("Erro ao terminar: " + e.message); setAlertasCubasLimite((prev) => prev.slice(1)); },
+    onError: (e: { message: string }) => { toast.error("Erro ao terminar: " + e.message); setAlertasCubasLimite((prev) => prev.slice(1)); },
   });
 
   const confirmarMutation = trpc.importacao.confirmarCsv.useMutation({
@@ -539,15 +539,15 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
               Não, continuar
             </button>
             <button
-              onClick={() => novaFermentacaoMutation.mutate({
+              onClick={() => terminarFermentacaoMutation.mutate({
                 cubaId: alertasCubasLimite[0].cubaId,
-                nomeLoteNovo: alertasCubasLimite[0].nomeLote || undefined,
+                nomeLote: alertasCubasLimite[0].nomeLote || undefined,
               })}
-              disabled={novaFermentacaoMutation.isPending}
-              className="flex items-center gap-2 px-5 py-2 bg-green-700 text-white rounded-lg text-sm font-semibold hover:bg-green-800 disabled:opacity-50"
+              disabled={terminarFermentacaoMutation.isPending}
+              className="flex items-center gap-2 px-5 py-2 bg-[var(--color-vinho)] text-white rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-50"
             >
               <CheckCircle2 size={14} />
-              {novaFermentacaoMutation.isPending ? "A terminar..." : "Sim, terminar fermentação"}
+              {terminarFermentacaoMutation.isPending ? "A terminar..." : "Sim, terminar fermentação"}
             </button>
           </div>
         </div>

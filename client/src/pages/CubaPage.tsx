@@ -1008,8 +1008,8 @@ export default function CubaPage() {
         </div>
       )}
 
-      {/* Botão Terminar Fermentação — só visível quando em fermentação */}
-      {isAuthenticated && cuba.estado === "em_fermentacao" && (
+      {/* Botão Terminar Fermentação — visível quando em_fermentacao OU quando completa mas há leituras activas */}
+      {isAuthenticated && (cuba.estado === "em_fermentacao" || (cuba.estado === "completa" && leituras && leituras.length > 0)) && (
         <div className="mb-5 flex justify-end">
           <button
             onClick={() => { setNomeLoteTerminar(cuba.nomeLote ?? ""); setShowTerminarFerm(true); }}
@@ -1020,8 +1020,8 @@ export default function CubaPage() {
         </div>
       )}
 
-      {/* Banner — visível quando estado = completa (cuba vazia, fermentação terminada) */}
-      {isAuthenticated && cuba.estado === "completa" && (
+      {/* Banner — visível quando estado = completa E não há leituras activas (cuba realmente vazia) */}
+      {isAuthenticated && cuba.estado === "completa" && (!leituras || leituras.length === 0) && (
         <div className="mb-5 flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-xl px-5 py-3">
           <div className="flex items-center gap-2 text-gray-600">
             <Archive size={18} className="text-gray-400" />
