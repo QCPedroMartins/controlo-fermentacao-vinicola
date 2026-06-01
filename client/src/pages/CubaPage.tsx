@@ -1021,6 +1021,22 @@ export default function CubaPage() {
         </div>
       )}
 
+      {/* Baner + botão Iniciar Nova Fermentação — visível quando estado = completa */}
+      {isAuthenticated && cuba.estado === "completa" && (
+        <div className="mb-5 flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
+          <div className="flex items-center gap-2 text-amber-800">
+            <CheckCircle2 size={18} className="text-green-600" />
+            <span className="text-sm font-medium">Fermentação concluída — a cuba está pronta para uma nova fermentação.</span>
+          </div>
+          <button
+            onClick={() => { setNomeLoteNovo(""); setShowNovaFerm(true); }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 transition-colors shadow-sm whitespace-nowrap"
+          >
+            <RefreshCw size={15} /> Iniciar Nova Fermentação
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-fit">
         {(["leituras", "graficos", "adicoes", "arquivo"] as const).map((tab) => (
