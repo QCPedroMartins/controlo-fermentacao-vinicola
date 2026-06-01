@@ -37,7 +37,7 @@ import {
   leituraExistePorData,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas } from "../drizzle/schema";
 
 // ── Router de Cubas ───────────────────────────────────────
@@ -749,6 +749,50 @@ const relatorioRouter = router({
       const base64 = buffer.toString("base64");
       const nomeLote = cuba.nomeLote ?? cuba.codigo.toUpperCase();
       const nomeFicheiro = `${cuba.codigo}_${nomeLote.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "")}_ferm${cuba.fermentacaoNum}.pdf`;
+      return { base64, nomeFicheiro };
+    }),
+
+  exportarExcelArquivo: publicProcedure
+    .input(z.object({ codigo: z.string(), fermentacaoNum: z.number() }))
+    .mutation(async ({ input }) => {
+      const cuba = await getCubaByCodigo(input.codigo);
+      if (!cuba) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba n\u00e3o encontrada" });
+      // Usar fermentacaoNum do arquivo em vez do actual
+      const cubaArquivo = { ...cuba, fermentacaoNum: input.fermentacaoNum };
+      // Buscar nomeLote do arquivo
+      const db = await getDb();
+      if (db) {
+        const arq = await db.select().from(fermentacoesArquivo)
+          .where(and(eq(fermentacoesArquivo.cubaId, cuba.id), eq(fermentacoesArquivo.fermentacaoNum, input.fermentacaoNum)))
+          .limit(1);
+        if (arq[0]?.nomeLote) cubaArquivo.nomeLote = arq[0].nomeLote;
+      }
+      const { gerarExcelCuba } = await import("./emailReport");
+      const buffer = await gerarExcelCuba(cubaArquivo);
+      const base64 = Buffer.from(buffer as unknown as ArrayBuffer).toString("base64");
+      const nomeLote = cubaArquivo.nomeLote ?? cuba.codigo.toUpperCase();
+      const nomeFicheiro = `${cuba.codigo}_${nomeLote.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "")}_ferm${input.fermentacaoNum}.xlsx`;
+      return { base64, nomeFicheiro };
+    }),
+
+  exportarPdfArquivo: publicProcedure
+    .input(z.object({ codigo: z.string(), fermentacaoNum: z.number() }))
+    .mutation(async ({ input }) => {
+      const cuba = await getCubaByCodigo(input.codigo);
+      if (!cuba) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba n\u00e3o encontrada" });
+      const cubaArquivo = { ...cuba, fermentacaoNum: input.fermentacaoNum };
+      const db = await getDb();
+      if (db) {
+        const arq = await db.select().from(fermentacoesArquivo)
+          .where(and(eq(fermentacoesArquivo.cubaId, cuba.id), eq(fermentacoesArquivo.fermentacaoNum, input.fermentacaoNum)))
+          .limit(1);
+        if (arq[0]?.nomeLote) cubaArquivo.nomeLote = arq[0].nomeLote;
+      }
+      const { gerarPdfCuba } = await import("./pdfReport");
+      const buffer = await gerarPdfCuba(cubaArquivo);
+      const base64 = buffer.toString("base64");
+      const nomeLote = cubaArquivo.nomeLote ?? cuba.codigo.toUpperCase();
+      const nomeFicheiro = `${cuba.codigo}_${nomeLote.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "")}_ferm${input.fermentacaoNum}.pdf`;
       return { base64, nomeFicheiro };
     }),
 

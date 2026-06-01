@@ -301,3 +301,9 @@
 - [ ] Frontend RegistoRápido: após submissão, mostrar diálogo sequencial para cada cuba com alertaLimite
 - [ ] Frontend modal CSV: após registo directo, mostrar diálogo sequencial para cada cuba com alertaLimite
 - [ ] Ao confirmar terminar: abrir modal de terminar fermentação (já existente) pré-preenchido
+
+## Relatório Completo, Email ao Iniciar Nova Fermentação e Exportação no Arquivo (v41)
+- [ ] Botão "Iniciar Nova Fermentação" deve enviar email do relatório da fermentação anterior (igual ao "Terminar Fermentação")
+- [ ] PDF do arquivo deve incluir gráficos, adições, ficha inicial e toda a informação da cuba (actualmente só tem tabela de leituras)
+- [ ] Excel do arquivo deve incluir todas as séries (temperatura, O2, redox) além da densidade
+- [ ] Botão de exportar PDF e Excel na tab Arquivo de cada cuba (por fermentação arquivada)

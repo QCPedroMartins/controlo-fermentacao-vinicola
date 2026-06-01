@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
 import * as XLSX from "xlsx";
 import {
@@ -9,6 +9,8 @@ import {
   Calendar,
   Download,
   FlaskConical,
+  FileText,
+  Loader2,
   TrendingDown,
   Droplets,
   ClipboardList,
@@ -86,35 +88,48 @@ export default function ArquivoDetalhe() {
     }));
   }, [leituras]);
 
-  // Exportar para Excel
-  const exportarExcel = () => {
-    if (!leituras || !cuba) return;
-    const nomeFicheiro = `${cuba.codigo}_ferm${fermentacaoNum}${resumo?.nomeLote ? "_" + resumo.nomeLote.replace(/\s+/g, "_") : ""}`;
+  const [exportandoExcel, setExportandoExcel] = useState(false);
+  const [exportandoPdf, setExportandoPdf] = useState(false);
 
-    const leiturasData = leituras.map((l) => ({
-      "Data": new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
-      "Dia Nº": l.diaNr ?? "",
-      "Densidade": l.densL1 ?? "",
-      "Temperatura (°C)": l.tempL1 ?? "",
-      "O₂ (mg/L)": l.o2 ?? "",
-      "Redox (mV)": l.redox ?? "",
-      "Registado por": l.userName ?? "",
-    }));
+  const exportarExcelMutation = trpc.relatorio.exportarExcelArquivo.useMutation();
+  const exportarPdfMutation = trpc.relatorio.exportarPdfArquivo.useMutation();
 
-    const adicoesData = (adicoes ?? []).map((a) => ({
-      "Data": new Date(a.dataAdicao).toLocaleDateString("pt-PT"),
-      "Produto / Adição": a.produto ?? "",
-      "Dose": a.dose ?? "",
-      "Observações": a.observacoes ?? "",
-      "Por": a.userName ?? "",
-    }));
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(leiturasData), "Leituras");
-    if (adicoesData.length > 0) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(adicoesData), "Adições");
+  // Exportar para Excel (via servidor com gráficos completos)
+  const exportarExcel = async () => {
+    if (!cuba) return;
+    setExportandoExcel(true);
+    try {
+      const result = await exportarExcelMutation.mutateAsync({ codigo: cuba.codigo, fermentacaoNum });
+      const bytes = Uint8Array.from(atob(result.base64), c => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = result.nomeFicheiro; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Erro ao exportar Excel:", e);
+    } finally {
+      setExportandoExcel(false);
     }
-    XLSX.writeFile(wb, `${nomeFicheiro}.xlsx`);
+  };
+
+  // Exportar para PDF (via servidor com gráficos completos)
+  const exportarPdf = async () => {
+    if (!cuba) return;
+    setExportandoPdf(true);
+    try {
+      const result = await exportarPdfMutation.mutateAsync({ codigo: cuba.codigo, fermentacaoNum });
+      const bytes = Uint8Array.from(atob(result.base64), c => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = result.nomeFicheiro; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Erro ao exportar PDF:", e);
+    } finally {
+      setExportandoPdf(false);
+    }
   };
 
   const exportarCSV = () => {
@@ -219,12 +234,22 @@ export default function ArquivoDetalhe() {
           </div>
 
           {/* Botões de exportação */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={exportarPdf}
+              disabled={exportandoPdf}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-300 text-red-700 bg-red-50 text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-60"
+            >
+              {exportandoPdf ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+              {exportandoPdf ? "A gerar..." : "PDF"}
+            </button>
             <button
               onClick={exportarExcel}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-green-300 text-green-700 bg-green-50 text-xs font-medium hover:bg-green-100 transition-colors"
+              disabled={exportandoExcel}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-green-300 text-green-700 bg-green-50 text-xs font-medium hover:bg-green-100 transition-colors disabled:opacity-60"
             >
-              <Download size={14} /> Excel
+              {exportandoExcel ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {exportandoExcel ? "A gerar..." : "Excel"}
             </button>
             <button
               onClick={exportarCSV}
