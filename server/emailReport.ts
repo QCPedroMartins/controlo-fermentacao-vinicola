@@ -9,13 +9,16 @@ import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
+import { readFileSync } from "fs";
 
-// Registar fontes empacotadas no projecto (garantido em produção)
-const __dirname_email = dirname(fileURLToPath(import.meta.url));
-const FONT_DIR_EMAIL = join(__dirname_email, "fonts");
+// Registar fontes empacotadas no projecto via Buffer (funciona em produção sem depender do sistema de ficheiros)
 try {
-  GlobalFonts.registerFromPath(join(FONT_DIR_EMAIL, "NotoSans-Regular.ttf"), "NotoSans");
-  GlobalFonts.registerFromPath(join(FONT_DIR_EMAIL, "NotoSans-Bold.ttf"), "NotoSans");
+  const __dirname_email = dirname(fileURLToPath(import.meta.url));
+  const FONT_DIR_EMAIL = join(__dirname_email, "fonts");
+  const regularBuf = readFileSync(join(FONT_DIR_EMAIL, "NotoSans-Regular.ttf"));
+  const boldBuf = readFileSync(join(FONT_DIR_EMAIL, "NotoSans-Bold.ttf"));
+  GlobalFonts.register(regularBuf, "NotoSans");
+  GlobalFonts.register(boldBuf, "NotoSans");
 } catch (_e) {
   // Fallback: tentar caminhos do sistema
   try {
