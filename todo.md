@@ -317,3 +317,10 @@
 - [x] Frontend: página Campanhas.tsx melhorada — cartões expansíveis com lista de fermentações terminadas dentro de cada campanha
 - [x] Frontend: cada fermentação mostra cuba, nº, lote, datas, dias, densidade mínima, link para arquivo
 - [x] Testes Vitest: 33 testes a passar
+
+## Correcções Dashboard e Legendas PDF/Excel (v23)
+- [x] Dashboard: cubas com estado 'completa' devem aparecer como 'Vazia' (cinzento, sem verde)
+- [x] CubaPage: badge de estado 'completa' mostra 'Vazia' (cinzento) em vez de 'Fermentação completa' (verde)
+- [x] CubaPage: banner quando estado=completa renomeado para 'Cuba vazia' com botão 'Iniciar Nova Fermentação' (não obrigatório)
+- [x] PDF: fontes NotoSans empacotadas em server/fonts/ — garantido em produção sem depender do sistema operativo
+- [x] Excel: fontes NotoSans empacotadas em server/fonts/ — garantido em produção sem depender do sistema operativo

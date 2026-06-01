@@ -6,13 +6,21 @@
 import PDFDocument from "pdfkit";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { getLeiturasByCuba, getAdicoesByCuba } from "./db";
+import { fileURLToPath } from "url";
+import { join, dirname } from "path";
 
-// Registar fontes para o canvas (necessário no servidor Node.js)
+// Registar fontes empacotadas no projecto (garantido em produção)
+const __dirname_pdf = dirname(fileURLToPath(import.meta.url));
+const FONT_DIR = join(__dirname_pdf, "fonts");
 try {
-  GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "NotoSans");
-  GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "NotoSans");
+  GlobalFonts.registerFromPath(join(FONT_DIR, "NotoSans-Regular.ttf"), "NotoSans");
+  GlobalFonts.registerFromPath(join(FONT_DIR, "NotoSans-Bold.ttf"), "NotoSans");
 } catch (_e) {
-  // Fontes podem já estar registadas ou não disponíveis — usar fallback
+  // Fallback: tentar caminhos do sistema
+  try {
+    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "NotoSans");
+    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "NotoSans");
+  } catch (_e2) { /* ignorar */ }
 }
 
 type LeituraRow = {

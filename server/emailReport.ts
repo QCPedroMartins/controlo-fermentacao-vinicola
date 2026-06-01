@@ -7,13 +7,21 @@
 import ExcelJS from "exceljs";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba } from "./db";
+import { fileURLToPath } from "url";
+import { join, dirname } from "path";
 
-// Registar fontes para o canvas (necessário no servidor Node.js)
+// Registar fontes empacotadas no projecto (garantido em produção)
+const __dirname_email = dirname(fileURLToPath(import.meta.url));
+const FONT_DIR_EMAIL = join(__dirname_email, "fonts");
 try {
-  GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "NotoSans");
-  GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "NotoSans");
+  GlobalFonts.registerFromPath(join(FONT_DIR_EMAIL, "NotoSans-Regular.ttf"), "NotoSans");
+  GlobalFonts.registerFromPath(join(FONT_DIR_EMAIL, "NotoSans-Bold.ttf"), "NotoSans");
 } catch (_e) {
-  // Fontes podem já estar registadas ou não disponíveis
+  // Fallback: tentar caminhos do sistema
+  try {
+    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "NotoSans");
+    GlobalFonts.registerFromPath("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "NotoSans");
+  } catch (_e2) { /* ignorar */ }
 }
 
 // ── Constantes ────────────────────────────────────────────

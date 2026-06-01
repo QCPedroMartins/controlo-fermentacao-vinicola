@@ -717,16 +717,14 @@ export default function CubaPage() {
             </div>
             <div className="flex items-center gap-2 ml-13">
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                cuba.estado === "sem_dados" ? "bg-gray-100 text-gray-500 border-gray-200" :
                 cuba.estado === "em_fermentacao" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                "bg-green-50 text-green-700 border-green-200"
+                "bg-gray-100 text-gray-500 border-gray-200"
               }`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${
-                  cuba.estado === "sem_dados" ? "bg-gray-300" :
                   cuba.estado === "em_fermentacao" ? "bg-amber-400 animate-pulse" :
-                  "bg-green-400"
+                  "bg-gray-300"
                 }`} />
-                {cuba.estado === "sem_dados" ? "Sem dados" : cuba.estado === "em_fermentacao" ? "Em fermentação" : "Fermentação completa"}
+                {cuba.estado === "em_fermentacao" ? "Em fermentação" : "Vazia"}
               </span>
               <span className="text-xs text-gray-400">Fermentação Nº {cuba.fermentacaoNum}</span>
               {/* Badge de campanha ativa */}
@@ -1021,18 +1019,18 @@ export default function CubaPage() {
         </div>
       )}
 
-      {/* Baner + botão Iniciar Nova Fermentação — visível quando estado = completa */}
+      {/* Banner — visível quando estado = completa (cuba vazia, fermentação terminada) */}
       {isAuthenticated && cuba.estado === "completa" && (
-        <div className="mb-5 flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
-          <div className="flex items-center gap-2 text-amber-800">
-            <CheckCircle2 size={18} className="text-green-600" />
-            <span className="text-sm font-medium">Fermentação concluída — a cuba está pronta para uma nova fermentação.</span>
+        <div className="mb-5 flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-xl px-5 py-3">
+          <div className="flex items-center gap-2 text-gray-600">
+            <Archive size={18} className="text-gray-400" />
+            <span className="text-sm font-medium">Cuba vazia — fermentação arquivada. Pode iniciar uma nova fermentação quando entrar vinho novo.</span>
           </div>
           <button
             onClick={() => { setNomeLoteNovo(""); setShowNovaFerm(true); }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 transition-colors shadow-sm whitespace-nowrap"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[var(--color-vinho)] text-white rounded-xl text-sm font-semibold hover:bg-[var(--color-vinho-light)] transition-colors shadow-sm whitespace-nowrap"
           >
-            <RefreshCw size={15} /> Iniciar Nova Fermentação
+            <Plus size={15} /> Iniciar Nova Fermentação
           </button>
         </div>
       )}

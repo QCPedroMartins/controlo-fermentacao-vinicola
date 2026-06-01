@@ -22,11 +22,11 @@ const estadoConfig = {
     dot: "bg-amber-400 animate-pulse",
   },
   completa: {
-    label: "Completa",
-    icon: <CheckCircle2 size={12} className="text-green-500" />,
-    card: "bg-green-50 border-green-200 hover:border-green-400",
-    badge: "bg-green-100 text-green-700",
-    dot: "bg-green-400",
+    label: "Vazia",
+    icon: <Circle size={12} className="text-gray-400" />,
+    card: "bg-white border-gray-200 hover:border-gray-300",
+    badge: "bg-gray-100 text-gray-500",
+    dot: "bg-gray-300",
   },
 };
 
@@ -165,7 +165,7 @@ export default function Dashboard() {
         <StatCard label="Total" value={62} color="text-[var(--color-vinho)]" bg="bg-white" />
         <StatCard label="Sem dados" value={semDados} color="text-gray-500" bg="bg-white" />
         <StatCard label="Em fermentação" value={emFermentacao} color="text-amber-600" bg="bg-amber-50" />
-        <StatCard label="Completas" value={completas} color="text-green-600" bg="bg-green-50" />
+        <StatCard label="Vazias" value={completas} color="text-gray-500" bg="bg-white" />
         <StatCard label="Com alertas" value={totalAlertas} color="text-red-600" bg="bg-red-50" icon={<AlertTriangle size={14} className="text-red-500" />} loading={loadingAlertas} />
       </div>
 
@@ -192,7 +192,7 @@ export default function Dashboard() {
               : f === "em_fermentacao"
               ? "Em fermentação"
               : f === "completa"
-              ? "Completas"
+              ? "Vazias"
               : (
                 <span className="flex items-center gap-1">
                   <AlertTriangle size={11} /> Com alertas {totalAlertas > 0 && `(${totalAlertas})`}
@@ -255,11 +255,9 @@ export default function Dashboard() {
                     <span className="hidden sm:inline">
                       {temAlerta
                         ? "Alerta"
-                        : cuba.estado === "sem_dados"
-                        ? "Vazia"
                         : cuba.estado === "em_fermentacao"
                         ? "Ativa"
-                        : "Pronta"}
+                        : "Vazia"}
                     </span>
                   </div>
                 </div>
