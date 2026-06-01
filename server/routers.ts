@@ -552,6 +552,69 @@ const adicoesRouter = router({
     }),
 });
 
+// ── Função auxiliar: terminar uma fermentação (reutilizável) ──────────────
+async function terminarFermentacaoCuba(cubaId: number, nomeLote?: string | null, archivedBy = "Sistema") {
+  const db = await getDb();
+  if (!db) return;
+
+  const cubaRows = await db.select().from(cubas).where(eq(cubas.id, cubaId)).limit(1);
+  const cuba = cubaRows[0];
+  if (!cuba) return;
+  if (cuba.estado !== "em_fermentacao") return; // só termina se estiver activa
+
+  const fermentacaoAtual = cuba.fermentacaoNum;
+  const rows = await getLeiturasByCuba(cubaId, fermentacaoAtual);
+
+  let dataInicio: string | null = null;
+  let dataFim: string | null = null;
+  let totalDias: number | null = null;
+  let densMin: string | null = null;
+  let tempMax: string | null = null;
+
+  if (rows.length > 0) {
+    dataInicio = rows[0].dataLeitura;
+    dataFim = rows[rows.length - 1].dataLeitura;
+    totalDias = rows[rows.length - 1].diaNr ?? rows.length;
+    const allDens = rows.map((r) => r.densL1).filter((v): v is string => v !== null).map(Number);
+    const allTemp = rows.map((r) => r.tempL1).filter((v): v is string => v !== null).map(Number);
+    if (allDens.length > 0) densMin = Math.min(...allDens).toFixed(4);
+    if (allTemp.length > 0) tempMax = Math.max(...allTemp).toFixed(1);
+  }
+
+  const nomeLoteArquivo = nomeLote ?? cuba.nomeLote;
+
+  await createArquivo({
+    cubaId,
+    fermentacaoNum: fermentacaoAtual,
+    nomeLote: nomeLoteArquivo,
+    dataInicio,
+    dataFim,
+    totalDias,
+    densMin,
+    tempMax,
+    archivedBy,
+  });
+
+  // Associar à campanha activa
+  try {
+    const arquivoInserido = await db
+      .select()
+      .from(fermentacoesArquivo)
+      .where(eq(fermentacoesArquivo.cubaId, cubaId))
+      .orderBy(desc(fermentacoesArquivo.id))
+      .limit(1);
+    if (arquivoInserido[0]) {
+      await associarCampanhaArquivo(arquivoInserido[0].id);
+    }
+  } catch (_e) { /* ignorar erros de campanha */ }
+
+  // Estado = completa, fermentacaoNum incrementa
+  await db
+    .update(cubas)
+    .set({ nomeLote: null, estado: "completa", fermentacaoNum: fermentacaoAtual + 1 })
+    .where(eq(cubas.id, cubaId));
+}
+
 // ── Router de Arquivo / Nova Fermentação ──────────────────
 const arquivoRouter = router({
   listByCuba: publicProcedure
@@ -889,9 +952,36 @@ const campanhasRouter = router({
   ativa: publicProcedure.query(async () => (await getCampanhaAtiva()) ?? null),
   criar: protectedProcedure
     .input(z.object({ nome: z.string().min(1).max(60), descricao: z.string().optional() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      let cubasFechadas = 0;
+
+      // 1. Terminar todas as cubas em fermentação antes de criar a nova campanha
+      if (db) {
+        const cubasActivas = await db
+          .select()
+          .from(cubas)
+          .where(eq(cubas.estado, "em_fermentacao"));
+
+        for (const cuba of cubasActivas) {
+          try {
+            await terminarFermentacaoCuba(
+              cuba.id,
+              cuba.nomeLote,
+              ctx.user.name ?? ctx.user.email ?? "Nova Campanha"
+            );
+            cubasFechadas++;
+          } catch (err) {
+            console.warn(`[Campanha] Erro ao fechar cuba ${cuba.codigo}:`, err);
+          }
+        }
+      }
+
+      // 2. Criar a nova campanha (desactiva a anterior e activa esta)
       await createCampanha({ nome: input.nome, descricao: input.descricao });
-      return { success: true };
+
+      console.log(`[Campanha] Nova campanha '${input.nome}' criada. ${cubasFechadas} fermentações fechadas automaticamente.`);
+      return { success: true, cubasFechadas };
     }),
   ativar: protectedProcedure
     .input(z.object({ id: z.number() }))

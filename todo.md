@@ -343,3 +343,14 @@
 - [x] CubaPage: se estado='completa' mas há leituras no fermentacaoNum actual, mostrar botão 'Terminar Fermentação' em vez de banner 'Iniciar Nova Fermentação'
 - [x] Dashboard: getDashboardCubas trata cubas 'completa' com leituras activas como 'em_fermentacao'
 - [x] ImportacaoCsvModal: botão de alerta de densidade usa terminarFermentacao (não novaFermentacao)
+
+## Exportação Excel do Dashboard (v28)
+- [ ] Backend: endpoint REST GET /api/export/dashboard-excel que gera Excel com todas as cubas (código, tipo, estado, nº fermentação, lote, última densidade, temperatura, temp. pretendida, limite densidade)
+- [ ] Frontend: botão "Exportar Excel" no Dashboard que descarrega o ficheiro gerado
+
+## Nova Campanha Termina Todas as Fermentações (v29)
+- [x] Backend: ao criar nova campanha (campanhas.criar), terminar automaticamente todas as cubas com estado='em_fermentacao' (arquivar leituras, estado=completa, fermentacaoNum+1)
+- [x] Backend: função auxiliar terminarFermentacaoCuba reutilizável (sem email) usada pelo campanhas.criar
+- [x] Backend: campanhas.criar retorna { success, cubasFechadas } para feedback ao utilizador
+- [x] Frontend: aviso no modal de criar campanha com lista das 3 acções que irão acontecer
+- [x] Frontend: toast de sucesso mostra quantas fermentações foram arquivadas automaticamente

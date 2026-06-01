@@ -187,10 +187,14 @@ export default function Campanhas() {
   const [descricao, setDescricao] = useState("");
 
   const criarMutation = trpc.campanhas.criar.useMutation({
-    onSuccess: () => {
-      toast.success("Campanha criada e ativada com sucesso!");
+    onSuccess: (data) => {
+      const msg = data.cubasFechadas > 0
+        ? `Campanha criada! ${data.cubasFechadas} fermentação${data.cubasFechadas !== 1 ? "ões" : ""} arquivada${data.cubasFechadas !== 1 ? "s" : ""} automaticamente.`
+        : "Campanha criada e ativada com sucesso!";
+      toast.success(msg);
       utils.campanhas.list.invalidate();
       utils.campanhas.ativa.invalidate();
+      utils.campanhas.fermentacoesByCampanha.invalidate();
       setShowNova(false);
       setNome("");
       setDescricao("");
@@ -309,11 +313,16 @@ export default function Campanhas() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md animate-fade-in">
             <h2 className="text-lg font-bold text-[var(--color-vinho)] mb-1" style={{ fontFamily: "var(--font-serif)" }}>
-              Nova Campanha
+              Nova Campanha de Vindima
             </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Ao criar uma nova campanha, ela torna-se automaticamente ativa. As fermentações arquivadas a partir deste momento serão associadas a esta campanha.
-            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+              <p className="text-xs font-semibold text-amber-800 mb-1">⚠️ Atenção — Esta acção irá:</p>
+              <ul className="text-xs text-amber-700 space-y-0.5 list-disc list-inside">
+                <li>Terminar e arquivar <strong>todas as fermentações activas</strong></li>
+                <li>Passar todas as cubas em fermentação para estado <strong>Vazia</strong></li>
+                <li>Tornar esta nova campanha a campanha <strong>activa</strong></li>
+              </ul>
+            </div>
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Nome da Campanha *</label>
