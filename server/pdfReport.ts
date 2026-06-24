@@ -68,6 +68,7 @@ type CubaInfo = {
   fichaAlcoolProvavel: string | null;
   tipoCuba?: string | null;
   pontoAguardentacao?: string | null;
+  densidadeLimite?: string | null;
 };
 
 // Cores
@@ -688,6 +689,227 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
         `Controlo de Fermentação Vinícola — ${cuba.codigo.toUpperCase()} — Fermentação Nº ${cuba.fermentacaoNum}`,
         MARGIN, pageH - 25, { width: CONTENT_W, align: "center" }
       );
+
+    doc.end();
+  });
+}
+
+// ── PDF Dashboard — Todas as Cubas Activas ─────────────────
+export async function gerarPdfDashboard(): Promise<Buffer> {
+  const { getAllCubas } = await import("./db");
+  const todasCubas = (await getAllCubas()) as CubaInfo[];
+  const cubasAtivas = todasCubas.filter((c) => c.estado === "em_fermentacao");
+
+  return new Promise(async (resolve, reject) => {
+    const doc = new PDFDocument({ margin: 40, size: "A4", layout: "landscape" });
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    const W = doc.page.width;
+    const MARGIN = 40;
+    const CONTENT_W = W - MARGIN * 2;
+    const dataHoje = new Date().toLocaleDateString("pt-PT", { timeZone: "Europe/Lisbon" });
+
+    // ── Capa ──────────────────────────────────────────────
+    doc.rect(MARGIN, MARGIN, CONTENT_W, 50).fill(COR_BORDO);
+    doc.fillColor("#FFFFFF").fontSize(18).font("Helvetica-Bold")
+      .text("CONTROLO DE FERMENTAÇÃO VINÍCOLA", MARGIN, MARGIN + 8, { width: CONTENT_W, align: "center" });
+    doc.fillColor("#FFFFFF").fontSize(11).font("Helvetica")
+      .text(`Relatório Dashboard — ${dataHoje} — ${cubasAtivas.length} cuba(s) em fermentação`, MARGIN, MARGIN + 30, { width: CONTENT_W, align: "center" });
+
+    let y = MARGIN + 65;
+
+    if (cubasAtivas.length === 0) {
+      doc.fillColor(COR_CINZA).fontSize(12).font("Helvetica")
+        .text("Sem cubas em fermentação activa.", MARGIN, y, { width: CONTENT_W, align: "center" });
+      doc.end();
+      return;
+    }
+
+    for (let ci = 0; ci < cubasAtivas.length; ci++) {
+      const cuba = cubasAtivas[ci];
+      const isPorto = cuba.tipoCuba === "porto";
+      const leituras = (await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum)) as LeituraRow[];
+      const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
+
+      // Nova página para cada cuba (excepto a primeira)
+      if (ci > 0) {
+        doc.addPage({ size: "A4", layout: "landscape" });
+        y = MARGIN;
+      }
+
+      // ── Cabeçalho da cuba ──────────────────────────────
+      doc.rect(MARGIN, y, CONTENT_W, 22).fill(COR_BORDO);
+      doc.fillColor("#FFFFFF").fontSize(12).font("Helvetica-Bold")
+        .text(
+          `${cuba.codigo.toUpperCase()}${cuba.nomeLote ? ` — ${cuba.nomeLote}` : ""} — Fermentação Nº ${cuba.fermentacaoNum}`,
+          MARGIN + 8, y + 5, { width: CONTENT_W - 16, align: "left" }
+        );
+      y += 26;
+
+      // ── Resumo rápido ──────────────────────────────────
+      const densMin = leituras.length > 0
+        ? Math.min(...leituras.map((l) => parseFloat(isPorto ? (l.baumeL1 ?? "999") : (l.densL1 ?? "999"))).filter((v) => v < 999))
+        : null;
+      const tempMax = leituras.length > 0
+        ? Math.max(...leituras.map((l) => parseFloat(l.tempL1 ?? "0")).filter((v) => v > 0))
+        : null;
+
+      const resumoItems = [
+        `Leituras: ${leituras.length}`,
+        `Adições: ${adicoes.length}`,
+        densMin !== null ? `${isPorto ? "Baumé mín." : "Dens. mín."}: ${densMin.toFixed(isPorto ? 1 : 4)}` : null,
+        tempMax !== null ? `Temp. máx.: ${tempMax.toFixed(1)}°C` : null,
+        cuba.tempPretendida ? `Temp. pretendida: ${cuba.tempPretendida}°C` : null,
+        cuba.densidadeLimite ? `Limite: ${parseFloat(cuba.densidadeLimite).toFixed(isPorto ? 1 : 3)}` : null,
+      ].filter(Boolean) as string[];
+
+      doc.fillColor(COR_CINZA).fontSize(8).font("Helvetica");
+      const colW = CONTENT_W / resumoItems.length;
+      resumoItems.forEach((item, i) => {
+        doc.text(item, MARGIN + i * colW, y, { width: colW, align: "center" });
+      });
+      y += 14;
+
+      // ── Gráficos ───────────────────────────────────────
+      if (leituras.length > 1) {
+        const marcadoresGrafico = adicoes.map((a, idx) => {
+          const dataAdicao = new Date(a.dataAdicao).getTime();
+          let diaProximo = 0;
+          let menorDiff = Infinity;
+          leituras.forEach((l) => {
+            const diff = Math.abs(new Date(l.dataLeitura).getTime() - dataAdicao);
+            if (diff < menorDiff) { menorDiff = diff; diaProximo = l.diaNr ?? 0; }
+          });
+          return { dia: diaProximo, index: idx + 1 };
+        });
+
+        const chartData = leituras.map((l, idx) => ({
+          x: idx,
+          xLabel: l.hora ? l.hora.substring(0, 5) : String(l.diaNr ?? idx),
+          densL1: l.densL1 ? parseFloat(l.densL1) : null,
+          baumeL1: l.baumeL1 ? parseFloat(l.baumeL1) : null,
+          tempL1: l.tempL1 ? parseFloat(l.tempL1) : null,
+        }));
+
+        const CHART_W = CONTENT_W;
+        const CHART_H = 130;
+
+        // Gráfico Densidade/Baumé
+        const graficoDens = gerarGraficoPng({
+          titulo: isPorto ? "Baumé" : "Densidade",
+          dados: chartData.map((d) => ({
+            x: d.x,
+            xLabel: d.xLabel,
+            series: [{ label: isPorto ? "Baumé" : "Densidade", cor: CORES.l1, valor: isPorto ? d.baumeL1 : d.densL1 }],
+          })),
+          unidade: isPorto ? "°Bé" : "",
+          marcadores: marcadoresGrafico,
+          linhaRef: cuba.tempPretendida && !isPorto ? undefined :
+            (cuba.pontoAguardentacao && isPorto ? {
+              valor: parseFloat(cuba.pontoAguardentacao),
+              label: `Aguardentação (${cuba.pontoAguardentacao}°Bé)`,
+              cor: "#E53E3E",
+            } : undefined),
+          largura: CHART_W,
+          altura: CHART_H,
+        });
+
+        if (y + CHART_H + 24 > doc.page.height - 50) {
+          doc.addPage({ size: "A4", layout: "landscape" });
+          y = MARGIN;
+        }
+        doc.image(graficoDens, MARGIN, y, { width: CHART_W });
+        y += CHART_H + 24 + 8;
+
+        // Gráfico Temperatura
+        const graficoTemp = gerarGraficoPng({
+          titulo: "Temperatura (°C)",
+          dados: chartData.map((d) => ({
+            x: d.x,
+            xLabel: d.xLabel,
+            series: [{ label: "Temperatura", cor: "c62828", valor: d.tempL1 }],
+          })),
+          unidade: "°C",
+          marcadores: marcadoresGrafico,
+          linhaRef: cuba.tempPretendida ? {
+            valor: parseFloat(cuba.tempPretendida),
+            label: `Pretendida (${cuba.tempPretendida}°C)`,
+            cor: "#E53E3E",
+          } : undefined,
+          largura: CHART_W,
+          altura: CHART_H,
+        });
+
+        if (y + CHART_H + 24 > doc.page.height - 50) {
+          doc.addPage({ size: "A4", layout: "landscape" });
+          y = MARGIN;
+        }
+        doc.image(graficoTemp, MARGIN, y, { width: CHART_W });
+        y += CHART_H + 24 + 8;
+      }
+
+      // ── Tabela de leituras resumida (últimas 10) ───────
+      const leiturasResumo = leituras.slice(-10);
+      if (leiturasResumo.length > 0) {
+        if (y + 60 > doc.page.height - 50) {
+          doc.addPage({ size: "A4", layout: "landscape" });
+          y = MARGIN;
+        }
+
+        doc.rect(MARGIN, y, CONTENT_W, 14).fill("#F3E8FF");
+        const colsT = isPorto
+          ? ["Data", "Hora", "Dia", "Baumé", "Temp.", "O₂", "Redox"]
+          : ["Data", "Hora", "Dia", "Densidade", "Temp.", "O₂", "Redox"];
+        const colWs = [60, 45, 28, 60, 45, 35, 40, 0];
+        const totalFixed = colWs.slice(0, -1).reduce((s, v) => s + v, 0);
+        colWs[colWs.length - 1] = Math.max(CONTENT_W - totalFixed, 40);
+
+        let cx = MARGIN;
+        colsT.forEach((h, i) => {
+          doc.fillColor(COR_ROXO).fontSize(7).font("Helvetica-Bold")
+            .text(h, cx + 2, y + 3, { width: colWs[i] - 4, align: "center" });
+          cx += colWs[i];
+        });
+        y += 14;
+
+        leiturasResumo.forEach((l, idx) => {
+          if (y + 13 > doc.page.height - 50) {
+            doc.addPage({ size: "A4", layout: "landscape" });
+            y = MARGIN;
+          }
+          const bg = idx % 2 === 0 ? "#FFFFFF" : "#F8F4F6";
+          doc.rect(MARGIN, y, CONTENT_W, 13).fill(bg);
+          const vals = [
+            formatDate(l.dataLeitura),
+            l.hora ? l.hora.substring(0, 5) : "—",
+            String(l.diaNr ?? ""),
+            isPorto ? formatVal(l.baumeL1, 1) : formatVal(l.densL1),
+            formatVal(l.tempL1, 1),
+            formatVal(l.o2, 2),
+            formatVal(l.redox, 0),
+          ];
+          cx = MARGIN;
+          vals.forEach((v, i) => {
+            doc.fillColor("#333333").fontSize(7).font("Helvetica")
+              .text(v, cx + 2, y + 3, { width: colWs[i] - 4, align: "center", lineBreak: false });
+            cx += colWs[i];
+          });
+          y += 13;
+        });
+        y += 8;
+      }
+
+      // ── Rodapé ─────────────────────────────────────────
+      const pageH = doc.page.height;
+      doc.fillColor(COR_CINZA).fontSize(7).font("Helvetica")
+        .text(
+          `Controlo de Fermentação Vinícola — Dashboard — ${dataHoje}`,
+          MARGIN, pageH - 25, { width: CONTENT_W, align: "center" }
+        );
+    }
 
     doc.end();
   });

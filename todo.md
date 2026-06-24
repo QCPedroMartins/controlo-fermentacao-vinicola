@@ -361,3 +361,8 @@
 - [ ] Backend: utilizadores convidados podem usar leituras, adicoes, arquivo.terminarFermentacao, arquivo.novaFermentacao, importacao
 - [ ] Frontend: ocultar botões admin-only (criar cuba, editar cuba, eliminar cuba, nova campanha) para utilizadores não-admin
 - [ ] BD: promover o owner (administrador) a role=admin na base de dados
+
+## Exportação Dashboard — Botão Único (v31)
+- [ ] Backend: endpoint REST GET /api/export/dashboard-pdf — PDF com todas as cubas em fermentação activa
+- [ ] Backend: endpoint REST GET /api/export/dashboard-excel — Excel com todas as cubas em fermentação activa
+- [ ] Frontend: botão "Exportar" no Dashboard com dropdown (PDF / Excel)

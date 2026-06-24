@@ -1,8 +1,9 @@
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, FlaskConical, Upload } from "lucide-react";
+import { AlertTriangle, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, Download, FileSpreadsheet, FileText, FlaskConical, Upload } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import ImportacaoCsvModal from "@/components/ImportacaoCsvModal";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type Estado = "todos" | "sem_dados" | "em_fermentacao" | "completa" | "com_alertas";
 
@@ -146,6 +147,30 @@ export default function Dashboard() {
             <Upload size={16} />
             Importar CSV
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+                <Download size={16} />
+                Exportar
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={() => { window.open("/api/export/dashboard-pdf", "_blank"); }}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <FileText size={15} className="text-red-600" />
+                <span>Exportar PDF</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => { window.open("/api/export/dashboard-excel", "_blank"); }}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <FileSpreadsheet size={15} className="text-green-600" />
+                <span>Exportar Excel</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Link href="/registo-rapido">
             <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-vinho)] text-white text-sm font-semibold shadow hover:bg-[var(--color-vinho)]/90 transition-colors">
               <ClipboardList size={16} />

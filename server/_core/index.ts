@@ -9,6 +9,8 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleDailyDigest, handleFimFermentacao } from "../scheduledHandlers";
+import { gerarPdfDashboard } from "../pdfReport";
+import { gerarExcelDigestDiario } from "../emailReport";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -48,6 +50,33 @@ async function startServer() {
   // Scheduled handlers — MUST be before Vite/static fallthrough
   app.post("/api/scheduled/daily-digest", handleDailyDigest);
   app.post("/api/scheduled/fermentacao-completa", handleFimFermentacao);
+
+  // ── Exportação Dashboard ──────────────────────────────────
+  app.get("/api/export/dashboard-pdf", async (_req, res) => {
+    try {
+      const buffer = await gerarPdfDashboard();
+      const dataHoje = new Date().toLocaleDateString("pt-PT", { timeZone: "Europe/Lisbon" }).replace(/\//g, "-");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="dashboard_fermentacao_${dataHoje}.pdf"`);
+      res.send(buffer);
+    } catch (err) {
+      console.error("[Export Dashboard PDF]", err);
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.get("/api/export/dashboard-excel", async (_req, res) => {
+    try {
+      const buffer = await gerarExcelDigestDiario();
+      const dataHoje = new Date().toLocaleDateString("pt-PT", { timeZone: "Europe/Lisbon" }).replace(/\//g, "-");
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="dashboard_fermentacao_${dataHoje}.xlsx"`);
+      res.send(Buffer.from(buffer as ArrayBuffer));
+    } catch (err) {
+      console.error("[Export Dashboard Excel]", err);
+      res.status(500).json({ error: String(err) });
+    }
+  });
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
