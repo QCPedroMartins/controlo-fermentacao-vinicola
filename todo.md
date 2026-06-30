@@ -366,3 +366,7 @@
 - [ ] Backend: endpoint REST GET /api/export/dashboard-pdf — PDF com todas as cubas em fermentação activa
 - [ ] Backend: endpoint REST GET /api/export/dashboard-excel — Excel com todas as cubas em fermentação activa
 - [ ] Frontend: botão "Exportar" no Dashboard com dropdown (PDF / Excel)
+
+## Botão Enviar Relatório Manual (v33)
+- [x] Backend: procedure tRPC `relatorio.enviarDigestDiario` que gera Excel de todas as cubas activas e envia por email (já existia)
+- [x] Frontend: botão "Enviar Relatório" no Dashboard (junto ao "Exportar") com estado de loading e toast de sucesso/erro

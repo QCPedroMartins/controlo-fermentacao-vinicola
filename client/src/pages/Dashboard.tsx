@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, Archive, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, Download, FileSpreadsheet, FileText, FlaskConical, Search, Upload, X } from "lucide-react";
+import { AlertTriangle, Archive, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, Download, FileSpreadsheet, FileText, FlaskConical, Mail, Search, Upload, X } from "lucide-react";
+import { toast } from "sonner";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import ImportacaoCsvModal from "@/components/ImportacaoCsvModal";
@@ -79,6 +80,15 @@ function temAlertasAtivos(cuba: {
 
 export default function Dashboard() {
   const [filtro, setFiltro] = useState<Estado>("todos");
+
+  const enviarRelatorio = trpc.relatorio.enviarDigestDiario.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Relatório enviado com sucesso — ${data.cubasAtivas} cuba(s) activa(s)`);
+    },
+    onError: (err) => {
+      toast.error(`Erro ao enviar relatório: ${err.message}`);
+    },
+  });
   const [csvModalAberto, setCsvModalAberto] = useState(false);
   const [termoPesquisa, setTermoPesquisa] = useState("");
   const [pesquisaAberta, setPesquisaAberta] = useState(false);
@@ -170,6 +180,26 @@ export default function Dashboard() {
           >
             <Upload size={16} />
             Importar CSV
+          </button>
+          <button
+            onClick={() => enviarRelatorio.mutate()}
+            disabled={enviarRelatorio.isPending}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-vinho)] text-[var(--color-vinho)] text-sm font-semibold hover:bg-[var(--color-vinho)]/5 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {enviarRelatorio.isPending ? (
+              <>
+                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+                A enviar...
+              </>
+            ) : (
+              <>
+                <Mail size={16} />
+                Enviar Relatório
+              </>
+            )}
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
