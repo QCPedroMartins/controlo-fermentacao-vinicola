@@ -3,6 +3,9 @@ import {
   asc,
   desc,
   eq,
+  like,
+  or,
+  sql,
 } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
@@ -599,4 +602,89 @@ export async function upsertBaumeCalculo(data: {
   } else {
     await db.insert(baumeCalculo).values(row);
   }
+}
+
+// ── Pesquisa Global ───────────────────────────────────────
+export async function pesquisarGlobal(termo: string) {
+  const db = await getDb();
+  if (!db || !termo.trim()) return { cubas: [], adicoes: [], arquivo: [] };
+
+  const t = `%${termo.trim()}%`;
+
+  // Pesquisar cubas por código, nome do lote, tipo de cuba
+  const cubasResult = await db
+    .select({
+      id: cubas.id,
+      codigo: cubas.codigo,
+      nomeLote: cubas.nomeLote,
+      estado: cubas.estado,
+      tipoCuba: cubas.tipoCuba,
+      fermentacaoNum: cubas.fermentacaoNum,
+    })
+    .from(cubas)
+    .where(
+      or(
+        like(cubas.codigo, t),
+        like(cubas.nomeLote, t)
+      )
+    )
+    .limit(20);
+
+  // Pesquisar adições por produto, observações, nome da cuba
+  const adicoesResult = await db
+    .select({
+      id: adicoes.id,
+      cubaId: adicoes.cubaId,
+      cubaCodigo: cubas.codigo,
+      nomeLote: cubas.nomeLote,
+      fermentacaoNum: adicoes.fermentacaoNum,
+      dataAdicao: adicoes.dataAdicao,
+      produto: adicoes.produto,
+      dose: adicoes.dose,
+      observacoes: adicoes.observacoes,
+      userName: adicoes.userName,
+    })
+    .from(adicoes)
+    .innerJoin(cubas, eq(adicoes.cubaId, cubas.id))
+    .where(
+      or(
+        like(adicoes.produto, t),
+        like(adicoes.observacoes, t),
+        like(adicoes.dose, t),
+        like(cubas.codigo, t),
+        like(cubas.nomeLote, t)
+      )
+    )
+    .orderBy(desc(adicoes.dataAdicao))
+    .limit(30);
+
+  // Pesquisar fermentações arquivadas por nome de lote, cuba
+  const arquivoResult = await db
+    .select({
+      id: fermentacoesArquivo.id,
+      cubaId: fermentacoesArquivo.cubaId,
+      cubaCodigo: cubas.codigo,
+      fermentacaoNum: fermentacoesArquivo.fermentacaoNum,
+      nomeLote: fermentacoesArquivo.nomeLote,
+      dataInicio: fermentacoesArquivo.dataInicio,
+      dataFim: fermentacoesArquivo.dataFim,
+      totalDias: fermentacoesArquivo.totalDias,
+      densMin: fermentacoesArquivo.densMin,
+    })
+    .from(fermentacoesArquivo)
+    .innerJoin(cubas, eq(fermentacoesArquivo.cubaId, cubas.id))
+    .where(
+      or(
+        like(fermentacoesArquivo.nomeLote, t),
+        like(cubas.codigo, t)
+      )
+    )
+    .orderBy(desc(fermentacoesArquivo.dataFim))
+    .limit(20);
+
+  return {
+    cubas: cubasResult,
+    adicoes: adicoesResult,
+    arquivo: arquivoResult,
+  };
 }

@@ -36,6 +36,7 @@ import {
   upsertBaumeCalculo,
   getDb,
   leituraExistePorData,
+  pesquisarGlobal,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { and, desc, eq } from "drizzle-orm";
@@ -997,6 +998,15 @@ const campanhasRouter = router({
     .query(async ({ input }) => getFermentacoesByCampanha(input.campanhaId)),
 });
 
+// ── Router de Pesquisa Global ───────────────────────────
+const pesquisaRouter = router({
+  global: publicProcedure
+    .input(z.object({ termo: z.string().min(1).max(100) }))
+    .query(async ({ input }) => {
+      return pesquisarGlobal(input.termo);
+    }),
+});
+
 // ── App Router ────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -1016,5 +1026,6 @@ export const appRouter = router({
   relatorio: relatorioRouter,
   campanhas: campanhasRouter,
   importacao: importacaoRouter,
+  pesquisa: pesquisaRouter,
 });
 export type AppRouter = typeof appRouter;

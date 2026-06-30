@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, Download, FileSpreadsheet, FileText, FlaskConical, Upload } from "lucide-react";
-import { useState, useMemo } from "react";
+import { AlertTriangle, Archive, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, Download, FileSpreadsheet, FileText, FlaskConical, Search, Upload, X } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import ImportacaoCsvModal from "@/components/ImportacaoCsvModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -80,6 +80,26 @@ function temAlertasAtivos(cuba: {
 export default function Dashboard() {
   const [filtro, setFiltro] = useState<Estado>("todos");
   const [csvModalAberto, setCsvModalAberto] = useState(false);
+  const [termoPesquisa, setTermoPesquisa] = useState("");
+  const [pesquisaAberta, setPesquisaAberta] = useState(false);
+  const pesquisaRef = useRef<HTMLDivElement>(null);
+
+  // Fechar pesquisa ao clicar fora
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pesquisaRef.current && !pesquisaRef.current.contains(e.target as Node)) {
+        setPesquisaAberta(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const termoDebouncado = useMemo(() => termoPesquisa.trim(), [termoPesquisa]);
+  const { data: resultadosPesquisa, isLoading: pesquisando } = trpc.pesquisa.global.useQuery(
+    { termo: termoDebouncado },
+    { enabled: termoDebouncado.length >= 2 }
+  );
   const utils = trpc.useUtils();
   const { data: cubas, isLoading } = trpc.cubas.dashboard.useQuery();
   const { data: todasLeituras, isLoading: loadingAlertas } = trpc.leituras.listAllDashboard.useQuery();
@@ -112,6 +132,10 @@ export default function Dashboard() {
     if (filtro === "com_alertas") return alertasPorCuba.get(c.id) === true;
     return c.estado === filtro;
   });
+
+  const totalResultados = resultadosPesquisa
+    ? (resultadosPesquisa.cubas?.length ?? 0) + (resultadosPesquisa.adicoes?.length ?? 0) + (resultadosPesquisa.arquivo?.length ?? 0)
+    : 0;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
@@ -178,6 +202,103 @@ export default function Dashboard() {
             </button>
           </Link>
         </div>
+      </div>
+
+      {/* Barra de Pesquisa Global */}
+      <div ref={pesquisaRef} className="relative mb-6">
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={termoPesquisa}
+            onChange={(e) => { setTermoPesquisa(e.target.value); setPesquisaAberta(true); }}
+            onFocus={() => termoPesquisa.length >= 2 && setPesquisaAberta(true)}
+            placeholder="Pesquisar por cuba, lote, produto adicionado, casta..."
+            className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-vinho)]/30 focus:border-[var(--color-vinho)] transition-all shadow-sm"
+          />
+          {termoPesquisa && (
+            <button onClick={() => { setTermoPesquisa(""); setPesquisaAberta(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X size={15} />
+            </button>
+          )}
+        </div>
+
+        {/* Painel de resultados */}
+        {pesquisaAberta && termoDebouncado.length >= 2 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-[480px] overflow-y-auto">
+            {pesquisando ? (
+              <div className="p-6 text-center text-gray-400 text-sm">A pesquisar...</div>
+            ) : totalResultados === 0 ? (
+              <div className="p-6 text-center text-gray-400 text-sm">
+                <Search size={24} className="mx-auto mb-2 opacity-30" />
+                Nenhum resultado para "{termoDebouncado}"
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {/* Cubas */}
+                {(resultadosPesquisa?.cubas?.length ?? 0) > 0 && (
+                  <div>
+                    <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50">Cubas ({resultadosPesquisa!.cubas.length})</div>
+                    {resultadosPesquisa!.cubas.map((cuba) => (
+                      <Link key={cuba.id} href={`/cuba/${cuba.codigo}`}>
+                        <div onClick={() => setPesquisaAberta(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-amber-50 cursor-pointer transition-colors">
+                          <FlaskConical size={16} className="text-amber-500 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800">{cuba.codigo.toUpperCase()}</p>
+                            {cuba.nomeLote && <p className="text-xs text-gray-500 truncate">{cuba.nomeLote}</p>}
+                          </div>
+                          <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                            cuba.estado === "em_fermentacao" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"
+                          }`}>{cuba.estado === "em_fermentacao" ? "Em fermentação" : "Vazia"}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+                {/* Adições */}
+                {(resultadosPesquisa?.adicoes?.length ?? 0) > 0 && (
+                  <div>
+                    <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50">Adições ({resultadosPesquisa!.adicoes.length})</div>
+                    {resultadosPesquisa!.adicoes.map((adicao) => (
+                      <Link key={adicao.id} href={`/cuba/${adicao.cubaCodigo}`}>
+                        <div onClick={() => setPesquisaAberta(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-amber-50 cursor-pointer transition-colors">
+                          <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+                            <span className="text-[10px] font-bold text-green-700">{adicao.cubaCodigo?.toUpperCase()}</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{adicao.produto ?? "—"}</p>
+                            <p className="text-xs text-gray-500">{adicao.cubaCodigo?.toUpperCase()} · {adicao.dataAdicao} {adicao.dose ? `· ${adicao.dose}` : ""}</p>
+                            {adicao.observacoes && <p className="text-xs text-gray-400 truncate">{adicao.observacoes}</p>}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+                {/* Arquivo */}
+                {(resultadosPesquisa?.arquivo?.length ?? 0) > 0 && (
+                  <div>
+                    <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50">Fermentações Arquivadas ({resultadosPesquisa!.arquivo.length})</div>
+                    {resultadosPesquisa!.arquivo.map((ferm) => (
+                      <Link key={ferm.id} href={`/cuba/${ferm.cubaCodigo}`}>
+                        <div onClick={() => setPesquisaAberta(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-amber-50 cursor-pointer transition-colors">
+                          <Archive size={16} className="text-gray-400 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-800">{ferm.cubaCodigo?.toUpperCase()} — Ferm. #{ferm.fermentacaoNum}</p>
+                            {ferm.nomeLote && <p className="text-xs text-gray-500 truncate">{ferm.nomeLote}</p>}
+                            <p className="text-xs text-gray-400">{ferm.dataInicio ?? "?"} → {ferm.dataFim ?? "?"} · {ferm.totalDias ?? "?"} dias</p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <ImportacaoCsvModal
         open={csvModalAberto}
