@@ -84,14 +84,14 @@ const cubasRouter = router({
       return { success: true };
     }),
 
-  updateDensidadeLimite: adminProcedure
+  updateDensidadeLimite: editProcedure
     .input(z.object({ id: z.number(), densidadeLimite: z.string() }))
     .mutation(async ({ input }) => {
       await updateCubaDensidadeLimite(input.id, input.densidadeLimite);
       return { success: true };
     }),
 
-  updateAlertas: adminProcedure
+  updateAlertas: editProcedure
     .input(
       z.object({
         id: z.number(),
@@ -115,7 +115,7 @@ const cubasRouter = router({
       return { success: true };
     }),
 
-  updateFichaInicial: adminProcedure
+  updateFichaInicial: editProcedure
     .input(
       z.object({
         id: z.number(),
@@ -146,7 +146,7 @@ const cubasRouter = router({
       return getBaumeCalculo(input.cubaId);
     }),
 
-  saveBaumeCalculo: adminProcedure
+  saveBaumeCalculo: editProcedure
     .input(
       z.object({
         cubaId: z.number(),

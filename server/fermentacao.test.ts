@@ -88,7 +88,7 @@ vi.mock("./db", async (importOriginal) => {
               tempPretendida: "18.0", desvioTempAlerta: "5.0", desvioDesnsAlerta: "0.010",
               createdAt: new Date(), updatedAt: new Date(),
             }]),
-            // Permite await direto (sem .limit) para select().from().where() usado em listAllDashboard
+            // Permite await direto (sem .limit) para select().from().where()
             then: vi.fn().mockImplementation((resolve) => resolve([{
               id: 1, codigo: "cf1", nomeLote: "Tinto Reserva", fermentacaoNum: 1,
               estado: "em_fermentacao", densidadeLimite: "1.000",
@@ -96,7 +96,9 @@ vi.mock("./db", async (importOriginal) => {
               createdAt: new Date(), updatedAt: new Date(),
             }])),
           }),
-          orderBy: vi.fn().mockResolvedValue([]),
+          orderBy: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([]),
+          }),
         }),
       }),
       update: vi.fn().mockReturnValue({
@@ -155,10 +157,10 @@ describe("cubas.updateAlertas (adminProcedure)", () => {
   });
 
   it("rejeita utilizadores autenticados sem role admin", async () => {
+    // Agora qualquer utilizador autenticado pode editar (editProcedure aceita todos)
     const caller = appRouter.createCaller(makeCtx(true)); // role: 'user'
-    await expect(
-      caller.cubas.updateAlertas({ id: 1, tempPretendida: "18.0", desvioTempAlerta: "5.0", desvioDesnsAlerta: "0.010" })
-    ).rejects.toThrow();
+    const result = await caller.cubas.updateAlertas({ id: 1, tempPretendida: "18.0", desvioTempAlerta: "5.0", desvioDesnsAlerta: "0.010" });
+    expect(result).toEqual({ success: true });
   });
 
   it("aceita utilizadores admin e guarda configurações", async () => {
