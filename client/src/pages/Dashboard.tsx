@@ -1,3 +1,4 @@
+import { formatarDensidade } from "@shared/const";
 import { trpc } from "@/lib/trpc";
 import { AlertTriangle, Archive, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, Download, FileSpreadsheet, FileText, FlaskConical, Mail, Search, Upload, X } from "lucide-react";
 import { toast } from "sonner";
@@ -421,7 +422,7 @@ export default function Dashboard() {
                   </p>
                   {(cuba as { ultimaDensidade?: string | null }).ultimaDensidade && (
                     <p className="text-[10px] font-mono text-gray-500 mt-0.5 truncate">
-                      {parseFloat((cuba as { ultimaDensidade: string }).ultimaDensidade).toFixed(4)}
+                      {formatarDensidade((cuba as { ultimaDensidade: string }).ultimaDensidade)}
                     </p>
                   )}
                   <div className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${

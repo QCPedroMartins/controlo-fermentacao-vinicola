@@ -1455,8 +1455,8 @@ export const appRouter = router({
     me: publicProcedure.query((opts) => {
       const user = opts.ctx.user;
       if (!user) return null;
-      const isOwner = user.openId === ENV.ownerOpenId;
-      const canEdit = isOwner || user.role === "admin" || podeEditar(user.email);
+      // Qualquer utilizador autenticado pode editar
+      const canEdit = true;
       return { ...user, canEdit };
     }),
     logout: publicProcedure.mutation(({ ctx }) => {

@@ -47,22 +47,12 @@ export const adminProcedure = t.procedure.use(
 );
 
 // Procedure para utilizadores com permissão de edição:
-// enologia1@castelares.com, laboratorio@castelares.com, e o proprietário do projecto
+// Qualquer utilizador autenticado tem permissão de edição
 const requireEdit = t.middleware(async opts => {
   const { ctx, next } = opts;
 
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
-  }
-
-  const isOwner = ctx.user.openId === ENV.ownerOpenId;
-  const hasEditPermission = isOwner || podeEditar(ctx.user.email);
-
-  if (!hasEditPermission) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Não tem permissão para editar. Contacte o enólogo responsável.",
-    });
   }
 
   return next({

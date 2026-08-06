@@ -12,12 +12,12 @@
  *   Col D (4)  = Method
  *   Col E (5)  = Sample ID  ← código da cuba (ex: CF01, VP01)
  *   Col F (6)  = Measured Parameter 1
- *   Col G (7)  = Value (densidade bruta — ignorar)
+ *   Col G (7)  = Value (densidade bruta ← usar esta)
  *   Col H (8)  = Unit
  *   Col I (9)  = Offset
  *   Col J (10) = Alpha
  *   Col K (11) = Measured Parameter 2
- *   Col L (12) = Value  ← densidade SG 20/20 (usar esta)
+ *   Col L (12) = Value  (densidade SG 20/20 — ignorar)
  *   Col M (13) = Unit
  *   Col N (14) = Alpha
  *   Col O (15) = Temperature  ← temperatura em °C
@@ -118,7 +118,7 @@ export async function parsearCsv(csvContent: string): Promise<{
     const hora = cols[2] || "";
     const method = cols[3] || "";
     const sampleId = cols[4] || "";
-    const densidadeStr = cols[11] || ""; // Col L (índice 11)
+    const densidadeStr = cols[6] || ""; // Col G (índice 6)
     const temperaturaStr = cols[14] || ""; // Col O (índice 14)
     // Ignorar WaterCheck ou linhas sem Sample ID
     if (method === "WaterCheck" || sampleId === "") {
@@ -130,7 +130,11 @@ export async function parsearCsv(csvContent: string): Promise<{
       ignoradas.push({ measNo, motivo: `Data inválida: "${dateStr}"`, raw });
       continue;
     }
-    const densidade = parsearDecimal(densidadeStr);
+    let densidade = parsearDecimal(densidadeStr);
+    // Aceitar valores na escala 900-1200 (ex: 1087.6) e converter para decimal (ex: 1.0876)
+    if (densidade !== null && densidade > 2 && densidade < 1300) {
+      densidade = Math.round((densidade / 1000) * 100000) / 100000;
+    }
     if (densidade === null || densidade <= 0 || densidade > 2) {
       ignoradas.push({ measNo, motivo: `Densidade inválida: "${densidadeStr}"`, raw });
       continue;
