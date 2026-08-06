@@ -425,6 +425,11 @@ export default function Dashboard() {
                       {formatarDensidade((cuba as { ultimaDensidade: string }).ultimaDensidade)}
                     </p>
                   )}
+                  {(cuba as { fichaLitros?: string | null }).fichaLitros && (
+                    <p className="text-[10px] font-mono text-gray-500 truncate">
+                      {Math.round(parseFloat((cuba as { fichaLitros: string }).fichaLitros)).toLocaleString("pt-PT")} L
+                    </p>
+                  )}
                   <div className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${
                     temAlerta ? "bg-red-100 text-red-700" : cfg.badge
                   }`}>
