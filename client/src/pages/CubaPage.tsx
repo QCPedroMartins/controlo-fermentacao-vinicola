@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { usePodeEditar } from "@/hooks/usePodeEditar";
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
@@ -175,6 +176,7 @@ export default function CubaPage() {
   const params = useParams<{ codigo: string }>();
   const codigo = params.codigo;
   const { user, isAuthenticated } = useAuth();
+  const canEdit = usePodeEditar();
   const utils = trpc.useUtils();
 
   // Estado do formulário de leitura
@@ -737,7 +739,7 @@ export default function CubaPage() {
                     <h1 className="text-xl font-bold text-[var(--color-vinho)]" style={{ fontFamily: "var(--font-serif)" }}>
                       {cuba.nomeLote || "Sem nome"}
                     </h1>
-                    {isAuthenticated && (
+                    {canEdit && (
                       <button
                         onClick={() => { setNomeTemp(cuba.nomeLote ?? ""); setEditingNome(true); }}
                         className="text-gray-300 hover:text-[var(--color-vinho)] transition-colors"
@@ -811,7 +813,7 @@ export default function CubaPage() {
               >
                 <Download size={12} /> CSV
               </button>
-              {isAuthenticated && (
+              {canEdit && (
                 <button
                   onClick={() => enviarRelatorio.mutate({ codigo: cuba.codigo })}
                   disabled={enviarRelatorio.isPending || !leituras || leituras.length === 0}
@@ -827,7 +829,7 @@ export default function CubaPage() {
               )}
             </div>
             {/* Configurações: limite de densidade + alertas */}
-            {isAuthenticated && (
+            {canEdit && (
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 <span className="text-xs text-gray-400">Limite de densidade:</span>
                 {editingLimite ? (
@@ -893,7 +895,7 @@ export default function CubaPage() {
             <h3 className="text-sm font-semibold text-[var(--color-vinho)] flex items-center gap-2">
               <ClipboardList size={15} /> Ficha Inicial da Fermentação
             </h3>
-            {isAuthenticated && (
+            {canEdit && (
               <button onClick={abrirFichaInicial} className="text-xs text-[var(--color-vinho)] hover:underline flex items-center gap-1">
                 <Pencil size={11} /> Editar
               </button>
@@ -1042,7 +1044,7 @@ export default function CubaPage() {
       )}
 
       {/* Botão Terminar Fermentação — visível quando em_fermentacao OU quando completa mas há leituras activas */}
-      {isAuthenticated && (cuba.estado === "em_fermentacao" || (cuba.estado === "completa" && leituras && leituras.length > 0)) && (
+      {canEdit && (cuba.estado === "em_fermentacao" || (cuba.estado === "completa" && leituras && leituras.length > 0)) && (
         <div className="mb-5 flex justify-end">
           <button
             onClick={() => { setNomeLoteTerminar(cuba.nomeLote ?? ""); setShowTerminarFerm(true); }}
@@ -1054,7 +1056,7 @@ export default function CubaPage() {
       )}
 
       {/* Botões Transferir/Juntar — visíveis quando em fermentação */}
-      {isAuthenticated && cuba.estado === "em_fermentacao" && (
+      {canEdit && cuba.estado === "em_fermentacao" && (
         <div className="mb-3 flex justify-end gap-2">
           <button
             onClick={() => { setTipoMovimento("transferencia"); setCubaDestinoId(0); setMotivoMovimento(""); setShowTransferir(true); }}
@@ -1072,7 +1074,7 @@ export default function CubaPage() {
       )}
 
       {/* Banner — visível quando estado = completa E não há leituras activas (cuba realmente vazia) */}
-      {isAuthenticated && cuba.estado === "completa" && (!leituras || leituras.length === 0) && (
+      {canEdit && cuba.estado === "completa" && (!leituras || leituras.length === 0) && (
         <div className="mb-5 flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-xl px-5 py-3">
           <div className="flex items-center gap-2 text-gray-600">
             <Archive size={18} className="text-gray-400" />
@@ -1128,7 +1130,7 @@ export default function CubaPage() {
                     </>
                   )}
                   <th className="px-3 py-3 text-center text-xs font-semibold">Utilizador</th>
-                  {isAuthenticated && <th className="px-3 py-3 text-center text-xs font-semibold">Editar</th>}
+                  {canEdit && <th className="px-3 py-3 text-center text-xs font-semibold">Editar</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1179,7 +1181,7 @@ export default function CubaPage() {
                             )}
                           </div>
                         </td>
-                        {isAuthenticated && (
+                        {canEdit && (
                           <td className="px-3 py-2.5 text-center">
                             <button
                               onClick={() => abrirEdicaoLeitura(l as LeituraRow)}
@@ -1331,7 +1333,7 @@ export default function CubaPage() {
       {/* Tab: Adições e Notas */}
       {activeTab === "adicoes" && (
         <div className="space-y-4 animate-fade-in">
-          {isAuthenticated && (
+          {canEdit && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <h3 className="text-sm font-semibold text-[var(--color-vinho)] mb-4 flex items-center gap-2">
                 <Plus size={16} /> Registar adição / nota
@@ -1390,7 +1392,7 @@ export default function CubaPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold">Dose</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold">Observações</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold">Por</th>
-                  {isAuthenticated && <th className="px-4 py-3" />}
+                  {canEdit && <th className="px-4 py-3" />}
                 </tr>
               </thead>
               <tbody>
@@ -1408,7 +1410,7 @@ export default function CubaPage() {
                       <td className="px-4 py-2.5 text-xs text-gray-600">{a.dose ?? "—"}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{a.observacoes ?? "—"}</td>
                       <td className="px-4 py-2.5 text-center text-xs text-gray-400">{a.userName ?? "—"}</td>
-                      {isAuthenticated && (
+                      {canEdit && (
                         <td className="px-4 py-2.5 text-center">
                           <button
                             onClick={() => {
@@ -1460,7 +1462,7 @@ export default function CubaPage() {
                 </button>
               ))}
             </div>
-            {isAuthenticated && (
+            {canEdit && (
               <button
                 onClick={() => setShowNovaFerm(true)}
                 className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 transition-colors"

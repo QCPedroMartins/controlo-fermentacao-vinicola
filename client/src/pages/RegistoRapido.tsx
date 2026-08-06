@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { usePodeEditar } from "@/hooks/usePodeEditar";
 import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ function toNullable(v: string): string | null {
 
 export default function RegistoRapido() {
   const { isAuthenticated } = useAuth();
+  const canEdit = usePodeEditar();
   const today = new Date().toISOString().split("T")[0];
   const [data, setData] = useState(today);
   const [linhas, setLinhas] = useState<Record<string, LinhaLeitura>>(() =>
@@ -232,7 +234,7 @@ export default function RegistoRapido() {
     }
   }
 
-  if (!isAuthenticated) {
+  if (!canEdit) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <p className="text-[var(--color-vinho)] font-semibold text-lg">Precisa de iniciar sessão para registar leituras.</p>

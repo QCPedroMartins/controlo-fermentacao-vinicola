@@ -383,3 +383,13 @@
 - [x] Frontend: modal de transferência/junção com selecção de destino, data e motivo
 - [x] Excel digest diário: folha "Movimentos do Dia" com recepções e movimentos do dia
 - [x] 34 testes Vitest a passar
+
+## Sistema de Permissões (v35)
+- [x] shared/permissions.ts: lista de emails autorizados (enologia1@castelares.com, laboratorio@castelares.com) e função podeEditar()
+- [x] server/_core/trpc.ts: editProcedure — verifica email ou role=admin (proprietário)
+- [x] server/routers.ts: todas as mutations de edição usam editProcedure em vez de protectedProcedure
+- [x] client/src/hooks/usePodeEditar.ts: hook React que devolve true se o utilizador tem permissão de edição
+- [x] CubaPage.tsx: botões de edição (leituras, adições, ficha, transferir, juntar) controlados por canEdit
+- [x] Campanhas.tsx: botões de criar/ativar campanha controlados por canEdit
+- [x] RegistoRapido.tsx: acesso controlado por canEdit
+- [x] 34 testes Vitest a passar

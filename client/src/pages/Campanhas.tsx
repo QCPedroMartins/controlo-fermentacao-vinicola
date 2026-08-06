@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { usePodeEditar } from "@/hooks/usePodeEditar";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -99,12 +100,12 @@ function CampanhaFermentacoes({ campanhaId }: { campanhaId: number }) {
 // Componente para um cartão de campanha com expansão
 function CampanhaCard({
   campanha,
-  isAuthenticated,
+  canEdit,
   onAtivar,
   isAtivarPending,
 }: {
   campanha: { id: number; nome: string; descricao: string | null; ativa: boolean; createdAt: Date | string };
-  isAuthenticated: boolean;
+  canEdit: boolean;
   onAtivar: (id: number) => void;
   isAtivarPending: boolean;
 }) {
@@ -154,7 +155,7 @@ function CampanhaCard({
           </div>
         </button>
 
-        {isAuthenticated && !campanha.ativa && (
+        {canEdit && !campanha.ativa && (
           <button
             onClick={() => onAtivar(campanha.id)}
             disabled={isAtivarPending}
@@ -177,6 +178,7 @@ function CampanhaCard({
 
 export default function Campanhas() {
   const { isAuthenticated } = useAuth();
+  const canEdit = usePodeEditar();
   const utils = trpc.useUtils();
 
   const { data: campanhas, isLoading } = trpc.campanhas.list.useQuery();
@@ -289,7 +291,7 @@ export default function Campanhas() {
           <CampanhaCard
             key={c.id}
             campanha={c}
-            isAuthenticated={isAuthenticated}
+            canEdit={canEdit}
             onAtivar={(id) => ativarMutation.mutate({ id })}
             isAtivarPending={ativarMutation.isPending}
           />

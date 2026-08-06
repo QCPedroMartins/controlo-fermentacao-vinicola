@@ -116,7 +116,7 @@ vi.mock("./_core/notification", () => ({
 function makeCtx(authenticated = false): TrpcContext {
   return {
     user: authenticated
-      ? { id: 1, openId: "user-1", name: "João Silva", email: "joao@adega.pt", loginMethod: "manus", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }
+      ? { id: 1, openId: "user-1", name: "Manuel Covas", email: "enologia1@castelares.com", loginMethod: "manus", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() }
       : null,
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
     res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],

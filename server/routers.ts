@@ -3,7 +3,7 @@ import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, editProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { importacaoRouter } from "./importacaoRouter";
 import {
   getAllCubas,
@@ -67,7 +67,7 @@ const cubasRouter = router({
       return cuba;
     }),
 
-  updateNome: protectedProcedure
+  updateNome: editProcedure
     .input(z.object({ id: z.number(), nomeLote: z.string().max(120) }))
     .mutation(async ({ input }) => {
       await updateCubaNomeLote(input.id, input.nomeLote);
@@ -237,7 +237,7 @@ const leiturasRouter = router({
       return getLeiturasByCuba(input.cubaId, input.fermentacaoNum);
     }),
 
-  create: protectedProcedure
+  create: editProcedure
     .input(
       z.object({
         cubaId: z.number(),
@@ -318,7 +318,7 @@ const leiturasRouter = router({
       return { success: true, diaNr, fermentacaoCompleta, alertas };
     }),
 
-  edit: protectedProcedure
+  edit: editProcedure
     .input(
       z.object({
         id: z.number(),
@@ -377,7 +377,7 @@ const leiturasRouter = router({
       return { success: true, alertas };
     }),
 
-  registarLote: protectedProcedure
+  registarLote: editProcedure
     .input(
       z.object({
         dataLeitura: z.string(),
@@ -536,7 +536,7 @@ const adicoesRouter = router({
       return getAdicoesByCuba(input.cubaId, input.fermentacaoNum);
     }),
 
-  create: protectedProcedure
+  create: editProcedure
     .input(
       z.object({
         cubaId: z.number(),
@@ -556,7 +556,7 @@ const adicoesRouter = router({
       return { success: true };
     }),
 
-  delete: protectedProcedure
+  delete: editProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteAdicao(input.id);
@@ -637,7 +637,7 @@ const arquivoRouter = router({
 
   // terminarFermentacao: arquiva a fermentação actual, envia email, estado=completa
   // O fermentacaoNum NÃO muda — a cuba fica vazia mas com o mesmo número arquivado
-  terminarFermentacao: protectedProcedure
+  terminarFermentacao: editProcedure
     .input(
       z.object({
         cubaId: z.number(),
@@ -762,7 +762,7 @@ const arquivoRouter = router({
 
   // novaFermentacao: reinicia a cuba (só disponível quando estado=completa)
   // Incrementa fermentacaoNum, limpa nomeLote, estado=em_fermentacao
-  novaFermentacao: protectedProcedure
+  novaFermentacao: editProcedure
     .input(
       z.object({
         cubaId: z.number(),
@@ -834,7 +834,7 @@ const arquivoDetalheRouter = router({
 
 // ── Router de Relatórios ────────────────────────────────────
 const relatorioRouter = router({
-  enviarCuba: protectedProcedure
+  enviarCuba: editProcedure
     .input(z.object({ codigo: z.string() }))
     .mutation(async ({ input }) => {
       const cuba = await getCubaByCodigo(input.codigo);
@@ -932,7 +932,7 @@ const relatorioRouter = router({
       return { base64, nomeFicheiro };
     }),
 
-  enviarDigestDiario: protectedProcedure
+  enviarDigestDiario: editProcedure
     .mutation(async () => {
       const { gerarExcelDigestDiario, enviarEmailComExcel } = await import("./emailReport");
       const buffer = await gerarExcelDigestDiario();
@@ -1036,7 +1036,7 @@ const recepcaoRouter = router({
     .input(z.object({ cubaId: z.number() }))
     .query(async ({ input }) => getRecepcoesByCuba(input.cubaId)),
 
-  criar: protectedProcedure
+  criar: editProcedure
     .input(z.object({
       dataRecepcao: z.string(),
       casta: z.string().optional(),
@@ -1075,7 +1075,7 @@ const recepcaoRouter = router({
       return { id };
     }),
 
-  eliminar: protectedProcedure
+  eliminar: editProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       await deleteRecepcao(input.id);
@@ -1097,7 +1097,7 @@ const movimentosRouter = router({
    * - Cuba de destino herda nomeLote, fichaKilos e fichaLitros da origem
    * - Leituras e adições da origem são copiadas para o destino (mesmo fermentacaoNum)
    */
-  transferir: protectedProcedure
+  transferir: editProcedure
     .input(z.object({
       cubaOrigemId: z.number(),
       cubaDestinoId: z.number(),
@@ -1230,7 +1230,7 @@ const movimentosRouter = router({
    * - Cuba de destino herda leituras e adições de todas as origens
    * - fichaKilos do destino = soma dos kg de todas as origens
    */
-  juntar: protectedProcedure
+  juntar: editProcedure
     .input(z.object({
       cubasOrigemIds: z.array(z.number()).min(2),
       cubaDestinoId: z.number(),
