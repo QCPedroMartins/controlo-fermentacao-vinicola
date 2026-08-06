@@ -1,14 +1,12 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { podeEditar } from "@shared/permissions";
 
 /**
  * Devolve true se o utilizador autenticado tem permissão de edição.
- * Permissão: enologia1@castelares.com, laboratorio@castelares.com, ou proprietário do projecto.
+ * O campo canEdit é calculado no servidor (auth.me) para evitar inconsistências.
  */
 export function usePodeEditar(): boolean {
   const { user } = useAuth();
   if (!user) return false;
-  // O proprietário do projecto (role=admin) tem sempre acesso total
-  if (user.role === "admin") return true;
-  return podeEditar(user.email);
+  // O servidor inclui canEdit na resposta do auth.me
+  return (user as any).canEdit === true;
 }
