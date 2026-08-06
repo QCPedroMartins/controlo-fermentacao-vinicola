@@ -47,6 +47,9 @@ vi.mock("./db", () => ({
       produto: "SO2", dose: "5g/hL", observacoes: "Adição preventiva", userName: "João",
     },
   ]),
+
+  getMovimentosHoje: vi.fn().mockResolvedValue([]),
+  getRecepcoesDoDia: vi.fn().mockResolvedValue([]),
 }));
 
 // ── Mock do Resend ─────────────────────────────────────────

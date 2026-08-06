@@ -28,6 +28,7 @@ import {
   Zap,
   ClipboardList,
 } from "lucide-react";
+import { ArrowRightLeft, GitMerge } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -197,6 +198,14 @@ export default function CubaPage() {
   const [showTerminarFerm, setShowTerminarFerm] = useState(false);
   const [nomeLoteTerminar, setNomeLoteTerminar] = useState("");
 
+
+  // Estado modal Transferência/Junção
+  const [showTransferir, setShowTransferir] = useState(false);
+  const [tipoMovimento, setTipoMovimento] = useState<"transferencia" | "juncao">("transferencia");
+  const [cubaDestinoId, setCubaDestinoId] = useState<number>(0);
+  const [cubasJuncaoIds, setCubasJuncaoIds] = useState<number[]>([]);
+  const [dataMovimento, setDataMovimento] = useState(() => new Date().toISOString().slice(0, 10));
+  const [motivoMovimento, setMotivoMovimento] = useState("");
   // Estado alerta de limite de densidade atingido
   const [alertaLimiteDens, setAlertaLimiteDens] = useState<{ densidadeAtual: string; densidadeLimite: string } | null>(null);
 
@@ -422,6 +431,30 @@ export default function CubaPage() {
       toast.success("PDF exportado!");
     },
     onError: (e) => toast.error("Erro ao exportar PDF: " + e.message),
+  });
+
+  const { data: todasCubasLista } = trpc.cubas.list.useQuery();
+
+  const transferirMutation = trpc.movimentos.transferir.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Transferência concluída: ${data.origemCodigo.toUpperCase()} → ${data.destinoCodigo.toUpperCase()}`);
+      utils.cubas.get.invalidate({ codigo });
+      utils.leituras.listByCuba.invalidate();
+      utils.cubas.dashboard.invalidate();
+      setShowTransferir(false);
+    },
+    onError: (err) => toast.error(`Erro na transferência: ${err.message}`),
+  });
+
+  const juntarMutation = trpc.movimentos.juntar.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Junção concluída → ${data.destinoCodigo.toUpperCase()} (${data.kgTotal.toLocaleString("pt-PT")} kg)`);
+      utils.cubas.get.invalidate({ codigo });
+      utils.leituras.listByCuba.invalidate();
+      utils.cubas.dashboard.invalidate();
+      setShowTransferir(false);
+    },
+    onError: (err) => toast.error(`Erro na junção: ${err.message}`),
   });
 
   // Terminar fermentação: arquiva, envia email, estado=completa (fermentacaoNum não muda)
@@ -1020,6 +1053,24 @@ export default function CubaPage() {
         </div>
       )}
 
+      {/* Botões Transferir/Juntar — visíveis quando em fermentação */}
+      {isAuthenticated && cuba.estado === "em_fermentacao" && (
+        <div className="mb-3 flex justify-end gap-2">
+          <button
+            onClick={() => { setTipoMovimento("transferencia"); setCubaDestinoId(0); setMotivoMovimento(""); setShowTransferir(true); }}
+            className="flex items-center gap-2 px-4 py-2 border border-blue-500 text-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-50 transition-colors"
+          >
+            <ArrowRightLeft size={15} /> Transferir para outra cuba
+          </button>
+          <button
+            onClick={() => { setTipoMovimento("juncao"); setCubasJuncaoIds([]); setMotivoMovimento(""); setShowTransferir(true); }}
+            className="flex items-center gap-2 px-4 py-2 border border-purple-500 text-purple-600 rounded-xl text-sm font-semibold hover:bg-purple-50 transition-colors"
+          >
+            <GitMerge size={15} /> Juntar com outra(s) cuba(s)
+          </button>
+        </div>
+      )}
+
       {/* Banner — visível quando estado = completa E não há leituras activas (cuba realmente vazia) */}
       {isAuthenticated && cuba.estado === "completa" && (!leituras || leituras.length === 0) && (
         <div className="mb-5 flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-xl px-5 py-3">
@@ -1528,6 +1579,138 @@ export default function CubaPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Transferência / Junção */}
+      <Dialog open={showTransferir} onOpenChange={setShowTransferir}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className={`flex items-center gap-2 ${tipoMovimento === "transferencia" ? "text-blue-700" : "text-purple-700"}`}>
+              {tipoMovimento === "transferencia" ? <ArrowRightLeft size={18} /> : <GitMerge size={18} />}
+              {tipoMovimento === "transferencia" ? "Transferir Cuba" : "Juntar Cubas"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Data do movimento *</label>
+              <input
+                type="date"
+                value={dataMovimento}
+                onChange={(e) => setDataMovimento(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </div>
+
+            {tipoMovimento === "transferencia" ? (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Cuba de destino *</label>
+                <select
+                  value={cubaDestinoId || ""}
+                  onChange={(e) => setCubaDestinoId(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                >
+                  <option value="">Seleccionar cuba de destino...</option>
+                  {todasCubasLista?.filter((c) => c.codigo !== cuba.codigo).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.codigo.toUpperCase()}{c.nomeLote ? ` — ${c.nomeLote}` : ""} ({c.estado === "em_fermentacao" ? "Em fermentação" : c.estado === "completa" ? "Vazia" : "Sem dados"})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">A cuba actual ({cuba.codigo.toUpperCase()}) ficará vazia. As leituras e adições serão copiadas para o destino.</p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Cuba de destino (onde vai juntar tudo) *</label>
+                <select
+                  value={cubaDestinoId || ""}
+                  onChange={(e) => setCubaDestinoId(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 bg-white"
+                >
+                  <option value="">Seleccionar cuba de destino...</option>
+                  {todasCubasLista?.filter((c) => c.codigo !== cuba.codigo && !cubasJuncaoIds.includes(c.id)).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.codigo.toUpperCase()}{c.nomeLote ? ` — ${c.nomeLote}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Outras cubas a juntar (além desta) *</label>
+                  <div className="space-y-1">
+                    {cubasJuncaoIds.map((id) => {
+                      const c = todasCubasLista?.find((x) => x.id === id);
+                      return (
+                        <div key={id} className="flex items-center justify-between bg-purple-50 px-3 py-1.5 rounded-lg text-sm">
+                          <span className="font-medium text-purple-700">{c?.codigo.toUpperCase()}{c?.nomeLote ? ` — ${c.nomeLote}` : ""}</span>
+                          <button onClick={() => setCubasJuncaoIds((prev) => prev.filter((x) => x !== id))} className="text-gray-400 hover:text-red-500">✕</button>
+                        </div>
+                      );
+                    })}
+                    <select
+                      value=""
+                      onChange={(e) => { if (e.target.value) setCubasJuncaoIds((prev) => [...prev, Number(e.target.value)]); }}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 bg-white"
+                    >
+                      <option value="">+ Adicionar cuba à junção...</option>
+                      {todasCubasLista?.filter((c) => c.codigo !== cuba.codigo && c.id !== cubaDestinoId && !cubasJuncaoIds.includes(c.id)).map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.codigo.toUpperCase()}{c.nomeLote ? ` — ${c.nomeLote}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Esta cuba ({cuba.codigo.toUpperCase()}) + as cubas seleccionadas serão esvaziadas. Os kg somam-se no destino.</p>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Motivo / notas</label>
+              <input
+                type="text"
+                value={motivoMovimento}
+                onChange={(e) => setMotivoMovimento(e.target.value)}
+                placeholder="ex: Cor do vinho, capacidade, etc."
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setShowTransferir(false)}
+              className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                if (!cubaDestinoId) { toast.error("Seleccione a cuba de destino"); return; }
+                if (tipoMovimento === "transferencia") {
+                  transferirMutation.mutate({
+                    cubaOrigemId: cuba.id,
+                    cubaDestinoId,
+                    dataMovimento,
+                    motivo: motivoMovimento || undefined,
+                  });
+                } else {
+                  if (cubasJuncaoIds.length === 0) { toast.error("Adicione pelo menos uma cuba à junção"); return; }
+                  juntarMutation.mutate({
+                    cubasOrigemIds: [cuba.id, ...cubasJuncaoIds],
+                    cubaDestinoId,
+                    dataMovimento,
+                    motivo: motivoMovimento || undefined,
+                  });
+                }
+              }}
+              disabled={transferirMutation.isPending || juntarMutation.isPending}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-60 ${
+                tipoMovimento === "transferencia" ? "bg-blue-600 hover:bg-blue-700" : "bg-purple-600 hover:bg-purple-700"
+              }`}
+            >
+              {(transferirMutation.isPending || juntarMutation.isPending) ? "A processar..." :
+               tipoMovimento === "transferencia" ? "Confirmar Transferência" : "Confirmar Junção"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal Nova Fermentação */}
       {showNovaFerm && (

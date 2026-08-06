@@ -18,6 +18,14 @@ import {
   leituras,
   users,
 } from "../drizzle/schema";
+import {
+  recepcoes,
+  recepcaoCubas,
+  movimentosCuba,
+  type InsertRecepcao,
+  type InsertRecepcaoCuba,
+  type InsertMovimentoCuba,
+} from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -687,4 +695,150 @@ export async function pesquisarGlobal(termo: string) {
     adicoes: adicoesResult,
     arquivo: arquivoResult,
   };
+}
+
+// ── Recepções de Uvas ─────────────────────────────────────
+
+export async function getAllRecepcoes() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(recepcoes)
+    .orderBy(desc(recepcoes.dataRecepcao));
+}
+
+export async function getRecepcaoById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(recepcoes).where(eq(recepcoes.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getRecepcaoCubasByRecepcao(recepcaoId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: recepcaoCubas.id,
+      recepcaoId: recepcaoCubas.recepcaoId,
+      cubaId: recepcaoCubas.cubaId,
+      cubaCodigo: cubas.codigo,
+      kg: recepcaoCubas.kg,
+      notas: recepcaoCubas.notas,
+    })
+    .from(recepcaoCubas)
+    .innerJoin(cubas, eq(recepcaoCubas.cubaId, cubas.id))
+    .where(eq(recepcaoCubas.recepcaoId, recepcaoId));
+}
+
+/** Recepções associadas a uma cuba (via recepcao_cubas) */
+export async function getRecepcoesByCuba(cubaId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: recepcoes.id,
+      dataRecepcao: recepcoes.dataRecepcao,
+      casta: recepcoes.casta,
+      kgTotal: recepcoes.kgTotal,
+      notas: recepcoes.notas,
+      kg: recepcaoCubas.kg,
+      notasCuba: recepcaoCubas.notas,
+    })
+    .from(recepcaoCubas)
+    .innerJoin(recepcoes, eq(recepcaoCubas.recepcaoId, recepcoes.id))
+    .where(eq(recepcaoCubas.cubaId, cubaId))
+    .orderBy(desc(recepcoes.dataRecepcao));
+}
+
+export async function createRecepcao(
+  data: InsertRecepcao,
+  distribuicao: Array<{ cubaId: number; kg: number; notas?: string }>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [result] = await db.insert(recepcoes).values(data);
+  const recepcaoId = (result as { insertId: number }).insertId;
+
+  if (distribuicao.length > 0) {
+    await db.insert(recepcaoCubas).values(
+      distribuicao.map((d) => ({
+        recepcaoId,
+        cubaId: d.cubaId,
+        kg: String(d.kg),
+        notas: d.notas ?? null,
+      }))
+    );
+  }
+  return recepcaoId;
+}
+
+export async function deleteRecepcao(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(recepcaoCubas).where(eq(recepcaoCubas.recepcaoId, id));
+  await db.delete(recepcoes).where(eq(recepcoes.id, id));
+}
+
+// ── Movimentos de Cuba ────────────────────────────────────
+
+export async function getAllMovimentos() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(movimentosCuba)
+    .orderBy(desc(movimentosCuba.dataMovimento));
+}
+
+/** Movimentos onde esta cuba foi origem ou destino */
+export async function getMovimentosByCuba(cubaId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  // Busca todos os movimentos e filtra em JS (cubasOrigemIds é JSON)
+  const todos = await db
+    .select()
+    .from(movimentosCuba)
+    .orderBy(desc(movimentosCuba.dataMovimento));
+  return todos.filter((m) => {
+    if (m.cubaDestinoId === cubaId) return true;
+    try {
+      const origens: number[] = JSON.parse(m.cubasOrigemIds);
+      return origens.includes(cubaId);
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Movimentos do dia de hoje (para o digest diário) */
+export async function getMovimentosHoje() {
+  const db = await getDb();
+  if (!db) return [];
+  const hoje = new Date().toISOString().slice(0, 10);
+  return db
+    .select()
+    .from(movimentosCuba)
+    .where(eq(movimentosCuba.dataMovimento, hoje))
+    .orderBy(asc(movimentosCuba.createdAt));
+}
+
+/** Recepções do dia de hoje (para o digest diário) */
+export async function getRecepcoesDoDia(data: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(recepcoes)
+    .where(eq(recepcoes.dataRecepcao, data))
+    .orderBy(asc(recepcoes.createdAt));
+}
+
+export async function createMovimento(data: InsertMovimentoCuba) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(movimentosCuba).values(data);
+  return (result as { insertId: number }).insertId;
 }

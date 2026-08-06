@@ -11,6 +11,7 @@ import AppLayout from "./components/AppLayout";
 import RegistoRapido from "./pages/RegistoRapido";
 import ArquivoDetalhe from "./pages/ArquivoDetalhe";
 import Campanhas from "./pages/Campanhas";
+import Recepcoes from "./pages/Recepcoes";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/cuba/:codigo" component={CubaPage} />
       <Route path="/registo-rapido" component={RegistoRapido} />
       <Route path="/campanhas" component={Campanhas} />
+      <Route path="/recepcoes" component={Recepcoes} />
       <Route path="/login" component={LoginPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

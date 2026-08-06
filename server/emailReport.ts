@@ -6,7 +6,7 @@
 
 import ExcelJS from "exceljs";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba } from "./db";
+import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -807,7 +807,104 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
     }
   }
 
+  // Adicionar folha de movimentos e recepções do dia
+  const dataHojeMovimentos = new Date().toISOString().slice(0, 10);
+  await adicionarFolhaMovimentos(wb, dataHojeMovimentos);
+
   return wb.xlsx.writeBuffer();
+}
+
+/** Adiciona folha de Movimentos e Recepções ao workbook do digest diário */
+async function adicionarFolhaMovimentos(wb: ExcelJS.Workbook, dataHoje: string): Promise<void> {
+  const movimentos = await getMovimentosHoje();
+  const recepcoes = await getRecepcoesDoDia(dataHoje);
+
+  if (movimentos.length === 0 && recepcoes.length === 0) return;
+
+  const todasCubas = await getAllCubas();
+  const cubaPorId = new Map(todasCubas.map((c) => [c.id, c]));
+
+  const ws = wb.addWorksheet("Movimentos do Dia");
+
+  ws.mergeCells("A1:F1");
+  ws.getCell("A1").value = `Movimentos e Recepções — ${new Date(dataHoje + "T12:00:00").toLocaleDateString("pt-PT")}`;
+  ws.getCell("A1").font = { bold: true, size: 13, color: { argb: "FF5D1A2E" } };
+  ws.getCell("A1").alignment = { horizontal: "center" };
+  ws.getRow(1).height = 22;
+
+  let linha = 3;
+
+  if (recepcoes.length > 0) {
+    ws.mergeCells(`A${linha}:F${linha}`);
+    ws.getCell(`A${linha}`).value = "RECEPÇÕES DE UVAS";
+    ws.getCell(`A${linha}`).font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+    ws.getCell(`A${linha}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5D1A2E" } };
+    ws.getCell(`A${linha}`).alignment = { horizontal: "center" };
+    linha++;
+
+    const hdrR = ws.getRow(linha++);
+    ["Data", "Casta", "Kg Totais", "Notas", "Registado por", ""].forEach((v, i) => {
+      const cell = hdrR.getCell(i + 1);
+      cell.value = v;
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5E6E6" } };
+      cell.font = { bold: true, size: 9 };
+      cell.alignment = { horizontal: "center" };
+    });
+
+    for (const r of recepcoes) {
+      const row = ws.getRow(linha++);
+      [
+        new Date(r.dataRecepcao + "T12:00:00").toLocaleDateString("pt-PT"),
+        r.casta ?? "—",
+        parseFloat(r.kgTotal).toLocaleString("pt-PT") + " kg",
+        r.notas ?? "—",
+        r.userName ?? "—",
+        "",
+      ].forEach((v, i) => { row.getCell(i + 1).value = v; row.getCell(i + 1).font = { size: 9 }; });
+    }
+    linha++;
+  }
+
+  if (movimentos.length > 0) {
+    ws.mergeCells(`A${linha}:F${linha}`);
+    ws.getCell(`A${linha}`).value = "MOVIMENTOS DE CUBA";
+    ws.getCell(`A${linha}`).font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+    ws.getCell(`A${linha}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A3A5D" } };
+    ws.getCell(`A${linha}`).alignment = { horizontal: "center" };
+    linha++;
+
+    const hdrM = ws.getRow(linha++);
+    ["Tipo", "Data", "Origem(s)", "Destino", "Motivo", "Registado por"].forEach((v, i) => {
+      const cell = hdrM.getCell(i + 1);
+      cell.value = v;
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE6EEF5" } };
+      cell.font = { bold: true, size: 9 };
+      cell.alignment = { horizontal: "center" };
+    });
+
+    for (const m of movimentos) {
+      let origemNomes = "—";
+      try {
+        const ids: number[] = JSON.parse(m.cubasOrigemIds);
+        origemNomes = ids.map((id) => cubaPorId.get(id)?.codigo.toUpperCase() ?? `#${id}`).join(", ");
+      } catch { /* ignorar */ }
+      const destinoNome = cubaPorId.get(m.cubaDestinoId)?.codigo.toUpperCase() ?? `#${m.cubaDestinoId}`;
+
+      const row = ws.getRow(linha++);
+      [
+        m.tipo === "transferencia" ? "Transferência" : "Junção",
+        new Date(m.dataMovimento + "T12:00:00").toLocaleDateString("pt-PT"),
+        origemNomes,
+        destinoNome,
+        m.motivo ?? "—",
+        m.userName ?? "—",
+      ].forEach((v, i) => { row.getCell(i + 1).value = v; row.getCell(i + 1).font = { size: 9 }; });
+    }
+  }
+
+  ws.columns = [
+    { width: 14 }, { width: 12 }, { width: 22 }, { width: 12 }, { width: 30 }, { width: 18 },
+  ];
 }
 
 // ── Envio via Resend ──────────────────────────────────────

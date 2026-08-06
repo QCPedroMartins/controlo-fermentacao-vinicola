@@ -38,9 +38,20 @@ import {
   leituraExistePorData,
   pesquisarGlobal,
 } from "./db";
+import {
+  getAllRecepcoes,
+  getRecepcaoById,
+  getRecepcaoCubasByRecepcao,
+  getRecepcoesByCuba,
+  createRecepcao,
+  deleteRecepcao,
+  getAllMovimentos,
+  getMovimentosByCuba,
+  createMovimento,
+} from "./db";
 import { notifyOwner } from "./_core/notification";
 import { and, desc, eq } from "drizzle-orm";
-import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas } from "../drizzle/schema";
+import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas, movimentosCuba } from "../drizzle/schema";
 
 // ── Router de Cubas ───────────────────────────────────────
 const cubasRouter = router({
@@ -1007,6 +1018,340 @@ const pesquisaRouter = router({
     }),
 });
 
+// ── Router de Recepções de Uvas ───────────────────────────
+const recepcaoRouter = router({
+  list: publicProcedure.query(async () => {
+    const todas = await getAllRecepcoes();
+    // Para cada recepção, buscar a distribuição por cubas
+    const result = await Promise.all(
+      todas.map(async (r) => ({
+        ...r,
+        distribuicao: await getRecepcaoCubasByRecepcao(r.id),
+      }))
+    );
+    return result;
+  }),
+
+  byCuba: publicProcedure
+    .input(z.object({ cubaId: z.number() }))
+    .query(async ({ input }) => getRecepcoesByCuba(input.cubaId)),
+
+  criar: protectedProcedure
+    .input(z.object({
+      dataRecepcao: z.string(),
+      casta: z.string().optional(),
+      kgTotal: z.number().positive(),
+      notas: z.string().optional(),
+      campanhaId: z.number().optional(),
+      distribuicao: z.array(z.object({
+        cubaId: z.number(),
+        kg: z.number().positive(),
+        notas: z.string().optional(),
+      })).min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const id = await createRecepcao(
+        {
+          dataRecepcao: input.dataRecepcao,
+          casta: input.casta ?? null,
+          kgTotal: String(input.kgTotal),
+          notas: input.notas ?? null,
+          campanhaId: input.campanhaId ?? null,
+          userId: ctx.user.id,
+          userName: ctx.user.name ?? ctx.user.email ?? null,
+        },
+        input.distribuicao
+      );
+      // Actualizar fichaKilos de cada cuba com os kg atribuídos
+      const db = await getDb();
+      if (db) {
+        for (const d of input.distribuicao) {
+          await db
+            .update(cubas)
+            .set({ fichaKilos: String(d.kg) })
+            .where(eq(cubas.id, d.cubaId));
+        }
+      }
+      return { id };
+    }),
+
+  eliminar: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await deleteRecepcao(input.id);
+      return { ok: true };
+    }),
+});
+
+// ── Router de Movimentos de Cuba ──────────────────────────
+const movimentosRouter = router({
+  list: publicProcedure.query(async () => getAllMovimentos()),
+
+  byCuba: publicProcedure
+    .input(z.object({ cubaId: z.number() }))
+    .query(async ({ input }) => getMovimentosByCuba(input.cubaId)),
+
+  /**
+   * Transferência: move a fermentação de uma cuba para outra.
+   * - Cuba de origem fica com estado=completa (vazia)
+   * - Cuba de destino herda nomeLote, fichaKilos e fichaLitros da origem
+   * - Leituras e adições da origem são copiadas para o destino (mesmo fermentacaoNum)
+   */
+  transferir: protectedProcedure
+    .input(z.object({
+      cubaOrigemId: z.number(),
+      cubaDestinoId: z.number(),
+      dataMovimento: z.string(),
+      motivo: z.string().optional(),
+      campanhaId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.cubaOrigemId === input.cubaDestinoId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Origem e destino não podem ser a mesma cuba" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Base de dados indisponível" });
+
+      // Buscar cubas
+      const [origemRows, destinoRows] = await Promise.all([
+        db.select().from(cubas).where(eq(cubas.id, input.cubaOrigemId)).limit(1),
+        db.select().from(cubas).where(eq(cubas.id, input.cubaDestinoId)).limit(1),
+      ]);
+      const origem = origemRows[0];
+      const destino = destinoRows[0];
+      if (!origem) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba de origem não encontrada" });
+      if (!destino) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba de destino não encontrada" });
+
+      const fermentacaoNumOrigem = origem.fermentacaoNum;
+
+      // 1. Copiar leituras da origem para o destino
+      const leiturasOrigem = await db
+        .select()
+        .from(leituras)
+        .where(and(eq(leituras.cubaId, input.cubaOrigemId), eq(leituras.fermentacaoNum, fermentacaoNumOrigem)));
+
+      if (leiturasOrigem.length > 0) {
+        await db.insert(leituras).values(
+          leiturasOrigem.map((l) => ({
+            cubaId: input.cubaDestinoId,
+            fermentacaoNum: destino.fermentacaoNum,
+            campanhaId: l.campanhaId,
+            dataLeitura: l.dataLeitura,
+            hora: l.hora,
+            diaNr: l.diaNr,
+            densL1: l.densL1,
+            tempL1: l.tempL1,
+            o2: l.o2,
+            redox: l.redox,
+            baumeL1: l.baumeL1,
+            userId: l.userId,
+            userName: l.userName,
+          }))
+        );
+      }
+
+      // 2. Copiar adições da origem para o destino
+      const adicoesOrigem = await db
+        .select()
+        .from(adicoes)
+        .where(and(eq(adicoes.cubaId, input.cubaOrigemId), eq(adicoes.fermentacaoNum, fermentacaoNumOrigem)));
+
+      if (adicoesOrigem.length > 0) {
+        await db.insert(adicoes).values(
+          adicoesOrigem.map((a) => ({
+            cubaId: input.cubaDestinoId,
+            fermentacaoNum: destino.fermentacaoNum,
+            campanhaId: a.campanhaId,
+            dataAdicao: a.dataAdicao,
+            produto: a.produto,
+            dose: a.dose,
+            observacoes: a.observacoes,
+            userId: a.userId,
+            userName: a.userName,
+          }))
+        );
+      }
+
+      // 3. Actualizar destino: herda nomeLote, ficha e estado
+      await db.update(cubas).set({
+        nomeLote: origem.nomeLote,
+        estado: "em_fermentacao",
+        fichaKilos: origem.fichaKilos,
+        fichaLitros: origem.fichaLitros,
+        fichaPh: origem.fichaPh,
+        fichaAt: origem.fichaAt,
+        fichaAv: origem.fichaAv,
+        fichaNfa: origem.fichaNfa,
+        fichaNtu: origem.fichaNtu,
+        fichaGluconico: origem.fichaGluconico,
+        fichaAlcoolProvavel: origem.fichaAlcoolProvavel,
+      }).where(eq(cubas.id, input.cubaDestinoId));
+
+      // 4. Esvaziar a origem (estado=completa, incrementar fermentacaoNum)
+      await db.update(cubas).set({
+        estado: "completa",
+        nomeLote: null,
+        fermentacaoNum: fermentacaoNumOrigem + 1,
+        fichaKilos: null,
+        fichaLitros: null,
+        fichaPh: null,
+        fichaAt: null,
+        fichaAv: null,
+        fichaNfa: null,
+        fichaNtu: null,
+        fichaGluconico: null,
+        fichaAlcoolProvavel: null,
+      }).where(eq(cubas.id, input.cubaOrigemId));
+
+      // 5. Registar o movimento
+      await createMovimento({
+        tipo: "transferencia",
+        dataMovimento: input.dataMovimento,
+        cubasOrigemIds: JSON.stringify([input.cubaOrigemId]),
+        cubaDestinoId: input.cubaDestinoId,
+        motivo: input.motivo ?? null,
+        campanhaId: input.campanhaId ?? null,
+        userId: ctx.user.id,
+        userName: ctx.user.name ?? ctx.user.email ?? null,
+      });
+
+      return {
+        ok: true,
+        origemCodigo: origem.codigo,
+        destinoCodigo: destino.codigo,
+        leiturasCopiadas: leiturasOrigem.length,
+        adicoesCopiadas: adicoesOrigem.length,
+      };
+    }),
+
+  /**
+   * Junção: une duas ou mais cubas numa só.
+   * - Cubas de origem ficam vazias (estado=completa)
+   * - Cuba de destino herda leituras e adições de todas as origens
+   * - fichaKilos do destino = soma dos kg de todas as origens
+   */
+  juntar: protectedProcedure
+    .input(z.object({
+      cubasOrigemIds: z.array(z.number()).min(2),
+      cubaDestinoId: z.number(),
+      dataMovimento: z.string(),
+      motivo: z.string().optional(),
+      campanhaId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (input.cubasOrigemIds.includes(input.cubaDestinoId)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "A cuba de destino não pode ser uma das origens" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Base de dados indisponível" });
+
+      const destinoRows = await db.select().from(cubas).where(eq(cubas.id, input.cubaDestinoId)).limit(1);
+      const destino = destinoRows[0];
+      if (!destino) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba de destino não encontrada" });
+
+      let totalKg = 0;
+      let totalLeituras = 0;
+      let totalAdicoes = 0;
+      let nomeLoteHerdado: string | null = null;
+
+      for (const origemId of input.cubasOrigemIds) {
+        const origemRows = await db.select().from(cubas).where(eq(cubas.id, origemId)).limit(1);
+        const origem = origemRows[0];
+        if (!origem) continue;
+
+        // Copiar leituras
+        const leiturasOrigem = await db
+          .select()
+          .from(leituras)
+          .where(and(eq(leituras.cubaId, origemId), eq(leituras.fermentacaoNum, origem.fermentacaoNum)));
+
+        if (leiturasOrigem.length > 0) {
+          await db.insert(leituras).values(
+            leiturasOrigem.map((l) => ({
+              cubaId: input.cubaDestinoId,
+              fermentacaoNum: destino.fermentacaoNum,
+              campanhaId: l.campanhaId,
+              dataLeitura: l.dataLeitura,
+              hora: l.hora,
+              diaNr: l.diaNr,
+              densL1: l.densL1,
+              tempL1: l.tempL1,
+              o2: l.o2,
+              redox: l.redox,
+              baumeL1: l.baumeL1,
+              userId: l.userId,
+              userName: l.userName,
+            }))
+          );
+          totalLeituras += leiturasOrigem.length;
+        }
+
+        // Copiar adições
+        const adicoesOrigem = await db
+          .select()
+          .from(adicoes)
+          .where(and(eq(adicoes.cubaId, origemId), eq(adicoes.fermentacaoNum, origem.fermentacaoNum)));
+
+        if (adicoesOrigem.length > 0) {
+          await db.insert(adicoes).values(
+            adicoesOrigem.map((a) => ({
+              cubaId: input.cubaDestinoId,
+              fermentacaoNum: destino.fermentacaoNum,
+              campanhaId: a.campanhaId,
+              dataAdicao: a.dataAdicao,
+              produto: a.produto,
+              dose: a.dose,
+              observacoes: a.observacoes,
+              userId: a.userId,
+              userName: a.userName,
+            }))
+          );
+          totalAdicoes += adicoesOrigem.length;
+        }
+
+        // Acumular kg
+        if (origem.fichaKilos) totalKg += parseFloat(origem.fichaKilos);
+        if (!nomeLoteHerdado && origem.nomeLote) nomeLoteHerdado = origem.nomeLote;
+
+        // Esvaziar a origem
+        await db.update(cubas).set({
+          estado: "completa",
+          nomeLote: null,
+          fermentacaoNum: origem.fermentacaoNum + 1,
+          fichaKilos: null,
+          fichaLitros: null,
+        }).where(eq(cubas.id, origemId));
+      }
+
+      // Actualizar destino
+      await db.update(cubas).set({
+        estado: "em_fermentacao",
+        nomeLote: nomeLoteHerdado ?? destino.nomeLote,
+        fichaKilos: totalKg > 0 ? String(totalKg) : destino.fichaKilos,
+      }).where(eq(cubas.id, input.cubaDestinoId));
+
+      // Registar o movimento
+      await createMovimento({
+        tipo: "juncao",
+        dataMovimento: input.dataMovimento,
+        cubasOrigemIds: JSON.stringify(input.cubasOrigemIds),
+        cubaDestinoId: input.cubaDestinoId,
+        motivo: input.motivo ?? null,
+        campanhaId: input.campanhaId ?? null,
+        userId: ctx.user.id,
+        userName: ctx.user.name ?? ctx.user.email ?? null,
+      });
+
+      return {
+        ok: true,
+        destinoCodigo: destino.codigo,
+        leiturasCopiadas: totalLeituras,
+        adicoesCopiadas: totalAdicoes,
+        kgTotal: totalKg,
+      };
+    }),
+});
+
 // ── App Router ────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -1027,5 +1372,7 @@ export const appRouter = router({
   campanhas: campanhasRouter,
   importacao: importacaoRouter,
   pesquisa: pesquisaRouter,
+  recepcoes: recepcaoRouter,
+  movimentos: movimentosRouter,
 });
 export type AppRouter = typeof appRouter;

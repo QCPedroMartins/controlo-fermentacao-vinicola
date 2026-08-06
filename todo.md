@@ -370,3 +370,16 @@
 ## Botão Enviar Relatório Manual (v33)
 - [x] Backend: procedure tRPC `relatorio.enviarDigestDiario` que gera Excel de todas as cubas activas e envia por email (já existia)
 - [x] Frontend: botão "Enviar Relatório" no Dashboard (junto ao "Exportar") com estado de loading e toast de sucesso/erro
+
+## Recepção de Uvas e Movimentos de Cuba (v34)
+- [x] Schema BD: tabelas recepcoes, recepcao_cubas e movimentos_cuba criadas e migradas
+- [x] Backend: helpers db.ts para recepções (getAllRecepcoes, getRecepcaoCubasByRecepcao, getRecepcoesByCuba, createRecepcao, deleteRecepcao)
+- [x] Backend: helpers db.ts para movimentos (getAllMovimentos, getMovimentosByCuba, getMovimentosHoje, getRecepcoesDoDia, createMovimento)
+- [x] Backend: recepcaoRouter tRPC (list, byCuba, criar, eliminar) — criar actualiza fichaKilos das cubas
+- [x] Backend: movimentosRouter tRPC (list, byCuba, transferir, juntar) — copia leituras/adições, esvazia origem
+- [x] Frontend: página /recepcoes com lista histórica e modal de nova recepção com distribuição de kg por cubas
+- [x] Frontend: item "Recepção de Uvas" na sidebar
+- [x] Frontend: botões "Transferir para outra cuba" e "Juntar com outra(s) cuba(s)" na CubaPage (quando em fermentação)
+- [x] Frontend: modal de transferência/junção com selecção de destino, data e motivo
+- [x] Excel digest diário: folha "Movimentos do Dia" com recepções e movimentos do dia
+- [x] 34 testes Vitest a passar

@@ -13,6 +13,7 @@ import {
   X,
   Grape,
 } from "lucide-react";
+import { Truck } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 
@@ -92,6 +93,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {navLink("/", "Dashboard", <BarChart3 size={16} />)}
         {navLink("/registo-rapido", "Registo Rápido", <ClipboardList size={16} />)}
         {navLink("/campanhas", "Campanhas de Vindima", <Grape size={16} />)}
+        {navLink("/recepcoes", "Recepção de Uvas", <Truck size={16} />)}
 
         {/* Cubas expandível */}
         <div>

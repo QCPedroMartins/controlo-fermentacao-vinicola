@@ -78,6 +78,13 @@
       "when": 1780073736052,
       "tag": "0010_right_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1786008376335,
+      "tag": "0011_chief_spitfire",
+      "breakpoints": true
     }
   ]
 }
