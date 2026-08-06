@@ -269,7 +269,7 @@ export default function Dashboard() {
                 {/* Cubas */}
                 {(resultadosPesquisa?.cubas?.length ?? 0) > 0 && (
                   <div>
-                    <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50">Cubas ({resultadosPesquisa!.cubas.length})</div>
+                    <div className="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-50">Cubas ({resultadosPesquisa!.cubas.length})</div>
                     {resultadosPesquisa!.cubas.map((cuba) => (
                       <Link key={cuba.id} href={`/cuba/${cuba.codigo}`}>
                         <div onClick={() => setPesquisaAberta(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-amber-50 cursor-pointer transition-colors">
@@ -290,7 +290,7 @@ export default function Dashboard() {
                 {/* Adições */}
                 {(resultadosPesquisa?.adicoes?.length ?? 0) > 0 && (
                   <div>
-                    <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50">Adições ({resultadosPesquisa!.adicoes.length})</div>
+                    <div className="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-50">Adições ({resultadosPesquisa!.adicoes.length})</div>
                     {resultadosPesquisa!.adicoes.map((adicao) => (
                       <Link key={adicao.id} href={`/cuba/${adicao.cubaCodigo}`}>
                         <div onClick={() => setPesquisaAberta(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-amber-50 cursor-pointer transition-colors">
@@ -311,7 +311,7 @@ export default function Dashboard() {
                 {/* Arquivo */}
                 {(resultadosPesquisa?.arquivo?.length ?? 0) > 0 && (
                   <div>
-                    <div className="px-4 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50">Fermentações Arquivadas ({resultadosPesquisa!.arquivo.length})</div>
+                    <div className="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-50">Fermentações Arquivadas ({resultadosPesquisa!.arquivo.length})</div>
                     {resultadosPesquisa!.arquivo.map((ferm) => (
                       <Link key={ferm.id} href={`/cuba/${ferm.cubaCodigo}`}>
                         <div onClick={() => setPesquisaAberta(false)} className="flex items-center gap-3 px-4 py-3 hover:bg-amber-50 cursor-pointer transition-colors">
@@ -381,20 +381,20 @@ export default function Dashboard() {
 
       {/* Grid de cubas */}
       {isLoading ? (
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
           {Array.from({ length: 84 }).map((_, i) => (
-            <div key={i} className="h-16 rounded-lg bg-gray-100 animate-pulse" />
+            <div key={i} className="h-24 rounded-lg bg-gray-100 animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
           {cubasFiltradas?.map((cuba) => {
             const cfg = estadoConfig[cuba.estado];
             const temAlerta = alertasPorCuba.get(cuba.id) === true;
             return (
               <Link key={cuba.id} href={`/cuba/${cuba.codigo}`}>
                 <div
-                  className={`relative border rounded-lg p-2 cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 ${
+                  className={`relative border rounded-lg p-3 cursor-pointer transition-all duration-150 hover:shadow-md hover:-translate-y-0.5 ${
                     temAlerta
                       ? "bg-red-50 border-red-300 hover:border-red-500"
                       : cfg.card
@@ -407,7 +407,7 @@ export default function Dashboard() {
                     </div>
                   )}
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
                       {cuba.codigo}
                     </span>
                     <div className="flex items-center gap-1">
@@ -417,20 +417,20 @@ export default function Dashboard() {
                       <div className={`w-2 h-2 rounded-full ${temAlerta ? "bg-red-400 animate-pulse" : cfg.dot}`} />
                     </div>
                   </div>
-                  <p className="text-xs font-semibold text-gray-700 truncate leading-tight">
+                  <p className="text-sm font-semibold text-gray-700 truncate leading-tight">
                     {cuba.nomeLote ?? "—"}
                   </p>
                   {(cuba as { ultimaDensidade?: string | null }).ultimaDensidade && (
-                    <p className="text-[10px] font-mono text-gray-500 mt-0.5 truncate">
+                    <p className="text-xs font-mono text-gray-600 mt-0.5 truncate">
                       {formatarDensidade((cuba as { ultimaDensidade: string }).ultimaDensidade)}
                     </p>
                   )}
                   {(cuba as { fichaLitros?: string | null }).fichaLitros && (
-                    <p className="text-[10px] font-mono text-gray-500 truncate">
+                    <p className="text-xs font-mono text-gray-500 truncate">
                       {Math.round(parseFloat((cuba as { fichaLitros: string }).fichaLitros)).toLocaleString("pt-PT")} L
                     </p>
                   )}
-                  <div className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${
+                  <div className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${
                     temAlerta ? "bg-red-100 text-red-700" : cfg.badge
                   }`}>
                     {temAlerta ? <AlertTriangle size={9} /> : cfg.icon}
