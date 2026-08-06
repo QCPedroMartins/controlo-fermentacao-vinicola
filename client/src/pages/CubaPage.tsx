@@ -305,7 +305,7 @@ export default function CubaPage() {
       if (data.fermentacaoCompleta && cuba && cuba.estado !== "completa") {
         setAlertaLimiteDens({
           densidadeAtual: form.densL1 || form.baumeL1 || "",
-          densidadeLimite: cuba.densidadeLimite ?? "1.000",
+          densidadeLimite: cuba.densidadeLimite ?? "0.990",
         });
       }
       setForm({ dataLeitura: new Date().toISOString().split("T")[0], densL1: "", tempL1: "", o2: "", redox: "", baumeL1: "" });
@@ -862,10 +862,10 @@ export default function CubaPage() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => { setLimiteTemp(cuba.densidadeLimite ?? "1.000"); setEditingLimite(true); }}
+                    onClick={() => { setLimiteTemp(cuba.densidadeLimite ?? "0.990"); setEditingLimite(true); }}
                     className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 text-xs text-gray-600 hover:border-[var(--color-vinho)] hover:text-[var(--color-vinho)] transition-colors"
                   >
-                    <Settings size={11} /> {cuba.densidadeLimite ?? "1.000"}
+                    <Settings size={11} /> {cuba.densidadeLimite ?? "0.990"}
                   </button>
                 )}
                 {/* Botão de configuração de alertas */}

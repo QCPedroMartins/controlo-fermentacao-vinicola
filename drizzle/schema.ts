@@ -64,7 +64,7 @@ export const cubas = mysqlTable("cubas", {
   estado: mysqlEnum("estado", ["sem_dados", "em_fermentacao", "completa"])
     .default("sem_dados")
     .notNull(),
-  densidadeLimite: decimal("densidade_limite", { precision: 7, scale: 3 }).default("1.000").notNull(),
+  densidadeLimite: decimal("densidade_limite", { precision: 7, scale: 3 }).default("0.990").notNull(),
   tempPretendida: decimal("temp_pretendida", { precision: 5, scale: 1 }),
   desvioTempAlerta: decimal("desvio_temp_alerta", { precision: 5, scale: 1 }).default("5.0").notNull(),
   desvioDesnsAlerta: decimal("desvio_desns_alerta", { precision: 7, scale: 3 }).default("0.010").notNull(),

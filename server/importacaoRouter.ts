@@ -304,7 +304,7 @@ export const importacaoRouter = router({
           }
           // Verificar se atingiu o limite de densidade
           const densAtual = isPorto ? (linha.densidade != null ? String(linha.densidade) : null) : (linha.densidade != null ? String(linha.densidade) : null);
-          const limite = cuba.densidadeLimite ?? "1.000";
+          const limite = cuba.densidadeLimite ?? "0.990";
           if (densAtual && parseFloat(densAtual) <= parseFloat(limite) && cuba.estado === "em_fermentacao") {
             // Evitar duplicados no array (mesma cuba)
             if (!alertasCubas.some((a) => a.cubaId === cuba.id)) {
