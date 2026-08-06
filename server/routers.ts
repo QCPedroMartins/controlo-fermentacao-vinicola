@@ -49,9 +49,19 @@ import {
   getMovimentosByCuba,
   createMovimento,
 } from "./db";
+import {
+  verifyLocalUserPassword,
+  createLocalUser,
+  getAllLocalUsers,
+  updateLocalUserPassword,
+  toggleLocalUserActive,
+} from "./db";
+import { upsertUser, getLocalUserByEmail } from "./db";
+import { localUsers } from "../drizzle/schema";
 import { notifyOwner } from "./_core/notification";
 import { and, desc, eq } from "drizzle-orm";
 import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas, movimentosCuba } from "../drizzle/schema";
+import { ENV } from "./_core/env";
 
 // ── Router de Cubas ───────────────────────────────────────
 const cubasRouter = router({
@@ -1352,6 +1362,51 @@ const movimentosRouter = router({
     }),
 });
 
+
+
+// ── Router de Login Local ─────────────────────────────────
+const localAuthRouter = router({
+  login: publicProcedure
+    .input(z.object({ email: z.string().email(), password: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const user = await verifyLocalUserPassword(input.email, input.password);
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED", message: "Email ou password incorrectos." });
+      const { sdk } = await import("./_core/sdk");
+      const openId = `local_${user.id}`;
+      const sessionToken = await sdk.createSessionToken(openId, { name: user.name, expiresInMs: 365 * 24 * 60 * 60 * 1000 });
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
+      await upsertUser({ openId, name: user.name, email: user.email, loginMethod: "local", lastSignedIn: new Date() });
+      return { ok: true, name: user.name, email: user.email };
+    }),
+
+  list: adminProcedure.query(async () => {
+    return getAllLocalUsers();
+  }),
+
+  criar: adminProcedure
+    .input(z.object({ email: z.string().email(), name: z.string().min(1), password: z.string().min(6) }))
+    .mutation(async ({ input }) => {
+      const existing = await getLocalUserByEmail(input.email);
+      if (existing) throw new TRPCError({ code: "CONFLICT", message: "Já existe um utilizador com este email." });
+      return createLocalUser(input.email, input.name, input.password);
+    }),
+
+  alterarPassword: adminProcedure
+    .input(z.object({ id: z.number(), newPassword: z.string().min(6) }))
+    .mutation(async ({ input }) => {
+      await updateLocalUserPassword(input.id, input.newPassword);
+      return { ok: true };
+    }),
+
+  toggleActive: adminProcedure
+    .input(z.object({ id: z.number(), active: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await toggleLocalUserActive(input.id, input.active);
+      return { ok: true };
+    }),
+});
+
 // ── App Router ────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -1374,5 +1429,6 @@ export const appRouter = router({
   pesquisa: pesquisaRouter,
   recepcoes: recepcaoRouter,
   movimentos: movimentosRouter,
+  localAuth: localAuthRouter,
 });
 export type AppRouter = typeof appRouter;

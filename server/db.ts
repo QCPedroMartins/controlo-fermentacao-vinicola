@@ -18,6 +18,8 @@ import {
   leituras,
   users,
 } from "../drizzle/schema";
+import { localUsers } from "../drizzle/schema";
+import bcrypt from "bcryptjs";
 import {
   recepcoes,
   recepcaoCubas,
@@ -841,4 +843,60 @@ export async function createMovimento(data: InsertMovimentoCuba) {
   if (!db) throw new Error("Database not available");
   const [result] = await db.insert(movimentosCuba).values(data);
   return (result as { insertId: number }).insertId;
+}
+
+// ── Utilizadores Locais (login email+password) ────────────
+export async function getLocalUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(localUsers).where(eq(localUsers.email, email.toLowerCase().trim())).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getLocalUserById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(localUsers).where(eq(localUsers.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getAllLocalUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: localUsers.id, email: localUsers.email, name: localUsers.name,
+    role: localUsers.role, active: localUsers.active,
+    createdAt: localUsers.createdAt, lastSignedIn: localUsers.lastSignedIn,
+  }).from(localUsers).orderBy(localUsers.name);
+}
+
+export async function createLocalUser(email: string, name: string, password: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const hash = await bcrypt.hash(password, 12);
+  await db.insert(localUsers).values({ email: email.toLowerCase().trim(), name, passwordHash: hash });
+  return getLocalUserByEmail(email);
+}
+
+export async function updateLocalUserPassword(id: number, newPassword: string) {
+  const db = await getDb();
+  if (!db) return;
+  const hash = await bcrypt.hash(newPassword, 12);
+  await db.update(localUsers).set({ passwordHash: hash, updatedAt: new Date() }).where(eq(localUsers.id, id));
+}
+
+export async function toggleLocalUserActive(id: number, active: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(localUsers).set({ active, updatedAt: new Date() }).where(eq(localUsers.id, id));
+}
+
+export async function verifyLocalUserPassword(email: string, password: string) {
+  const user = await getLocalUserByEmail(email);
+  if (!user || !user.active) return null;
+  const ok = await bcrypt.compare(password, user.passwordHash);
+  if (!ok) return null;
+  const db = await getDb();
+  if (db) await db.update(localUsers).set({ lastSignedIn: new Date() }).where(eq(localUsers.id, user.id));
+  return user;
 }

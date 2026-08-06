@@ -27,6 +27,21 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+// ── Utilizadores Locais (login com email+password) ────────
+// Para utilizadores sem conta Manus (enologia, laboratório, etc.)
+export const localUsers = mysqlTable("local_users", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  name: text("name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+});
+export type LocalUser = typeof localUsers.$inferSelect;
+
 // ── Campanhas / Anos de Vindima ───────────────────────────
 export const campanhas = mysqlTable("campanhas", {
   id: int("id").autoincrement().primaryKey(),
