@@ -145,7 +145,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
         ) : (
           <a
-            href={getLoginUrl()}
+            href="/login"
             className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg bg-[var(--color-dourado)] text-[var(--color-vinho)] text-sm font-semibold hover:opacity-90 transition-opacity"
           >
             <User size={14} />

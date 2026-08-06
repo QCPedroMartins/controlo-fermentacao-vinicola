@@ -1048,7 +1048,7 @@ export default function CubaPage() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm text-amber-700 flex items-center gap-3">
           <FlaskConical size={16} />
           <span>Inicie sessão para registar leituras.</span>
-          <a href={getLoginUrl()} className="ml-auto font-semibold underline">Entrar</a>
+          <a href="/login" className="ml-auto font-semibold underline">Entrar</a>
         </div>
       )}
 
