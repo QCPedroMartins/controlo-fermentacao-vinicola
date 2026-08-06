@@ -11,6 +11,8 @@ import { serveStatic, setupVite } from "./vite";
 import { handleDailyDigest, handleFimFermentacao } from "../scheduledHandlers";
 import { gerarPdfDashboard } from "../pdfReport";
 import { gerarExcelDigestDiario } from "../emailReport";
+import { COOKIE_NAME } from "@shared/const";
+import { sdk } from "./sdk";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -39,6 +41,35 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+
+  // Rota para limpar cookie inválido e ir para /login
+  app.get("/clear-session-and-login", (_req, res) => {
+    res.clearCookie(COOKIE_NAME, { path: "/" });
+    res.redirect(302, "/login");
+  });
+
+  // Middleware: se o cookie existir mas for inválido (JWT de outra app/sessão Manus),
+  // apagá-lo automaticamente para que o utilizador veja o formulário de login
+  app.use(async (req, res, next) => {
+    if (req.path.startsWith("/api") || req.path.startsWith("/manus-storage") || req.path.includes(".")) {
+      return next();
+    }
+    const cookieHeader = req.headers.cookie ?? "";
+    if (!cookieHeader.includes(COOKIE_NAME + "=")) {
+      return next();
+    }
+    try {
+      const rawCookie = cookieHeader.split(COOKIE_NAME + "=")[1]?.split(";")[0];
+      const session = await sdk.verifySession(rawCookie);
+      if (!session) {
+        res.clearCookie(COOKIE_NAME, { path: "/" });
+      }
+    } catch {
+      res.clearCookie(COOKIE_NAME, { path: "/" });
+    }
+    next();
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
