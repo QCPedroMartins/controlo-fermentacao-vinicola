@@ -1072,13 +1072,16 @@ const recepcaoRouter = router({
         },
         input.distribuicao
       );
-      // Actualizar fichaKilos de cada cuba com os kg atribuídos
+      // Actualizar fichaKilos de cada cuba com os kg atribuídos e mudar estado para em_fermentacao
       const db = await getDb();
       if (db) {
         for (const d of input.distribuicao) {
           await db
             .update(cubas)
-            .set({ fichaKilos: String(d.kg) })
+            .set({
+              fichaKilos: String(d.kg),
+              estado: "em_fermentacao",
+            })
             .where(eq(cubas.id, d.cubaId));
         }
       }
@@ -1247,6 +1250,13 @@ const movimentosRouter = router({
       dataMovimento: z.string(),
       motivo: z.string().optional(),
       campanhaId: z.number().optional(),
+      // Litros a transferir de cada cuba de origem (opcional; se omitido usa fichaLitros)
+      litrosPorOrigem: z.array(z.object({
+        cubaId: z.number(),
+        litros: z.number().positive(),
+      })).optional(),
+      // Destino para litros sobrantes (se a cuba não for totalmente esvaziada)
+      sobrasCubaId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       if (input.cubasOrigemIds.includes(input.cubaDestinoId)) {
@@ -1260,14 +1270,25 @@ const movimentosRouter = router({
       if (!destino) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba de destino não encontrada" });
 
       let totalKg = 0;
+      let totalLitros = 0;
       let totalLeituras = 0;
       let totalAdicoes = 0;
       let nomeLoteHerdado: string | null = null;
+      const sobras: { cubaId: number; codigo: string; litrosDisponiveis: number; litrosTransferidos: number; litrosSobrantes: number }[] = [];
 
       for (const origemId of input.cubasOrigemIds) {
         const origemRows = await db.select().from(cubas).where(eq(cubas.id, origemId)).limit(1);
         const origem = origemRows[0];
         if (!origem) continue;
+
+        // Calcular litros desta origem
+        const litrosDisponiveis = origem.fichaLitros ? parseFloat(origem.fichaLitros) : 0;
+        const litrosTransferidos = input.litrosPorOrigem?.find((l) => l.cubaId === origemId)?.litros ?? litrosDisponiveis;
+        const litrosSobrantes = litrosDisponiveis - litrosTransferidos;
+
+        if (litrosSobrantes > 0.1) {
+          sobras.push({ cubaId: origemId, codigo: origem.codigo, litrosDisponiveis, litrosTransferidos, litrosSobrantes });
+        }
 
         // Copiar leituras
         const leiturasOrigem = await db
@@ -1319,34 +1340,52 @@ const movimentosRouter = router({
           totalAdicoes += adicoesOrigem.length;
         }
 
-        // Acumular kg
+        // Acumular kg e litros transferidos
         if (origem.fichaKilos) totalKg += parseFloat(origem.fichaKilos);
+        totalLitros += litrosTransferidos;
         if (!nomeLoteHerdado && origem.nomeLote) nomeLoteHerdado = origem.nomeLote;
 
-        // Esvaziar a origem
-        await db.update(cubas).set({
-          estado: "completa",
-          nomeLote: null,
-          fermentacaoNum: origem.fermentacaoNum + 1,
-          fichaKilos: null,
-          fichaLitros: null,
-        }).where(eq(cubas.id, origemId));
+        // Esvaziar a origem (ou actualizar com sobras se houver)
+        if (litrosSobrantes > 0.1 && input.sobrasCubaId && input.sobrasCubaId !== origemId) {
+          // Manter a cuba de origem com os litros sobrantes
+          await db.update(cubas).set({
+            fichaLitros: String(Math.round(litrosSobrantes * 10) / 10),
+          }).where(eq(cubas.id, origemId));
+        } else {
+          // Esvaziar completamente
+          await db.update(cubas).set({
+            estado: "completa",
+            nomeLote: null,
+            fermentacaoNum: origem.fermentacaoNum + 1,
+            fichaKilos: null,
+            fichaLitros: null,
+          }).where(eq(cubas.id, origemId));
+        }
       }
 
-      // Actualizar destino
+      // Actualizar destino com litros somados
+      const litrosDestinoActuais = destino.fichaLitros ? parseFloat(destino.fichaLitros) : 0;
+      const litrosDestinoTotal = litrosDestinoActuais + totalLitros;
       await db.update(cubas).set({
         estado: "em_fermentacao",
         nomeLote: nomeLoteHerdado ?? destino.nomeLote,
         fichaKilos: totalKg > 0 ? String(totalKg) : destino.fichaKilos,
+        fichaLitros: litrosDestinoTotal > 0 ? String(Math.round(litrosDestinoTotal)) : destino.fichaLitros,
       }).where(eq(cubas.id, input.cubaDestinoId));
 
       // Registar o movimento
+      const motivoComLitros = [
+        input.motivo,
+        input.litrosPorOrigem ? `Litros: ${input.litrosPorOrigem.map((l) => `${l.litros}L`).join(" + ")}` : null,
+        sobras.length > 0 ? `Sobras: ${sobras.map((s) => `${s.codigo} ${s.litrosSobrantes.toFixed(0)}L`).join(", ")}` : null,
+      ].filter(Boolean).join(" | ");
+
       await createMovimento({
         tipo: "juncao",
         dataMovimento: input.dataMovimento,
         cubasOrigemIds: JSON.stringify(input.cubasOrigemIds),
         cubaDestinoId: input.cubaDestinoId,
-        motivo: input.motivo ?? null,
+        motivo: motivoComLitros || null,
         campanhaId: input.campanhaId ?? null,
         userId: ctx.user.id,
         userName: ctx.user.name ?? ctx.user.email ?? null,
@@ -1358,6 +1397,8 @@ const movimentosRouter = router({
         leiturasCopiadas: totalLeituras,
         adicoesCopiadas: totalAdicoes,
         kgTotal: totalKg,
+        litrosTotal: litrosDestinoTotal,
+        sobras,
       };
     }),
 });

@@ -171,7 +171,16 @@ export async function updateFichaInicial(
     "fichaNfa", "fichaNtu", "fichaGluconico", "fichaAlcoolProvavel",
   ] as const;
   for (const f of fields) {
-    if (data[f] !== undefined) set[f] = data[f] === "" ? null : data[f];
+    if (data[f] !== undefined) {
+      const raw = data[f];
+      if (raw === null || raw === undefined || (typeof raw === "string" && raw.trim() === "")) {
+        set[f] = null;
+      } else {
+        const trimmed = typeof raw === "string" ? raw.trim().replace(",", ".") : raw;
+        const num = parseFloat(trimmed as string);
+        set[f] = isNaN(num) ? null : trimmed;
+      }
+    }
   }
   if (Object.keys(set).length > 0) {
     await db.update(cubas).set(set).where(eq(cubas.id, id));

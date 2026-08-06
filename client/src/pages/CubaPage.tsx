@@ -208,6 +208,10 @@ export default function CubaPage() {
   const [cubasJuncaoIds, setCubasJuncaoIds] = useState<number[]>([]);
   const [dataMovimento, setDataMovimento] = useState(() => new Date().toISOString().slice(0, 10));
   const [motivoMovimento, setMotivoMovimento] = useState("");
+  // Litros por cuba de origem na junção
+  const [litrosPorOrigem, setLitrosPorOrigem] = useState<Record<number, string>>({});
+  // Aviso de sobras após junção
+  const [sobrasAviso, setSobrasAviso] = useState<{ cubaId: number; codigo: string; litrosDisponiveis: number; litrosTransferidos: number; litrosSobrantes: number }[]>([]);
   // Estado alerta de limite de densidade atingido
   const [alertaLimiteDens, setAlertaLimiteDens] = useState<{ densidadeAtual: string; densidadeLimite: string } | null>(null);
 
@@ -450,11 +454,16 @@ export default function CubaPage() {
 
   const juntarMutation = trpc.movimentos.juntar.useMutation({
     onSuccess: (data) => {
-      toast.success(`Junção concluída → ${data.destinoCodigo.toUpperCase()} (${data.kgTotal.toLocaleString("pt-PT")} kg)`);
+      if (data.sobras && data.sobras.length > 0) {
+        setSobrasAviso(data.sobras);
+        toast.warning(`Junção concluída com sobras! Verifique o aviso abaixo.`);
+      } else {
+        toast.success(`Junção concluída → ${data.destinoCodigo.toUpperCase()} (${data.litrosTotal ? data.litrosTotal.toLocaleString("pt-PT") + " L" : data.kgTotal.toLocaleString("pt-PT") + " kg"})`);
+        setShowTransferir(false);
+      }
       utils.cubas.get.invalidate({ codigo });
       utils.leituras.listByCuba.invalidate();
       utils.cubas.dashboard.invalidate();
-      setShowTransferir(false);
     },
     onError: (err) => toast.error(`Erro na junção: ${err.message}`),
   });
@@ -1663,6 +1672,50 @@ export default function CubaPage() {
                 </div>
               </div>
             )}
+            {/* Campos de litros por cuba de origem */}
+            {tipoMovimento === "juncao" && [cuba.id, ...cubasJuncaoIds].length > 0 && (
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-gray-600">Litros a transferir de cada cuba (opcional)</label>
+                {[cuba.id, ...cubasJuncaoIds].map((cId) => {
+                  const c = cId === cuba.id ? cuba : todasCubasLista?.find((x) => x.id === cId);
+                  const disponiveis = (c as any)?.fichaLitros ? parseFloat((c as any).fichaLitros) : null;
+                  const val = litrosPorOrigem[cId] ?? "";
+                  const sobra = disponiveis && val ? disponiveis - parseFloat(val) : null;
+                  return (
+                    <div key={cId} className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-purple-700 w-16 shrink-0">{(c as any)?.codigo?.toUpperCase() ?? "?"}</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder={disponiveis ? `Disp: ${disponiveis.toLocaleString("pt-PT")} L` : "Litros..."}
+                        value={val}
+                        onChange={(e) => setLitrosPorOrigem((prev) => ({ ...prev, [cId]: e.target.value }))}
+                        className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      />
+                      {sobra !== null && (
+                        <span className={`text-xs font-medium shrink-0 ${sobra < 0 ? "text-red-500" : sobra > 0 ? "text-amber-600" : "text-green-600"}`}>
+                          {sobra > 0.1 ? `Sobram ${sobra.toFixed(0)} L` : sobra < -0.1 ? "Excede!" : "✓ Tudo"}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-amber-600 mt-1">⚠️ Se sobrar volume, a cuba de origem mantém os litros sobrantes.</p>
+              </div>
+            )}
+            {/* Aviso de sobras após junção */}
+            {sobrasAviso.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1">
+                <p className="text-xs font-semibold text-amber-700">⚠️ Sobras detectadas após junção:</p>
+                {sobrasAviso.map((s) => (
+                  <p key={s.cubaId} className="text-xs text-amber-600">
+                    {s.codigo.toUpperCase()}: {s.litrosTransferidos.toLocaleString("pt-PT")} L transferidos, <strong>{s.litrosSobrantes.toFixed(0)} L sobraram</strong> e ficaram na cuba.
+                  </p>
+                ))}
+                <button onClick={() => { setSobrasAviso([]); setShowTransferir(false); }} className="mt-2 text-xs text-amber-700 underline">Fechar</button>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Motivo / notas</label>
@@ -1694,11 +1747,15 @@ export default function CubaPage() {
                   });
                 } else {
                   if (cubasJuncaoIds.length === 0) { toast.error("Adicione pelo menos uma cuba à junção"); return; }
+                  const litrosArray = [cuba.id, ...cubasJuncaoIds]
+                    .filter((cId) => litrosPorOrigem[cId] && parseFloat(litrosPorOrigem[cId]) > 0)
+                    .map((cId) => ({ cubaId: cId, litros: parseFloat(litrosPorOrigem[cId]) }));
                   juntarMutation.mutate({
                     cubasOrigemIds: [cuba.id, ...cubasJuncaoIds],
                     cubaDestinoId,
                     dataMovimento,
                     motivo: motivoMovimento || undefined,
+                    litrosPorOrigem: litrosArray.length > 0 ? litrosArray : undefined,
                   });
                 }
               }}
