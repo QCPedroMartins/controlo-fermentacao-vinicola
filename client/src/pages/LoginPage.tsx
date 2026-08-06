@@ -17,8 +17,8 @@ export default function LoginPage() {
 
   const loginMutation = trpc.localAuth.login.useMutation({
     onSuccess: async () => {
-      await refresh();
-      navigate("/");
+      // Forçar recarga completa para o browser ler o novo cookie de sessão
+      window.location.href = "/";
     },
     onError: (err) => toast.error(err.message),
   });
