@@ -5,7 +5,7 @@
 
 import PDFDocument from "pdfkit";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getLeiturasByCuba, getAdicoesByCuba } from "./db";
+import { getLeiturasByCuba, getAdicoesByCuba, getMovimentosByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -13,11 +13,20 @@ import { readFileSync } from "fs";
 // Registar fontes empacotadas no projecto via Buffer (funciona em produção sem depender do sistema de ficheiros)
 try {
   const __dirname_pdf = dirname(fileURLToPath(import.meta.url));
-  const FONT_DIR = join(__dirname_pdf, "fonts");
+  // Em produção o ficheiro compilado fica em dist/, as fontes em server/fonts/
+  const candidates_pdf = [
+    join(__dirname_pdf, "fonts"),
+    join(__dirname_pdf, "../server/fonts"),
+    join(process.cwd(), "server/fonts"),
+  ];
+  const FONT_DIR = candidates_pdf.find(d => {
+    try { readFileSync(join(d, "NotoSans-Regular.ttf")); return true; } catch { return false; }
+  }) ?? candidates_pdf[0];
   const regularBuf = readFileSync(join(FONT_DIR, "NotoSans-Regular.ttf"));
   const boldBuf = readFileSync(join(FONT_DIR, "NotoSans-Bold.ttf"));
   GlobalFonts.register(regularBuf, "Noto Sans");
   GlobalFonts.register(boldBuf, "Noto Sans");
+  console.log("[Fonts PDF] Carregadas de:", FONT_DIR);
 } catch (_e) {
   // Fallback: tentar caminhos do sistema
   try {
@@ -283,6 +292,7 @@ function gerarGraficoPng(params: {
 export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
   const leituras = (await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum)) as LeituraRow[];
   const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
+  const movimentos = await getMovimentosByCuba(cuba.id);
 
   const isPorto = cuba.tipoCuba === "porto";
 
@@ -680,6 +690,82 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
         });
         y += rowH;
       });
+    }
+
+    // ── Movimentos / Rastreabilidade ───────────────────────
+    if (movimentos.length > 0) {
+      if (y + 60 > doc.page.height - 50) {
+        doc.addPage({ size: "A4", layout: "landscape" });
+        y = MARGIN;
+      }
+      doc.rect(MARGIN, y, CONTENT_W, 16).fill("#1565C0");
+      doc.fillColor("#FFFFFF").fontSize(9).font("Helvetica-Bold")
+        .text("MOVIMENTOS / RASTREABILIDADE", MARGIN, y + 3, { width: CONTENT_W, align: "center" });
+      y += 18;
+
+      const movCols = [
+        { header: "Data", width: 60 },
+        { header: "Tipo", width: 70 },
+        { header: "Sentido", width: 55 },
+        { header: "Cuba(s) Origem", width: 120 },
+        { header: "Cuba(s) Destino", width: 120 },
+        { header: "Litros", width: 55 },
+        { header: "Notas", width: 0 },
+      ];
+      const totalMovFixed = movCols.filter((_, i) => i !== 6).reduce((s, c) => s + c.width, 0);
+      movCols[6].width = Math.max(CONTENT_W - totalMovFixed, 60);
+
+      doc.rect(MARGIN, y, CONTENT_W, 14).fill("#E3F2FD");
+      let mx2 = MARGIN;
+      movCols.forEach((col) => {
+        doc.fillColor("#1565C0").fontSize(7).font("Helvetica-Bold")
+          .text(col.header, mx2 + 2, y + 3, { width: col.width - 4, align: "center" });
+        mx2 += col.width;
+      });
+      y += 14;
+
+      movimentos.forEach((m, idx) => {
+        const rowH = 13;
+        if (y + rowH > doc.page.height - 50) {
+          doc.addPage({ size: "A4", layout: "landscape" });
+          y = MARGIN;
+        }
+        const bg = idx % 2 === 0 ? "#FFFFFF" : "#EBF5FB";
+        doc.rect(MARGIN, y, CONTENT_W, rowH).fill(bg);
+
+        // Determinar sentido
+        let origens: number[] = [];
+        try { origens = JSON.parse(m.cubasOrigemIds); } catch { origens = []; }
+        const isDestino = m.cubaDestinoId === cuba.id;
+        const sentido = isDestino ? "↓ Entrada" : "↑ Saída";
+
+        // Destinos (pode ser JSON com múltiplos)
+        let destinosStr = "";
+        try {
+          const destinos = JSON.parse(m.destinosJson ?? "[]") as { cubaCodigo: string; litros: number }[];
+          destinosStr = destinos.map(d => `${d.cubaCodigo} (${d.litros}L)`).join(", ");
+        } catch { destinosStr = m.cubaDestinoId ? String(m.cubaDestinoId) : "—"; }
+
+        const vals = [
+          m.dataMovimento ?? "—",
+          m.tipo === "transferencia" ? "Transferência" : "Junção",
+          sentido,
+          origens.join(", ") || "—",
+          destinosStr || "—",
+          (() => { try { const d = JSON.parse(m.destinosJson ?? "[]") as {litros:number}[]; const tot = d.reduce((s,x)=>s+x.litros,0); return tot > 0 ? `${tot} L` : "—"; } catch { return "—"; } })(),
+          m.motivo ?? "",
+        ];
+
+        mx2 = MARGIN;
+        vals.forEach((v, i) => {
+          doc.fillColor(i === 2 ? (isDestino ? "#1565C0" : "#c62828") : "#333333")
+            .fontSize(7).font("Helvetica")
+            .text(String(v), mx2 + 2, y + 3, { width: movCols[i].width - 4, align: "left", lineBreak: false });
+          mx2 += movCols[i].width;
+        });
+        y += rowH;
+      });
+      y += 6;
     }
 
     // ── Rodapé ─────────────────────────────────────────────

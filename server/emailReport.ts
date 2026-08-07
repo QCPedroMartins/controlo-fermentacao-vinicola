@@ -6,7 +6,7 @@
 
 import ExcelJS from "exceljs";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia } from "./db";
+import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia, getMovimentosByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -14,11 +14,21 @@ import { readFileSync } from "fs";
 // Registar fontes empacotadas no projecto via Buffer (funciona em produção sem depender do sistema de ficheiros)
 try {
   const __dirname_email = dirname(fileURLToPath(import.meta.url));
-  const FONT_DIR_EMAIL = join(__dirname_email, "fonts");
+  // Em produção o ficheiro compilado fica em dist/, as fontes em server/fonts/
+  // Tentar múltiplos caminhos para garantir compatibilidade
+  const candidates = [
+    join(__dirname_email, "fonts"),          // dev: server/fonts/
+    join(__dirname_email, "../server/fonts"), // prod: dist/../server/fonts/
+    join(process.cwd(), "server/fonts"),      // fallback: cwd/server/fonts/
+  ];
+  const FONT_DIR_EMAIL = candidates.find(d => {
+    try { readFileSync(join(d, "NotoSans-Regular.ttf")); return true; } catch { return false; }
+  }) ?? candidates[0];
   const regularBuf = readFileSync(join(FONT_DIR_EMAIL, "NotoSans-Regular.ttf"));
   const boldBuf = readFileSync(join(FONT_DIR_EMAIL, "NotoSans-Bold.ttf"));
   GlobalFonts.register(regularBuf, "Noto Sans");
   GlobalFonts.register(boldBuf, "Noto Sans");
+  console.log("[Fonts] Carregadas de:", FONT_DIR_EMAIL);
 } catch (_e) {
   // Fallback: tentar caminhos do sistema
   try {
@@ -315,6 +325,7 @@ function gerarGraficoLinha(params: {
 export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   const leituras = (await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum)) as LeituraRow[];
   const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
+  const movimentos = await getMovimentosByCuba(cuba.id);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Controlo de Fermentação Vinícola";
@@ -644,6 +655,52 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
 
     wsA.columns = [
       { width: 13 }, { width: 28 }, { width: 16 }, { width: 40 }, { width: 20 },
+    ];
+  }
+
+  // ── Folha 4: Movimentos / Rastreabilidade ─────────────
+  if (movimentos.length > 0) {
+    const wsM = wb.addWorksheet("Movimentos");
+    wsM.mergeCells("A1:G1");
+    wsM.getCell("A1").value = `Movimentos / Rastreabilidade — ${cuba.codigo.toUpperCase()}`;
+    wsM.getCell("A1").font = { bold: true, size: 12, color: { argb: "FF1565C0" } };
+    wsM.getCell("A1").alignment = { horizontal: "center" };
+    const hdrM = wsM.addRow(["Data", "Tipo", "Sentido", "Cuba(s) Origem", "Cuba(s) Destino", "Litros", "Notas"]);
+    hdrM.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1565C0" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      cell.alignment = { horizontal: "center" };
+    });
+    movimentos.forEach((m, idx) => {
+      let origens: number[] = [];
+      try { origens = JSON.parse(m.cubasOrigemIds); } catch { origens = []; }
+      const isDestino = m.cubaDestinoId === cuba.id;
+      const sentido = isDestino ? "↓ Entrada" : "↑ Saída";
+      let destinosStr = "";
+      try {
+        const destinos = JSON.parse(m.destinosJson ?? "[]") as { cubaCodigo: string; litros: number }[];
+        destinosStr = destinos.map(d => `${d.cubaCodigo} (${d.litros}L)`).join(", ");
+      } catch { destinosStr = m.cubaDestinoId ? String(m.cubaDestinoId) : "—"; }
+      let litrosTotal = 0;
+      try { litrosTotal = (JSON.parse(m.destinosJson ?? "[]") as { litros: number }[]).reduce((s, d) => s + d.litros, 0); } catch { litrosTotal = 0; }
+      const row = wsM.addRow([
+        m.dataMovimento ?? "—",
+        m.tipo === "transferencia" ? "Transferência" : "Junção",
+        sentido,
+        origens.join(", ") || "—",
+        destinosStr || "—",
+        litrosTotal > 0 ? litrosTotal : "—",
+        m.motivo ?? "",
+      ]);
+      const bg = idx % 2 === 0 ? "FFFFFFFF" : "FFE3F2FD";
+      row.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+        cell.font = { size: 10 };
+      });
+      row.getCell(3).font = { bold: true, size: 10, color: { argb: isDestino ? "FF1565C0" : "FFc62828" } };
+    });
+    wsM.columns = [
+      { width: 13 }, { width: 15 }, { width: 12 }, { width: 25 }, { width: 30 }, { width: 12 }, { width: 35 },
     ];
   }
 
