@@ -1947,7 +1947,6 @@ export default function CubaPage() {
             </button>
             <button
               onClick={() => {
-                if (!cubaDestinoId) { toast.error("Seleccione a cuba de destino"); return; }
                 if (tipoMovimento === "transferencia") {
                   const destinosValidos = destinosTransferencia.filter((d) => d.cubaId > 0 && parseFloat(d.litros) > 0);
                   if (destinosValidos.length === 0) { toast.error("Adicione pelo menos um destino com litros"); return; }
