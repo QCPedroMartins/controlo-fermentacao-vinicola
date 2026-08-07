@@ -14,6 +14,7 @@ interface LinhaPreview {
   cubaId: number;
   cubaNome: string;
   densidade: number;
+  baume?: number | null;
   temperatura: number;
   diaFermentacao?: number;
   duplicado?: boolean;
@@ -188,6 +189,7 @@ export default function ImportacaoCsvModal({ open, onClose, onImportado }: Props
         data: l.data,
         hora: l.hora,
         densidade: l.densidade,
+        baume: l.baume ?? null,
         temperatura: l.temperatura,
         isPorto: l.isPorto ?? false,
       })),
