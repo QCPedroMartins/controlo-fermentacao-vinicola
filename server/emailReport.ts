@@ -717,7 +717,7 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
     // Tabela de leituras
     const hdr = wsC.addRow([
       "Data", "Dia Nº",
-      "Densidade", "Temperatura",
+      "Densidade", "Baumé (°Bé)", "Temperatura",
       "O₂", "Redox", "Utilizador",
     ]);
     hdr.eachCell((cell) => {
@@ -731,6 +731,7 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
         new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
         l.diaNr ?? "",
         l.densL1 ? parseFloat(l.densL1) : "",
+        l.baumeL1 ? parseFloat(l.baumeL1) : "",
         l.tempL1 ? parseFloat(l.tempL1) : "",
         l.o2 ? parseFloat(l.o2) : "",
         l.redox ? parseFloat(l.redox) : "",
@@ -746,35 +747,76 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
 
     wsC.columns = [
       { width: 12 }, { width: 7 },
-      { width: 12 }, { width: 12 },
+      { width: 12 }, { width: 12 }, { width: 12 },
       { width: 8 }, { width: 8 }, { width: 18 },
     ];
 
-    // Gráfico de densidade inline
-    if (leituras.length > 1) {
-      const chartDataDens = leituras.map((l) => ({
-        x: l.diaNr ?? 0,
+    // Gráficos (mostrar mesmo com 1 leitura)
+    if (leituras.length >= 1) {
+      const startRow = leituras.length + 4;
+      const CHART_ROW_H = 20;
+
+      // Gráfico 1: Densidade
+      const chartDataDens = leituras.map((l, idx) => ({
+        x: idx + 1,
+        xLabel: l.hora ? l.hora.substring(0, 5) : String(l.diaNr ?? idx + 1),
         series: [
-          { label: "Densidade", cor: CORES_HEX.densL1, valor: l.densL1 ? parseFloat(l.densL1) : null },
+          { label: "Densidade (g/cm³)", cor: CORES_HEX.densL1, valor: l.densL1 ? parseFloat(l.densL1) : null },
         ],
       }));
-      const pngDens = gerarGraficoLinha({ titulo: `Densidade — ${cuba.codigo.toUpperCase()}`, dados: chartDataDens, unidade: "Densidade" });
+      const pngDens = gerarGraficoLinha({
+        titulo: `Densidade — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`,
+        dados: chartDataDens,
+        unidade: "Densidade",
+        largura: 750,
+      });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const imgId = (wb as any).addImage({ buffer: pngDens.buffer, extension: "png" }) as number;
-      const startRow = leituras.length + 4;
-      wsC.addImage(imgId, { tl: { col: 0, row: startRow }, ext: { width: 700, height: pngDens.height } });
+      wsC.addImage(imgId, { tl: { col: 0, row: startRow }, ext: { width: 750, height: pngDens.height } });
 
-      // Gráfico de temperatura
-      const chartDataT = leituras.map((l) => ({
-        x: l.diaNr ?? 0,
+      // Gráfico 2: Baumé (se tiver dados)
+      const hasBaume = leituras.some((l) => l.baumeL1);
+      let baumeOffset = 0;
+      if (hasBaume) {
+        const chartDataBaume = leituras.map((l, idx) => ({
+          x: idx + 1,
+          xLabel: l.hora ? l.hora.substring(0, 5) : String(l.diaNr ?? idx + 1),
+          series: [
+            { label: "Baumé (°Bé)", cor: "#f59e0b", valor: l.baumeL1 ? parseFloat(l.baumeL1) : null },
+          ],
+        }));
+        const pngBaume = gerarGraficoLinha({
+          titulo: `Baumé — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`,
+          dados: chartDataBaume,
+          unidade: "°",
+          largura: 750,
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const imgBId = (wb as any).addImage({ buffer: pngBaume.buffer, extension: "png" }) as number;
+        wsC.addImage(imgBId, { tl: { col: 0, row: startRow + CHART_ROW_H }, ext: { width: 750, height: pngBaume.height } });
+        baumeOffset = CHART_ROW_H;
+      }
+
+      // Gráfico 3: Temperatura
+      const chartDataT = leituras.map((l, idx) => ({
+        x: idx + 1,
+        xLabel: l.hora ? l.hora.substring(0, 5) : String(l.diaNr ?? idx + 1),
         series: [
-          { label: "Temperatura", cor: CORES_HEX.tempL1, valor: l.tempL1 ? parseFloat(l.tempL1) : null },
+          { label: "Temperatura (°C)", cor: CORES_HEX.tempL1, valor: l.tempL1 ? parseFloat(l.tempL1) : null },
         ],
       }));
-      const pngTemp = gerarGraficoLinha({ titulo: `Temperatura — ${cuba.codigo.toUpperCase()}`, dados: chartDataT, unidade: "°C" });
+      const pngTemp = gerarGraficoLinha({
+        titulo: `Temperatura — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`,
+        dados: chartDataT,
+        unidade: "°C",
+        largura: 750,
+        linhaRef: cuba.tempPretendida
+          ? { valor: parseFloat(cuba.tempPretendida), label: `Pretendida (${cuba.tempPretendida}°C)`, cor: "#1565c0" }
+          : undefined,
+      });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const imgTId = (wb as any).addImage({ buffer: pngTemp.buffer, extension: "png" }) as number;
-      wsC.addImage(imgTId, { tl: { col: 0, row: startRow + 18 }, ext: { width: 700, height: pngTemp.height } });
+      wsC.addImage(imgTId, { tl: { col: 0, row: startRow + CHART_ROW_H + baumeOffset }, ext: { width: 750, height: pngTemp.height } });
     }
 
     // Adições no final da folha (se existirem)
