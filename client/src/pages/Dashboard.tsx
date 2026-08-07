@@ -420,11 +420,16 @@ export default function Dashboard() {
                   <p className="text-sm font-semibold text-gray-700 truncate leading-tight">
                     {cuba.nomeLote ?? "—"}
                   </p>
-                  {(cuba as { ultimaDensidade?: string | null }).ultimaDensidade && (
-                    <p className="text-xs font-mono text-gray-600 mt-0.5 truncate">
-                      {formatarDensidade((cuba as { ultimaDensidade: string }).ultimaDensidade)}
-                    </p>
-                  )}
+                 {(cuba as { ultimaDensidade?: string | null }).ultimaDensidade && (
+                   <p className="text-xs font-mono text-gray-600 mt-0.5 truncate">
+                     {formatarDensidade((cuba as { ultimaDensidade: string }).ultimaDensidade)}
+                   </p>
+                 )}
+                 {!(cuba as { ultimaDensidade?: string | null }).ultimaDensidade && (cuba as { ultimoBaume?: string | null }).ultimoBaume && (
+                   <p className="text-xs font-mono mt-0.5 truncate" style={{ color: "#f59e0b" }}>
+                     {parseFloat((cuba as { ultimoBaume: string }).ultimoBaume).toFixed(2)}°Bé
+                   </p>
+                 )}
                   {(cuba as { fichaLitros?: string | null }).fichaLitros && (
                     <p className="text-xs font-mono text-gray-500 truncate">
                       {Math.round(parseFloat((cuba as { fichaLitros: string }).fichaLitros)).toLocaleString("pt-PT")} L

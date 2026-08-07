@@ -448,8 +448,9 @@ export async function getDashboardCubas() {
         .orderBy(desc(leituras.dataLeitura), desc(leituras.hora))
         .limit(1);
       const ul = ultimaLeitura[0];
-      const ultimaDensidade = ul ? (ul.baumeL1 ?? ul.densL1 ?? null) : null;
-      return { ...cuba, ultimaDensidade };
+      const ultimaDensidade = ul ? (ul.densL1 ?? null) : null;
+      const ultimoBaume = ul ? (ul.baumeL1 ?? null) : null;
+      return { ...cuba, ultimaDensidade, ultimoBaume };
     })
   );
   return resultado;
