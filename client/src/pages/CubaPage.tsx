@@ -211,6 +211,7 @@ export default function CubaPage() {
   const [destinosTransferencia, setDestinosTransferencia] = useState<{ cubaId: number; cubaCodigo: string; litros: string }[]>([
     { cubaId: 0, cubaCodigo: "", litros: "" },
   ]);
+  const [restaOrigem, setRestaOrigem] = useState(false);
   const [motivoMovimento, setMotivoMovimento] = useState("");
   // Litros por cuba de origem na junção
   const [litrosPorOrigem, setLitrosPorOrigem] = useState<Record<number, string>>({});
@@ -454,6 +455,7 @@ export default function CubaPage() {
       utils.cubas.dashboard.invalidate();
       setShowTransferir(false);
       setDestinosTransferencia([{ cubaId: 0, cubaCodigo: "", litros: "" }]);
+      setRestaOrigem(false);
     },
     onError: (err) => toast.error(`Erro na transferência: ${err.message}`),
   });
@@ -1689,7 +1691,29 @@ export default function CubaPage() {
                     </div>
                   );
                 })()}
-                <p className="text-xs text-gray-400">A cuba {cuba.codigo.toUpperCase()} ficará vazia. As leituras e adições serão copiadas para cada destino.</p>
+                {/* Opção: o resto fica na origem */}
+                {(() => {
+                  const litrosOrigem = cuba.fichaLitros ? parseFloat(cuba.fichaLitros) : null;
+                  const litrosTotal = destinosTransferencia.reduce((s, d) => s + (parseFloat(d.litros) || 0), 0);
+                  const sobra = litrosOrigem != null ? litrosOrigem - litrosTotal : null;
+                  return sobra != null && sobra > 0 ? (
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={restaOrigem}
+                        onChange={(e) => setRestaOrigem(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600"
+                      />
+                      <span className="text-xs text-gray-600">
+                        O restante <strong>{sobra.toLocaleString("pt-PT")} L</strong> fica em {cuba.codigo.toUpperCase()} (transferência parcial)
+                      </span>
+                    </label>
+                  ) : null;
+                })()}
+                <p className="text-xs text-gray-400">
+                  {restaOrigem ? `A cuba ${cuba.codigo.toUpperCase()} manterá o volume restante.` : `A cuba ${cuba.codigo.toUpperCase()} ficará vazia.`}
+                  {" "}As leituras e adições serão copiadas para cada destino.
+                </p>
               </div>
             ) : (
               <div>
@@ -1809,6 +1833,7 @@ export default function CubaPage() {
                     destinos: destinosValidos.map((d) => ({ cubaId: d.cubaId, litros: parseFloat(d.litros), cubaCodigo: d.cubaCodigo })),
                     dataMovimento,
                     motivo: motivoMovimento || undefined,
+                    restaOrigem,
                   });
                 } else {
                   if (cubasJuncaoIds.length === 0) { toast.error("Adicione pelo menos uma cuba à junção"); return; }

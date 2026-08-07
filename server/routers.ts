@@ -1125,13 +1125,15 @@ const movimentosRouter = router({
       dataMovimento: z.string(),
       motivo: z.string().optional(),
       campanhaId: z.number().optional(),
+      /** Se true, o volume restante fica na cuba de origem (transferência parcial) */
+      restaOrigem: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Base de dados indisponível" });
 
-      // Validar que origem não está nos destinos
-      if (input.destinos.some((d) => d.cubaId === input.cubaOrigemId)) {
+      // Validar que origem não está nos destinos (a menos que seja transferência parcial)
+      if (!input.restaOrigem && input.destinos.some((d) => d.cubaId === input.cubaOrigemId)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "A cuba de origem não pode ser destino" });
       }
 
@@ -1201,40 +1203,56 @@ const movimentosRouter = router({
           );
         }
 
-        // Actualizar destino: herda nomeLote, ficha e litros proporcionais
+        // Actualizar destino: herda nomeLote e ficha (blend: soma litros se já tem vinho)
         const litrosTotal = origem.fichaLitros ? parseFloat(origem.fichaLitros) : null;
         const litrosDest = dest.litros;
         const proporcao = litrosTotal && litrosTotal > 0 ? litrosDest / litrosTotal : 1;
+        const destinoActual = destinoMap.get(dest.cubaId);
+        const jaTemVinho = destinoActual?.estado === "em_fermentacao";
+        const litrosDestinoActual = destinoActual?.fichaLitros ? parseFloat(destinoActual.fichaLitros) : 0;
         await db.update(cubas).set({
-          nomeLote: origem.nomeLote,
+          // Blend: se já tem vinho, manter nomeLote existente; caso contrário herdar da origem
+          nomeLote: jaTemVinho ? destinoActual?.nomeLote : origem.nomeLote,
           estado: "em_fermentacao",
           fichaKilos: origem.fichaKilos ? String(Math.round(parseFloat(origem.fichaKilos) * proporcao * 10) / 10) : null,
-          fichaLitros: String(litrosDest),
-          fichaPh: origem.fichaPh,
-          fichaAt: origem.fichaAt,
-          fichaAv: origem.fichaAv,
-          fichaNfa: origem.fichaNfa,
-          fichaNtu: origem.fichaNtu,
-          fichaGluconico: origem.fichaGluconico,
-          fichaAlcoolProvavel: origem.fichaAlcoolProvavel,
+          // Blend: somar litros se já tem vinho
+          fichaLitros: String(litrosDest + (jaTemVinho ? litrosDestinoActual : 0)),
+          fichaPh: jaTemVinho ? destinoActual?.fichaPh : origem.fichaPh,
+          fichaAt: jaTemVinho ? destinoActual?.fichaAt : origem.fichaAt,
+          fichaAv: jaTemVinho ? destinoActual?.fichaAv : origem.fichaAv,
+          fichaNfa: jaTemVinho ? destinoActual?.fichaNfa : origem.fichaNfa,
+          fichaNtu: jaTemVinho ? destinoActual?.fichaNtu : origem.fichaNtu,
+          fichaGluconico: jaTemVinho ? destinoActual?.fichaGluconico : origem.fichaGluconico,
+          fichaAlcoolProvavel: jaTemVinho ? destinoActual?.fichaAlcoolProvavel : origem.fichaAlcoolProvavel,
         }).where(eq(cubas.id, dest.cubaId));
       }
 
-      // Esvaziar a origem
-      await db.update(cubas).set({
-        estado: "completa",
-        nomeLote: null,
-        fermentacaoNum: fermentacaoNumOrigem + 1,
-        fichaKilos: null,
-        fichaLitros: null,
-        fichaPh: null,
-        fichaAt: null,
-        fichaAv: null,
-        fichaNfa: null,
-        fichaNtu: null,
-        fichaGluconico: null,
-        fichaAlcoolProvavel: null,
-      }).where(eq(cubas.id, input.cubaOrigemId));
+      // Esvaziar a origem (ou actualizar litros se transferência parcial)
+      const litrosTransferidos = input.destinos.reduce((s, d) => s + d.litros, 0);
+      const litrosOrigemTotal = origem.fichaLitros ? parseFloat(origem.fichaLitros) : 0;
+      const litrosRestantes = litrosOrigemTotal - litrosTransferidos;
+      if (input.restaOrigem && litrosRestantes > 0) {
+        // Transferência parcial: actualizar litros da origem
+        await db.update(cubas).set({
+          fichaLitros: String(Math.max(0, litrosRestantes)),
+        }).where(eq(cubas.id, input.cubaOrigemId));
+      } else {
+        // Transferência total: esvaziar a origem
+        await db.update(cubas).set({
+          estado: "completa",
+          nomeLote: null,
+          fermentacaoNum: fermentacaoNumOrigem + 1,
+          fichaKilos: null,
+          fichaLitros: null,
+          fichaPh: null,
+          fichaAt: null,
+          fichaAv: null,
+          fichaNfa: null,
+          fichaNtu: null,
+          fichaGluconico: null,
+          fichaAlcoolProvavel: null,
+        }).where(eq(cubas.id, input.cubaOrigemId));
+      }
 
       // Registar o movimento
       await createMovimento({
