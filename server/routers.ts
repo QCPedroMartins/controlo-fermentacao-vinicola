@@ -19,6 +19,8 @@ import {
   updateCubaDensidadeLimite,
   updateCubaAlertas,
   updateFichaInicial,
+  criarAnalise,
+  getAnalisesByCuba,
   verificarFermentacaoCompleta,
   calcularAlertas,
   createLeitura,
@@ -131,15 +133,45 @@ const cubasRouter = router({
         fichaAlcoolProvavel: z.string().nullable().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       await updateFichaInicial(id, data);
+      // Guardar no histórico de análises
+      const hoje = new Date().toISOString().slice(0, 10);
+      const dbConn = await getDb();
+      if (dbConn) {
+        // Obter fermentacaoNum actual da cuba
+        const cubaRows = await dbConn.select({ fermentacaoNum: cubas.fermentacaoNum }).from(cubas).where(eq(cubas.id, id)).limit(1);
+        const fermentacaoNum = cubaRows[0]?.fermentacaoNum ?? 1;
+        await criarAnalise({
+          cubaId: id,
+          fermentacaoNum,
+          dataAnalise: hoje,
+          fichaKilos: data.fichaKilos ?? null,
+          fichaLitros: data.fichaLitros ?? null,
+          fichaPh: data.fichaPh ?? null,
+          fichaAt: data.fichaAt ?? null,
+          fichaAv: data.fichaAv ?? null,
+          fichaNfa: data.fichaNfa ?? null,
+          fichaNtu: data.fichaNtu ?? null,
+          fichaGluconico: data.fichaGluconico ?? null,
+          fichaAlcoolProvavel: data.fichaAlcoolProvavel ?? null,
+          userId: ctx.user.id,
+          userName: ctx.user.name ?? ctx.user.email ?? null,
+        });
+        // Limpar aviso de análises pendentes
+        await dbConn.update(cubas).set({ analisesPendentes: false }).where(eq(cubas.id, id));
+      }
       return { success: true };
     }),
 
   dashboard: publicProcedure.query(async () => {
     return getDashboardCubas();
   }),
+
+  getAnalises: publicProcedure
+    .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number().optional() }))
+    .query(async ({ input }) => getAnalisesByCuba(input.cubaId, input.fermentacaoNum)),
 
   getBaumeCalculo: publicProcedure
     .input(z.object({ cubaId: z.number() }))
@@ -1217,6 +1249,8 @@ const movimentosRouter = router({
           fichaKilos: origem.fichaKilos ? String(Math.round(parseFloat(origem.fichaKilos) * proporcao * 10) / 10) : null,
           // Blend: somar litros se já tem vinho
           fichaLitros: String(litrosDest + (jaTemVinho ? litrosDestinoActual : 0)),
+          // Blend: activar aviso de análises pendentes
+          analisesPendentes: jaTemVinho,
           fichaPh: jaTemVinho ? destinoActual?.fichaPh : origem.fichaPh,
           fichaAt: jaTemVinho ? destinoActual?.fichaAt : origem.fichaAt,
           fichaAv: jaTemVinho ? destinoActual?.fichaAv : origem.fichaAv,
@@ -1405,11 +1439,14 @@ const movimentosRouter = router({
       // Actualizar destino com litros somados
       const litrosDestinoActuais = destino.fichaLitros ? parseFloat(destino.fichaLitros) : 0;
       const litrosDestinoTotal = litrosDestinoActuais + totalLitros;
+      // Junção de vinhos diferentes → activar aviso de análises pendentes
+      const eBlend = input.cubasOrigemIds.length >= 2 || litrosDestinoActuais > 0;
       await db.update(cubas).set({
         estado: "em_fermentacao",
         nomeLote: nomeLoteHerdado ?? destino.nomeLote,
         fichaKilos: totalKg > 0 ? String(totalKg) : destino.fichaKilos,
         fichaLitros: litrosDestinoTotal > 0 ? String(Math.round(litrosDestinoTotal)) : destino.fichaLitros,
+        analisesPendentes: eBlend,
       }).where(eq(cubas.id, input.cubaDestinoId));
 
       // Registar o movimento

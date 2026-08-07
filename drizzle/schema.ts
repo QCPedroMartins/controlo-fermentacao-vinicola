@@ -80,12 +80,37 @@ export const cubas = mysqlTable("cubas", {
   fichaNtu: decimal("ficha_ntu", { precision: 8, scale: 1 }),
   fichaGluconico: decimal("ficha_gluconico", { precision: 6, scale: 2 }),
   fichaAlcoolProvavel: decimal("ficha_alcool_provavel", { precision: 5, scale: 2 }),
+  /** Aviso persistente: análises pendentes após junção/blend de vinhos */
+  analisesPendentes: boolean("analises_pendentes").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type Cuba = typeof cubas.$inferSelect;
 export type InsertCuba = typeof cubas.$inferInsert;
+
+// ── Histórico de Análises (Ficha Inicial) ─────────────────
+export const analisesCuba = mysqlTable("analises_cuba", {
+  id: int("id").autoincrement().primaryKey(),
+  cubaId: int("cuba_id").notNull(),
+  fermentacaoNum: int("fermentacao_num").default(1).notNull(),
+  dataAnalise: date("data_analise", { mode: "string" }).notNull(),
+  fichaKilos: decimal("ficha_kilos", { precision: 10, scale: 1 }),
+  fichaLitros: decimal("ficha_litros", { precision: 10, scale: 1 }),
+  fichaPh: decimal("ficha_ph", { precision: 4, scale: 2 }),
+  fichaAt: decimal("ficha_at", { precision: 6, scale: 2 }),
+  fichaAv: decimal("ficha_av", { precision: 6, scale: 2 }),
+  fichaNfa: decimal("ficha_nfa", { precision: 7, scale: 1 }),
+  fichaNtu: decimal("ficha_ntu", { precision: 8, scale: 1 }),
+  fichaGluconico: decimal("ficha_gluconico", { precision: 6, scale: 2 }),
+  fichaAlcoolProvavel: decimal("ficha_alcool_provavel", { precision: 5, scale: 2 }),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AnaliseCuba = typeof analisesCuba.$inferSelect;
+export type InsertAnaliseCuba = typeof analisesCuba.$inferInsert;
 
 // ── Leituras Diárias ──────────────────────────────────────
 export const leituras = mysqlTable("leituras", {

@@ -27,6 +27,8 @@ import {
   type InsertRecepcao,
   type InsertRecepcaoCuba,
   type InsertMovimentoCuba,
+  analisesCuba,
+  type InsertAnaliseCuba,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -909,4 +911,21 @@ export async function verifyLocalUserPassword(email: string, password: string) {
   const db = await getDb();
   if (db) await db.update(localUsers).set({ lastSignedIn: new Date() }).where(eq(localUsers.id, user.id));
   return user;
+}
+
+/** Guardar análise no histórico */
+export async function criarAnalise(data: InsertAnaliseCuba) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(analisesCuba).values(data);
+}
+
+/** Listar histórico de análises de uma cuba */
+export async function getAnalisesByCuba(cubaId: number, fermentacaoNum?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = fermentacaoNum !== undefined
+    ? and(eq(analisesCuba.cubaId, cubaId), eq(analisesCuba.fermentacaoNum, fermentacaoNum))
+    : eq(analisesCuba.cubaId, cubaId);
+  return db.select().from(analisesCuba).where(conditions).orderBy(desc(analisesCuba.dataAnalise));
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `cubas` ADD `analises_pendentes` boolean DEFAULT false NOT NULL;

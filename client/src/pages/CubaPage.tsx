@@ -225,7 +225,7 @@ export default function CubaPage() {
   const [limiteTemp, setLimiteTemp] = useState("");
 
   // Estado tab activa
-  const [activeTab, setActiveTab] = useState<"leituras" | "graficos" | "adicoes" | "arquivo">("leituras");
+  const [activeTab, setActiveTab] = useState<"leituras" | "graficos" | "adicoes" | "movimentos" | "arquivo">("leituras");
 
   // Estado formulário de adição
   const [formAdicao, setFormAdicao] = useState({
@@ -445,6 +445,8 @@ export default function CubaPage() {
   });
 
   const { data: todasCubasLista } = trpc.cubas.list.useQuery();
+  const { data: movimentosCuba } = trpc.movimentos.byCuba.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
+  const { data: historicoAnalises } = trpc.cubas.getAnalises.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
 
   const transferirMutation = trpc.movimentos.transferir.useMutation({
     onSuccess: (data) => {
@@ -1097,6 +1099,25 @@ export default function CubaPage() {
         </div>
       )}
 
+      {/* Aviso persistente: análises pendentes após junção/blend */}
+      {cuba.analisesPendentes && (
+        <div className="mb-5 flex items-center justify-between gap-4 bg-amber-50 border border-amber-300 rounded-xl px-5 py-3">
+          <div className="flex items-center gap-2 text-amber-800">
+            <span className="text-lg">⚠️</span>
+            <div>
+              <p className="text-sm font-semibold">Análises pendentes após junção de vinhos</p>
+              <p className="text-xs text-amber-700">Este vinho resultou de uma junção ou blend. Actualize a ficha de análises (pH, AT, AV, NFA, etc.) para remover este aviso.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab("leituras")}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors whitespace-nowrap"
+          >
+            Actualizar análises
+          </button>
+        </div>
+      )}
+
       {/* Banner — visível quando estado = completa E não há leituras activas (cuba realmente vazia) */}
       {canEdit && cuba.estado === "completa" && (!leituras || leituras.length === 0) && (
         <div className="mb-5 flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-xl px-5 py-3">
@@ -1115,7 +1136,7 @@ export default function CubaPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-fit">
-        {(["leituras", "graficos", "adicoes", "arquivo"] as const).map((tab) => (
+        {(["leituras", "graficos", "adicoes", "movimentos", "arquivo"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1125,7 +1146,7 @@ export default function CubaPage() {
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            {tab === "leituras" ? "Histórico" : tab === "graficos" ? "Gráficos" : tab === "adicoes" ? "Adições" : "Arquivo"}
+            {tab === "leituras" ? "Histórico" : tab === "graficos" ? "Gráficos" : tab === "adicoes" ? "Adições" : tab === "movimentos" ? "Movimentos" : "Arquivo"}
           </button>
         ))}
       </div>
@@ -1452,6 +1473,108 @@ export default function CubaPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Tab: Movimentos (rastreabilidade) */}
+      {activeTab === "movimentos" && (
+        <div className="space-y-4 animate-fade-in">
+          <h3 className="text-sm font-semibold text-gray-700">Histórico de Movimentos</h3>
+          {!movimentosCuba || movimentosCuba.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-sm">Sem movimentos registados para esta cuba.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {movimentosCuba.map((m) => {
+                let origens: number[] = [];
+                try { origens = JSON.parse(m.cubasOrigemIds); } catch { /* */ }
+                let destinos: { cubaId: number; litros: number; cubaCodigo: string }[] = [];
+                try { destinos = m.destinosJson ? JSON.parse(m.destinosJson) : []; } catch { /* */ }
+                const eOrigem = origens.includes(cuba.id);
+                const eDestino = m.cubaDestinoId === cuba.id || destinos.some((d) => d.cubaId === cuba.id);
+                const litrosDest = destinos.find((d) => d.cubaId === cuba.id)?.litros;
+                return (
+                  <div key={m.id} className={`rounded-xl border px-4 py-3 ${m.tipo === "transferencia" ? "border-blue-200 bg-blue-50" : "border-purple-200 bg-purple-50"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.tipo === "transferencia" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
+                          {m.tipo === "transferencia" ? "Transferência" : "Junção"}
+                        </span>
+                        <span className={`text-xs font-semibold ${eOrigem ? "text-red-600" : "text-green-600"}`}>
+                          {eOrigem ? "↑ Saída" : "↓ Entrada"}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500">{m.dataMovimento}</span>
+                    </div>
+                    <div className="mt-2 text-sm text-gray-700">
+                      {m.tipo === "transferencia" && destinos.length > 0 && (
+                        <p>
+                          {eOrigem
+                            ? <>Transferido para: <strong>{destinos.map((d) => `${d.cubaCodigo.toUpperCase()} (${d.litros.toLocaleString("pt-PT")} L)`).join(", ")}</strong></>
+                            : <>Recebido de: <strong>{origens.map((id) => `#${id}`).join(", ")}</strong>{litrosDest ? ` — ${litrosDest.toLocaleString("pt-PT")} L` : ""}</>
+                          }
+                        </p>
+                      )}
+                      {m.tipo === "juncao" && (
+                        <p>
+                          {eOrigem
+                            ? <>Juntado em: <strong>{m.cubaDestinoId ? `Cuba #${m.cubaDestinoId}` : "—"}</strong></>
+                            : <>Junção de: <strong>{origens.map((id) => `Cuba #${id}`).join(" + ")}</strong></>
+                          }
+                        </p>
+                      )}
+                      {m.motivo && <p className="text-xs text-gray-500 mt-1">Nota: {m.motivo}</p>}
+                      {m.userName && <p className="text-xs text-gray-400 mt-0.5">Por: {m.userName}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Histórico de Análises */}
+          <h3 className="text-sm font-semibold text-gray-700 mt-6 pt-4 border-t border-gray-100">Histórico de Análises</h3>
+          {!historicoAnalises || historicoAnalises.length === 0 ? (
+            <div className="text-center py-6 text-gray-400">
+              <p className="text-sm">Sem análises registadas. As análises são guardadas automaticamente ao actualizar a ficha inicial.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600">
+                    <th className="px-3 py-2 text-left font-medium border border-gray-200">Data</th>
+                    <th className="px-3 py-2 text-right font-medium border border-gray-200">Litros</th>
+                    <th className="px-3 py-2 text-right font-medium border border-gray-200">pH</th>
+                    <th className="px-3 py-2 text-right font-medium border border-gray-200">AT (g/L)</th>
+                    <th className="px-3 py-2 text-right font-medium border border-gray-200">AV (g/L)</th>
+                    <th className="px-3 py-2 text-right font-medium border border-gray-200">NFA (mg/L)</th>
+                    <th className="px-3 py-2 text-right font-medium border border-gray-200">NTU</th>
+                    <th className="px-3 py-2 text-right font-medium border border-gray-200">Glucónico</th>
+                    <th className="px-3 py-2 text-right font-medium border border-gray-200">Álcool (%)</th>
+                    <th className="px-3 py-2 text-left font-medium border border-gray-200">Por</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historicoAnalises.map((a) => (
+                    <tr key={a.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 border border-gray-200 font-medium text-gray-700">{a.dataAnalise}</td>
+                      <td className="px-3 py-2 border border-gray-200 text-right">{a.fichaLitros ?? "—"}</td>
+                      <td className="px-3 py-2 border border-gray-200 text-right">{a.fichaPh ?? "—"}</td>
+                      <td className="px-3 py-2 border border-gray-200 text-right">{a.fichaAt ?? "—"}</td>
+                      <td className="px-3 py-2 border border-gray-200 text-right">{a.fichaAv ?? "—"}</td>
+                      <td className="px-3 py-2 border border-gray-200 text-right">{a.fichaNfa ?? "—"}</td>
+                      <td className="px-3 py-2 border border-gray-200 text-right">{a.fichaNtu ?? "—"}</td>
+                      <td className="px-3 py-2 border border-gray-200 text-right">{a.fichaGluconico ?? "—"}</td>
+                      <td className="px-3 py-2 border border-gray-200 text-right">{a.fichaAlcoolProvavel ?? "—"}</td>
+                      <td className="px-3 py-2 border border-gray-200 text-gray-500">{a.userName ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
