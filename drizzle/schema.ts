@@ -210,7 +210,10 @@ export const movimentosCuba = mysqlTable("movimentos_cuba", {
   dataMovimento: date("data_movimento", { mode: "string" }).notNull(),
   /** JSON array de IDs das cubas de origem, ex: "[1]" ou "[1,2]" */
   cubasOrigemIds: text("cubas_origem_ids").notNull(),
-  cubaDestinoId: int("cuba_destino_id").notNull(),
+  /** JSON array de destinos: [{cubaId, litros, cubaCodigo}] */
+  destinosJson: text("destinos_json").notNull().default("[]"),
+  /** Mantido para compatibilidade com junções (1 destino) */
+  cubaDestinoId: int("cuba_destino_id"),
   motivo: text("motivo"),
   campanhaId: int("campanha_id"),
   userId: int("user_id"),

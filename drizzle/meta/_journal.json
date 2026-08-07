@@ -92,6 +92,13 @@
       "when": 1786014164275,
       "tag": "0012_volatile_matthew_murdock",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1786110857752,
+      "tag": "0013_left_gladiator",
+      "breakpoints": true
     }
   ]
 }

@@ -930,7 +930,7 @@ async function adicionarFolhaMovimentos(wb: ExcelJS.Workbook, dataHoje: string):
         const ids: number[] = JSON.parse(m.cubasOrigemIds);
         origemNomes = ids.map((id) => cubaPorId.get(id)?.codigo.toUpperCase() ?? `#${id}`).join(", ");
       } catch { /* ignorar */ }
-      const destinoNome = cubaPorId.get(m.cubaDestinoId)?.codigo.toUpperCase() ?? `#${m.cubaDestinoId}`;
+      const destinoNome = m.cubaDestinoId != null ? (cubaPorId.get(m.cubaDestinoId)?.codigo.toUpperCase() ?? `#${m.cubaDestinoId}`) : (m.destinosJson ? (JSON.parse(m.destinosJson) as {cubaCodigo: string}[]).map((d) => d.cubaCodigo.toUpperCase()).join(", ") : "—");
 
       const row = ws.getRow(linha++);
       [

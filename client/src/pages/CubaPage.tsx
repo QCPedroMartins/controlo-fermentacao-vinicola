@@ -207,6 +207,10 @@ export default function CubaPage() {
   const [cubaDestinoId, setCubaDestinoId] = useState<number>(0);
   const [cubasJuncaoIds, setCubasJuncaoIds] = useState<number[]>([]);
   const [dataMovimento, setDataMovimento] = useState(() => new Date().toISOString().slice(0, 10));
+  // Estado para N destinos na transferência
+  const [destinosTransferencia, setDestinosTransferencia] = useState<{ cubaId: number; cubaCodigo: string; litros: string }[]>([
+    { cubaId: 0, cubaCodigo: "", litros: "" },
+  ]);
   const [motivoMovimento, setMotivoMovimento] = useState("");
   // Litros por cuba de origem na junção
   const [litrosPorOrigem, setLitrosPorOrigem] = useState<Record<number, string>>({});
@@ -443,11 +447,13 @@ export default function CubaPage() {
 
   const transferirMutation = trpc.movimentos.transferir.useMutation({
     onSuccess: (data) => {
-      toast.success(`Transferência concluída: ${data.origemCodigo.toUpperCase()} → ${data.destinoCodigo.toUpperCase()}`);
+      const destStr = data.destinos.map((d: string) => d.toUpperCase()).join(", ");
+      toast.success(`Transferência concluída: ${data.origemCodigo.toUpperCase()} → ${destStr}`);
       utils.cubas.get.invalidate({ codigo });
       utils.leituras.listByCuba.invalidate();
       utils.cubas.dashboard.invalidate();
       setShowTransferir(false);
+      setDestinosTransferencia([{ cubaId: 0, cubaCodigo: "", litros: "" }]);
     },
     onError: (err) => toast.error(`Erro na transferência: ${err.message}`),
   });
@@ -1619,21 +1625,71 @@ export default function CubaPage() {
             </div>
 
             {tipoMovimento === "transferencia" ? (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Cuba de destino *</label>
-                <select
-                  value={cubaDestinoId || ""}
-                  onChange={(e) => setCubaDestinoId(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
-                >
-                  <option value="">Seleccionar cuba de destino...</option>
-                  {todasCubasLista?.filter((c) => c.codigo !== cuba.codigo).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.codigo.toUpperCase()}{c.nomeLote ? ` — ${c.nomeLote}` : ""} ({c.estado === "em_fermentacao" ? "Em fermentação" : c.estado === "completa" ? "Vazia" : "Sem dados"})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-400 mt-1">A cuba actual ({cuba.codigo.toUpperCase()}) ficará vazia. As leituras e adições serão copiadas para o destino.</p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-gray-600">Destinos *</label>
+                  <button
+                    type="button"
+                    onClick={() => setDestinosTransferencia((prev) => [...prev, { cubaId: 0, cubaCodigo: "", litros: "" }])}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    + Adicionar destino
+                  </button>
+                </div>
+                {destinosTransferencia.map((dest, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <select
+                      value={dest.cubaId || ""}
+                      onChange={(e) => {
+                        const c = todasCubasLista?.find((x) => x.id === Number(e.target.value));
+                        setDestinosTransferencia((prev) => prev.map((d, i) => i === idx ? { ...d, cubaId: Number(e.target.value), cubaCodigo: c?.codigo ?? "" } : d));
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                    >
+                      <option value="">Cuba destino...</option>
+                      {todasCubasLista?.filter((c) => c.codigo !== cuba.codigo && !destinosTransferencia.some((d, i) => i !== idx && d.cubaId === c.id)).map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.codigo.toUpperCase()}{c.nomeLote ? ` — ${c.nomeLote}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Litros"
+                      value={dest.litros}
+                      onChange={(e) => setDestinosTransferencia((prev) => prev.map((d, i) => i === idx ? { ...d, litros: e.target.value } : d))}
+                      className="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                    {destinosTransferencia.length > 1 && (
+                      <button type="button" onClick={() => setDestinosTransferencia((prev) => prev.filter((_, i) => i !== idx))} className="text-gray-400 hover:text-red-500 text-lg leading-none">✕</button>
+                    )}
+                  </div>
+                ))}
+                {/* Balanço */}
+                {(() => {
+                  const litrosOrigem = cuba.fichaLitros ? parseFloat(cuba.fichaLitros) : null;
+                  const litrosTotal = destinosTransferencia.reduce((s, d) => s + (parseFloat(d.litros) || 0), 0);
+                  const sobra = litrosOrigem != null ? litrosOrigem - litrosTotal : null;
+                  return (
+                    <div className={`text-xs rounded-lg px-3 py-2 ${sobra != null && sobra < 0 ? "bg-red-50 text-red-700" : sobra != null && sobra > 0 ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
+                      {litrosOrigem != null ? (
+                        <>
+                          <span className="font-medium">Disponível: {litrosOrigem.toLocaleString("pt-PT")} L</span>
+                          {" · "}
+                          <span>Transferir: {litrosTotal.toLocaleString("pt-PT")} L</span>
+                          {sobra != null && sobra !== 0 && (
+                            <span className="font-semibold"> · {sobra > 0 ? `Sobra: ${sobra.toLocaleString("pt-PT")} L (registar nas observações)` : `Excede em ${Math.abs(sobra).toLocaleString("pt-PT")} L!`}</span>
+                          )}
+                          {sobra === 0 && <span className="font-semibold"> · Transferência total ✓</span>}
+                        </>
+                      ) : (
+                        <span>Litros a transferir: {litrosTotal.toLocaleString("pt-PT")} L</span>
+                      )}
+                    </div>
+                  );
+                })()}
+                <p className="text-xs text-gray-400">A cuba {cuba.codigo.toUpperCase()} ficará vazia. As leituras e adições serão copiadas para cada destino.</p>
               </div>
             ) : (
               <div>
@@ -1746,9 +1802,11 @@ export default function CubaPage() {
               onClick={() => {
                 if (!cubaDestinoId) { toast.error("Seleccione a cuba de destino"); return; }
                 if (tipoMovimento === "transferencia") {
+                  const destinosValidos = destinosTransferencia.filter((d) => d.cubaId > 0 && parseFloat(d.litros) > 0);
+                  if (destinosValidos.length === 0) { toast.error("Adicione pelo menos um destino com litros"); return; }
                   transferirMutation.mutate({
                     cubaOrigemId: cuba.id,
-                    cubaDestinoId,
+                    destinos: destinosValidos.map((d) => ({ cubaId: d.cubaId, litros: parseFloat(d.litros), cubaCodigo: d.cubaCodigo })),
                     dataMovimento,
                     motivo: motivoMovimento || undefined,
                   });

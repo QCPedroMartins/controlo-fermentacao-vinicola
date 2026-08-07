@@ -60,6 +60,7 @@ import { upsertUser, getLocalUserByEmail } from "./db";
 import { localUsers } from "../drizzle/schema";
 import { notifyOwner } from "./_core/notification";
 import { and, desc, eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas, movimentosCuba } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1115,94 +1116,111 @@ const movimentosRouter = router({
   transferir: editProcedure
     .input(z.object({
       cubaOrigemId: z.number(),
-      cubaDestinoId: z.number(),
+      /** Lista de destinos: [{cubaId, litros, cubaCodigo}] */
+      destinos: z.array(z.object({
+        cubaId: z.number(),
+        litros: z.number().positive(),
+        cubaCodigo: z.string(),
+      })).min(1),
       dataMovimento: z.string(),
       motivo: z.string().optional(),
       campanhaId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      if (input.cubaOrigemId === input.cubaDestinoId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Origem e destino não podem ser a mesma cuba" });
-      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Base de dados indisponível" });
 
-      // Buscar cubas
-      const [origemRows, destinoRows] = await Promise.all([
-        db.select().from(cubas).where(eq(cubas.id, input.cubaOrigemId)).limit(1),
-        db.select().from(cubas).where(eq(cubas.id, input.cubaDestinoId)).limit(1),
-      ]);
+      // Validar que origem não está nos destinos
+      if (input.destinos.some((d) => d.cubaId === input.cubaOrigemId)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "A cuba de origem não pode ser destino" });
+      }
+
+      // Buscar cuba de origem
+      const origemRows = await db.select().from(cubas).where(eq(cubas.id, input.cubaOrigemId)).limit(1);
       const origem = origemRows[0];
-      const destino = destinoRows[0];
       if (!origem) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba de origem não encontrada" });
-      if (!destino) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba de destino não encontrada" });
 
       const fermentacaoNumOrigem = origem.fermentacaoNum;
 
-      // 1. Copiar leituras da origem para o destino
+      // Buscar todas as cubas de destino
+      const destinoIds = input.destinos.map((d) => d.cubaId);
+      const destinoRows = await db.select().from(cubas).where(inArray(cubas.id, destinoIds));
+      const destinoMap = new Map(destinoRows.map((c) => [c.id, c]));
+
+      // Obter leituras e adições da origem
       const leiturasOrigem = await db
         .select()
         .from(leituras)
         .where(and(eq(leituras.cubaId, input.cubaOrigemId), eq(leituras.fermentacaoNum, fermentacaoNumOrigem)));
 
-      if (leiturasOrigem.length > 0) {
-        await db.insert(leituras).values(
-          leiturasOrigem.map((l) => ({
-            cubaId: input.cubaDestinoId,
-            fermentacaoNum: destino.fermentacaoNum,
-            campanhaId: l.campanhaId,
-            dataLeitura: l.dataLeitura,
-            hora: l.hora,
-            diaNr: l.diaNr,
-            densL1: l.densL1,
-            tempL1: l.tempL1,
-            o2: l.o2,
-            redox: l.redox,
-            baumeL1: l.baumeL1,
-            userId: l.userId,
-            userName: l.userName,
-          }))
-        );
-      }
-
-      // 2. Copiar adições da origem para o destino
       const adicoesOrigem = await db
         .select()
         .from(adicoes)
         .where(and(eq(adicoes.cubaId, input.cubaOrigemId), eq(adicoes.fermentacaoNum, fermentacaoNumOrigem)));
 
-      if (adicoesOrigem.length > 0) {
-        await db.insert(adicoes).values(
-          adicoesOrigem.map((a) => ({
-            cubaId: input.cubaDestinoId,
-            fermentacaoNum: destino.fermentacaoNum,
-            campanhaId: a.campanhaId,
-            dataAdicao: a.dataAdicao,
-            produto: a.produto,
-            dose: a.dose,
-            observacoes: a.observacoes,
-            userId: a.userId,
-            userName: a.userName,
-          }))
-        );
+      // Para cada destino: copiar leituras, adições e herdar ficha
+      for (const dest of input.destinos) {
+        const destino = destinoMap.get(dest.cubaId);
+        if (!destino) throw new TRPCError({ code: "NOT_FOUND", message: `Cuba destino ${dest.cubaCodigo} não encontrada` });
+
+        // Copiar leituras
+        if (leiturasOrigem.length > 0) {
+          await db.insert(leituras).values(
+            leiturasOrigem.map((l) => ({
+              cubaId: dest.cubaId,
+              fermentacaoNum: destino.fermentacaoNum,
+              campanhaId: l.campanhaId,
+              dataLeitura: l.dataLeitura,
+              hora: l.hora,
+              diaNr: l.diaNr,
+              densL1: l.densL1,
+              tempL1: l.tempL1,
+              o2: l.o2,
+              redox: l.redox,
+              baumeL1: l.baumeL1,
+              userId: l.userId,
+              userName: l.userName,
+            }))
+          );
+        }
+
+        // Copiar adições
+        if (adicoesOrigem.length > 0) {
+          await db.insert(adicoes).values(
+            adicoesOrigem.map((a) => ({
+              cubaId: dest.cubaId,
+              fermentacaoNum: destino.fermentacaoNum,
+              campanhaId: a.campanhaId,
+              dataAdicao: a.dataAdicao,
+              produto: a.produto,
+              dose: a.dose,
+              observacoes: a.observacoes,
+              userId: a.userId,
+              userName: a.userName,
+            }))
+          );
+        }
+
+        // Actualizar destino: herda nomeLote, ficha e litros proporcionais
+        const litrosTotal = origem.fichaLitros ? parseFloat(origem.fichaLitros) : null;
+        const litrosDest = dest.litros;
+        const proporcao = litrosTotal && litrosTotal > 0 ? litrosDest / litrosTotal : 1;
+        await db.update(cubas).set({
+          nomeLote: origem.nomeLote,
+          estado: "em_fermentacao",
+          fichaKilos: origem.fichaKilos ? String(Math.round(parseFloat(origem.fichaKilos) * proporcao * 10) / 10) : null,
+          fichaLitros: String(litrosDest),
+          fichaPh: origem.fichaPh,
+          fichaAt: origem.fichaAt,
+          fichaAv: origem.fichaAv,
+          fichaNfa: origem.fichaNfa,
+          fichaNtu: origem.fichaNtu,
+          fichaGluconico: origem.fichaGluconico,
+          fichaAlcoolProvavel: origem.fichaAlcoolProvavel,
+        }).where(eq(cubas.id, dest.cubaId));
       }
 
-      // 3. Actualizar destino: herda nomeLote, ficha e estado
-      await db.update(cubas).set({
-        nomeLote: origem.nomeLote,
-        estado: "em_fermentacao",
-        fichaKilos: origem.fichaKilos,
-        fichaLitros: origem.fichaLitros,
-        fichaPh: origem.fichaPh,
-        fichaAt: origem.fichaAt,
-        fichaAv: origem.fichaAv,
-        fichaNfa: origem.fichaNfa,
-        fichaNtu: origem.fichaNtu,
-        fichaGluconico: origem.fichaGluconico,
-        fichaAlcoolProvavel: origem.fichaAlcoolProvavel,
-      }).where(eq(cubas.id, input.cubaDestinoId));
-
-      // 4. Esvaziar a origem (estado=completa, incrementar fermentacaoNum)
+      // Esvaziar a origem
       await db.update(cubas).set({
         estado: "completa",
         nomeLote: null,
@@ -1218,12 +1236,13 @@ const movimentosRouter = router({
         fichaAlcoolProvavel: null,
       }).where(eq(cubas.id, input.cubaOrigemId));
 
-      // 5. Registar o movimento
+      // Registar o movimento
       await createMovimento({
         tipo: "transferencia",
         dataMovimento: input.dataMovimento,
         cubasOrigemIds: JSON.stringify([input.cubaOrigemId]),
-        cubaDestinoId: input.cubaDestinoId,
+        cubaDestinoId: input.destinos[0]?.cubaId ?? null,
+        destinosJson: JSON.stringify(input.destinos),
         motivo: input.motivo ?? null,
         campanhaId: input.campanhaId ?? null,
         userId: ctx.user.id,
@@ -1233,7 +1252,7 @@ const movimentosRouter = router({
       return {
         ok: true,
         origemCodigo: origem.codigo,
-        destinoCodigo: destino.codigo,
+        destinos: input.destinos.map((d) => d.cubaCodigo),
         leiturasCopiadas: leiturasOrigem.length,
         adicoesCopiadas: adicoesOrigem.length,
       };
