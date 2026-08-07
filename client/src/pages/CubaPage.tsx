@@ -993,8 +993,8 @@ export default function CubaPage() {
               </div>
             </div>
           ) : (
-            /* Formulário normal — Densidade + Temperatura + O₂ + Redox */
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+            /* Formulário normal — Densidade + Baumé + Temperatura + O₂ + Redox */
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Data</label>
                 <input type="date" value={form.dataLeitura}
@@ -1007,6 +1007,13 @@ export default function CubaPage() {
                 <input type="number" step="0.0001" placeholder="1.0850" value={form.densL1}
                   onChange={(e) => setForm({ ...form, densL1: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: "#f59e0b" }}>Baumé (°Bé)</label>
+                <input type="number" step="0.1" placeholder="12.5" value={form.baumeL1}
+                  onChange={(e) => setForm({ ...form, baumeL1: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
                 />
               </div>
               <div>
@@ -1125,19 +1132,11 @@ export default function CubaPage() {
                   <th className="px-3 py-3 text-left text-xs font-semibold">Data</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold">Hora</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold">Dia</th>
-                  {cuba.tipoCuba === "porto" ? (
-                    <>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Baumé (°)</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temperatura</th>
-                    </>
-                  ) : (
-                    <>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Densidade</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temperatura</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#80deea" }}>O₂</th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ce93d8" }}>Redox</th>
-                    </>
-                  )}
+                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Densidade</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#fcd34d" }}>Baumé (°Bé)</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temperatura</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#80deea" }}>O₂</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ce93d8" }}>Redox</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold">Utilizador</th>
                   {canEdit && <th className="px-3 py-3 text-center text-xs font-semibold">Editar</th>}
                 </tr>
@@ -1164,19 +1163,11 @@ export default function CubaPage() {
                         </td>
                         <td className="px-3 py-2.5 text-center text-xs font-mono text-gray-500">{(l as LeituraRow).hora ?? "—"}</td>
                         <td className="px-3 py-2.5 text-center text-xs font-bold text-[var(--color-vinho)]">{l.diaNr ?? "—"}</td>
-                        {cuba.tipoCuba === "porto" ? (
-                          <>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{(l as LeituraRow).baumeL1 ? `${parseFloat((l as LeituraRow).baumeL1!).toFixed(2)}°` : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL1 ? parseFloat(l.densL1).toFixed(4) : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.o2 }}>{l.o2 ? parseFloat(l.o2).toFixed(2) : "—"}</td>
-                            <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.redox }}>{l.redox ? parseFloat(l.redox).toFixed(0) : "—"}</td>
-                          </>
-                        )}
+                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.densL1 ? parseFloat(l.densL1).toFixed(4) : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: "#f59e0b" }}>{(l as LeituraRow).baumeL1 ? `${parseFloat((l as LeituraRow).baumeL1!).toFixed(2)}°` : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono">{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.o2 }}>{l.o2 ? parseFloat(l.o2).toFixed(2) : "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.redox }}>{l.redox ? parseFloat(l.redox).toFixed(0) : "—"}</td>
                         <td className="px-3 py-2.5 text-center text-xs text-gray-400">
                           <div className="flex flex-col items-center gap-0.5">
                             <span>{l.userName ?? "—"}</span>
@@ -1221,32 +1212,48 @@ export default function CubaPage() {
             </div>
           ) : (
             <>
-              <ChartCard title={cuba.tipoCuba === "porto" ? "Baumé (°)" : "Densidade (g/L)"}>
+              <ChartCard title="Densidade (g/cm³)">
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
-                    <Tooltip formatter={(v: number) => cuba.tipoCuba === "porto" ? `${v?.toFixed(2)}°` : v?.toFixed(4)} labelFormatter={(l) => `Dia ${l}`} />
+                    <Tooltip formatter={(v: number) => v?.toFixed(4)} labelFormatter={(l) => `Dia ${l}`} />
                     <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, fontSize: 12 }} />
                     {adicaoMarkers.map((m, i) => (
                       <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
                         label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
-                    {cuba.pontoAguardentacao && cuba.tipoCuba === "porto" && (
-                      <ReferenceLine y={parseFloat(cuba.pontoAguardentacao)} stroke="#dc2626" strokeDasharray="6 3" strokeWidth={2}
-                        label={{ value: `Aguardentação ${cuba.pontoAguardentacao}°`, position: "insideTopLeft", fontSize: 10, fill: "#dc2626" }}
-                      />
-                    )}
-                    {cuba.tipoCuba === "porto" ? (
-                      <Line type="monotone" dataKey="baumeL1" name="Baumé" stroke={CORES.densL1} strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
-                    ) : (
-                      <Line type="monotone" dataKey="densL1" name="Densidade" stroke={CORES.densL1} strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
-                    )}
+                    <Line type="monotone" dataKey="densL1" name="Densidade" stroke={CORES.densL1} strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </ChartCard>
+
+              {chartData.some(d => d.baumeL1 != null) && (
+                <ChartCard title="Baumé (°Bé)">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
+                      <Tooltip formatter={(v: number) => `${v?.toFixed(2)}°Bé`} labelFormatter={(l) => `Dia ${l}`} />
+                      <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, fontSize: 12 }} />
+                      {adicaoMarkers.map((m, i) => (
+                        <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                          label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
+                        />
+                      ))}
+                      {cuba.pontoAguardentacao && (
+                        <ReferenceLine y={parseFloat(cuba.pontoAguardentacao)} stroke="#dc2626" strokeDasharray="6 3" strokeWidth={2}
+                          label={{ value: `Aguardentação ${cuba.pontoAguardentacao}°`, position: "insideTopLeft", fontSize: 10, fill: "#dc2626" }}
+                        />
+                      )}
+                      <Line type="monotone" dataKey="baumeL1" name="Baumé" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              )}
 
               <ChartCard title="Temperatura (°C)">
                 <ResponsiveContainer width="100%" height={280}>

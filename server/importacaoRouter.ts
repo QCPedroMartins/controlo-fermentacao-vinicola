@@ -36,6 +36,7 @@ export interface LinhaPreview {
   cubaId: number;
   cubaNome: string;
   densidade: number;      // SG 20/20
+  baume: number | null;   // Baumé (col L)
   temperatura: number;    // °C
   diaFermentacao?: number; // calculado a partir das leituras existentes
   duplicado?: boolean;    // true se já existe leitura para esta cuba+data
@@ -93,6 +94,7 @@ export async function parsearCsv(csvContent: string): Promise<{
     hora: string;
     cubaCodigo: string;
     densidade: number;
+    baume: number | null;
     temperatura: number;
   }>;
   ignoradas: LinhaIgnorada[];
@@ -105,6 +107,7 @@ export async function parsearCsv(csvContent: string): Promise<{
     hora: string;
     cubaCodigo: string;
     densidade: number;
+    baume: number | null;
     temperatura: number;
   }> = [];
   const ignoradas: LinhaIgnorada[] = [];
@@ -119,6 +122,7 @@ export async function parsearCsv(csvContent: string): Promise<{
     const method = cols[3] || "";
     const sampleId = cols[4] || "";
     const densidadeStr = cols[6] || ""; // Col G (índice 6)
+    const baumeStr = cols[11] || "";       // Col L (índice 11) — Baumé
     const temperaturaStr = cols[14] || ""; // Col O (índice 14)
     // Ignorar WaterCheck ou linhas sem Sample ID
     if (method === "WaterCheck" || sampleId === "") {
@@ -144,8 +148,9 @@ export async function parsearCsv(csvContent: string): Promise<{
       ignoradas.push({ measNo, motivo: `Temperatura inválida: "${temperaturaStr}"`, raw });
       continue;
     }
+    const baume = parsearDecimal(baumeStr); // pode ser null se não existir
     // Guardar o sampleId original — a resolução para código de cuba será feita no router
-    validas.push({ measNo, data, dataStr: dateStr, hora, cubaCodigo: sampleId.trim().toUpperCase(), densidade, temperatura });
+    validas.push({ measNo, data, dataStr: dateStr, hora, cubaCodigo: sampleId.trim().toUpperCase(), densidade, baume, temperatura });
   }
   return { validas, ignoradas };
 }
@@ -209,6 +214,7 @@ export const importacaoRouter = router({
           cubaId: cuba.id,
           cubaNome: cuba.nomeLote || linha.cubaCodigo,
           densidade: linha.densidade,
+          baume: linha.baume ?? null,
           temperatura: linha.temperatura,
           diaFermentacao,
           duplicado: isDuplicado,
@@ -239,6 +245,7 @@ export const importacaoRouter = router({
             data: z.string(),       // DD.MM.YYYY
             hora: z.string(),
             densidade: z.number(),
+            baume: z.number().nullable().optional(),
             temperatura: z.number(),
             isPorto: z.boolean().optional().default(false),
           })
@@ -288,11 +295,11 @@ export const importacaoRouter = router({
             dataLeitura: dataIso,
             hora: linha.hora || null,
             diaNr: diaFermentacao,
-            densL1: isPorto ? null : String(linha.densidade),
+            densL1: String(linha.densidade),
             tempL1: String(linha.temperatura),
             o2: null,
             redox: null,
-            baumeL1: isPorto ? String(linha.densidade) : null,
+            baumeL1: linha.baume != null ? String(linha.baume) : (isPorto ? String(linha.densidade) : null),
             userId: ctx.user.id,
             userName: ctx.user.name || ctx.user.email || "CSV Import",
           });

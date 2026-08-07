@@ -195,8 +195,8 @@ export default function RegistoRapido() {
         // Normalizar HH:MM para HH:MM:00 para consistência com o CSV
         return h.length === 5 ? h + ":00" : h;
       })(),
-        densL1: isPorto ? null : toNullable(l.densL1),
-        baumeL1: isPorto ? toNullable(l.baumeL1) : null,
+        densL1: toNullable(l.densL1),
+        baumeL1: toNullable(l.baumeL1),
         tempL1: toNullable(l.tempL1),
         o2: toNullable(l.o2),
         redox: toNullable(l.redox),
@@ -375,6 +375,7 @@ export default function RegistoRapido() {
                   <th className="sticky left-0 z-10 bg-[var(--color-vinho)] px-3 py-3 text-left font-semibold w-20">Cuba</th>
                   <th className="px-2 py-3 text-center font-semibold text-yellow-300 w-20">Hora</th>
                   <th className="px-2 py-3 text-center font-semibold text-green-300 w-28">Densidade</th>
+                  <th className="px-2 py-3 text-center font-semibold text-amber-300 w-24">Baumé (°Bé)</th>
                   <th className="px-2 py-3 text-center font-semibold text-green-300 w-24">Temperatura (°C)</th>
                   <th className="px-2 py-3 text-center font-semibold text-cyan-300 w-20">O₂ (mg/L)</th>
                   <th className="px-2 py-3 text-center font-semibold text-purple-300 w-20">Redox (mV)</th>
@@ -404,6 +405,11 @@ export default function RegistoRapido() {
                         <Input type="number" step="0.0001" placeholder="—" value={linha.densL1}
                           onChange={(e) => updateCampo(codigo, "densL1", e.target.value)}
                           className="h-7 text-xs text-center border-green-200 focus:border-green-500 px-1" />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input type="number" step="0.1" placeholder="—" value={linha.baumeL1}
+                          onChange={(e) => updateCampo(codigo, "baumeL1", e.target.value)}
+                          className="h-7 text-xs text-center border-amber-200 focus:border-amber-500 px-1" />
                       </td>
                       <td className="px-1 py-1">
                         <Input type="number" step="0.1" placeholder="—" value={linha.tempL1}
