@@ -115,6 +115,7 @@ export default function Dashboard() {
   const { data: cubas, isLoading } = trpc.cubas.dashboard.useQuery();
   const { data: todasLeituras, isLoading: loadingAlertas } = trpc.leituras.listAllDashboard.useQuery();
   const { data: campanhaAtiva } = trpc.campanhas.ativa.useQuery();
+  const { data: alertasReconhecidos } = trpc.cubas.getAlertasReconhecidosDashboard.useQuery();
 
   const semDados = cubas?.filter((c) => c.estado === "sem_dados").length ?? 0;
   const emFermentacao = cubas?.filter((c) => c.estado === "em_fermentacao").length ?? 0;
@@ -123,14 +124,30 @@ export default function Dashboard() {
   // Calcular alertas por cuba
   const alertasPorCuba = useMemo(() => {
     if (!cubas || !todasLeituras) return new Map<number, boolean>();
+    // Cubas cujos alertas foram todos reconhecidos
+    const cubasComTodosReconhecidos = new Set<number>();
+    if (alertasReconhecidos) {
+      // Agrupar por cubaId: se todos os alertas da cuba estão reconhecidos, excluir
+      const porCuba = new Map<number, { total: number; reconhecidos: number }>();
+      alertasReconhecidos.forEach(a => {
+        const cur = porCuba.get(a.cubaId) ?? { total: 0, reconhecidos: 0 };
+        cur.total++;
+        if (a.reconhecidoEm) cur.reconhecidos++;
+        porCuba.set(a.cubaId, cur);
+      });
+      porCuba.forEach((v, cubaId) => {
+        if (v.total > 0 && v.total === v.reconhecidos) cubasComTodosReconhecidos.add(cubaId);
+      });
+    }
     const map = new Map<number, boolean>();
     for (const cuba of cubas) {
       if (cuba.estado !== "em_fermentacao") continue;
+      if (cubasComTodosReconhecidos.has(cuba.id)) { map.set(cuba.id, false); continue; }
       const leiturasC = todasLeituras.filter((l) => l.cubaId === cuba.id && l.fermentacaoNum === cuba.fermentacaoNum);
       map.set(cuba.id, temAlertasAtivos({ ...cuba, leituras: leiturasC }));
     }
     return map;
-  }, [cubas, todasLeituras]);
+  }, [cubas, todasLeituras, alertasReconhecidos]);
 
   const totalAlertas = useMemo(() => {
     let count = 0;

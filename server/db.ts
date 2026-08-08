@@ -992,3 +992,11 @@ export async function reconhecerAlerta(id: number, userId: number, userName: str
     reconhecidoPorNome: userName,
   }).where(eq(alertasHistorico.id, id));
 }
+
+/** Criar um alerta no histórico e retornar o ID */
+export async function criarAlerta(data: InsertAlertaHistorico): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.insert(alertasHistorico).values(data);
+  return Number((result as any).insertId ?? (result as any)[0]?.insertId ?? 0);
+}

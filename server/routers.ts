@@ -67,9 +67,9 @@ import {
 import { upsertUser, getLocalUserByEmail } from "./db";
 import { localUsers } from "../drizzle/schema";
 import { notifyOwner } from "./_core/notification";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { inArray } from "drizzle-orm";
-import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas, movimentosCuba } from "../drizzle/schema";
+import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas, movimentosCuba, alertasHistorico } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 // ── Router de Cubas ───────────────────────────────────────
@@ -215,11 +215,49 @@ const cubasRouter = router({
     .input(z.object({ cubaId: z.number() }))
     .query(async ({ input }) => getAlertasByCuba(input.cubaId)),
 
+  // Lista todos os alertas reconhecidos (para o Dashboard filtrar cubas com alertas activos)
+  getAlertasReconhecidosDashboard: publicProcedure
+    .query(async () => {
+      const { getDb } = await import("./db");
+      const dbConn = await getDb();
+      if (!dbConn) return [];
+      const rows = await dbConn.select({
+        cubaId: alertasHistorico.cubaId,
+        reconhecidoEm: alertasHistorico.reconhecidoEm,
+      }).from(alertasHistorico).where(isNotNull(alertasHistorico.reconhecidoEm));
+      return rows;
+    }),
+
   reconhecerAlerta: editProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await reconhecerAlerta(input.id, ctx.user.id, ctx.user.name ?? ctx.user.email ?? null);
       return { success: true };
+    }),
+
+  // Cria um alerta na BD (se não existir) e reconhece-o imediatamente
+  criarEReconhecerAlerta: editProcedure
+    .input(z.object({
+      cubaId: z.number(),
+      fermentacaoNum: z.number(),
+      tipoAlerta: z.string(),
+      valorAlerta: z.string().optional(),
+      dataLeitura: z.string(), // ISO date string
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { criarAlerta, reconhecerAlerta: reconhecer } = await import("./db");
+      // Criar o alerta com a data da leitura
+      const criadoEm = new Date(input.dataLeitura);
+      const id = await criarAlerta({
+        cubaId: input.cubaId,
+        fermentacaoNum: input.fermentacaoNum,
+        tipoAlerta: input.tipoAlerta,
+        valorAlerta: input.valorAlerta ?? null,
+        criadoEm,
+      });
+      // Reconhecer imediatamente
+      await reconhecer(id, ctx.user.id, ctx.user.name ?? ctx.user.email ?? null);
+      return { success: true, id };
     }),
 
   getBaumeCalculo: publicProcedure

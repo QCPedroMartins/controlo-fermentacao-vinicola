@@ -463,6 +463,15 @@ export default function CubaPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const criarEReconhecerAlertaMutation = trpc.cubas.criarEReconhecerAlerta.useMutation({
+    onSuccess: () => {
+      refetchAlertasHistorico();
+      utils.cubas.getAlertasReconhecidosDashboard.invalidate();
+      toast.success("Alerta reconhecido");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const transferirMutation = trpc.movimentos.transferir.useMutation({
     onSuccess: (data) => {
       const destStr = data.destinos.map((d: string) => d.toUpperCase()).join(", ");
@@ -996,10 +1005,24 @@ export default function CubaPage() {
                     {canEdit && alertasHistorico && (() => {
                       // Encontrar alertas por reconhecer correspondentes a esta leitura
                       const alertasPorReconhecer = alertasHistorico.filter(a => !a.reconhecidoEm && l && new Date(a.criadoEm).toDateString() === new Date(l.dataLeitura).toDateString());
-                      if (alertasPorReconhecer.length === 0) return null;
-                      return (
+                      if (alertasPorReconhecer.length > 0) return (
                         <button
                           onClick={() => alertasPorReconhecer.forEach(a => reconhecerAlertaMutation.mutate({ id: a.id }))}
+                          className="shrink-0 px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200 transition-colors"
+                          title="Marcar como reconhecido"
+                        >✓ Reconhecer</button>
+                      );
+                      // Sem registo na BD — criar e reconhecer em simultâneo
+                      if (!canEdit || !cuba || !l) return null;
+                      return (
+                        <button
+                          onClick={() => criarEReconhecerAlertaMutation.mutate({
+                            cubaId: cuba.id,
+                            fermentacaoNum: cuba.fermentacaoNum ?? 1,
+                            tipoAlerta: mensagens[0] ?? "alerta",
+                            valorAlerta: mensagens.join("; "),
+                            dataLeitura: new Date(l.dataLeitura).toISOString(),
+                          })}
                           className="shrink-0 px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200 transition-colors"
                           title="Marcar como reconhecido"
                         >✓ Reconhecer</button>
