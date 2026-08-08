@@ -1606,13 +1606,6 @@ export default function CubaPage() {
               </table>
             </div>
           )}
-        </div>
-      )}
-
-
-
-
-
           {/* Histórico de Alertas */}
           {alertasHistorico && alertasHistorico.length > 0 && (
             <>
@@ -1648,6 +1641,8 @@ export default function CubaPage() {
             </>
           )}
 
+        </div>
+      )}
       {/* Tab: Comentários */}
       {activeTab === "comentarios" && (
         <div className="space-y-4 animate-fade-in">
