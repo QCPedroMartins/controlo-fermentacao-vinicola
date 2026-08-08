@@ -523,19 +523,30 @@ export default function CubaPage() {
     onError: (e: { message: string }) => toast.error("Erro: " + e.message),
   });
 
-  // ── Alertas calculados no cliente ─────────────────────
+
+  // Filtrar alertas que já foram todos reconhecidos na BD
   const alertasAtivos = useMemo(() => {
-    if (!leituras || !cuba) return [];
-    return calcularAlertasClient({
-      tempPretendida: cuba.tempPretendida,
-      desvioTempAlerta: cuba.desvioTempAlerta ?? "5.0",
-      desvioDesnsAlerta: cuba.desvioDesnsAlerta ?? "0.010",
-      alertasDensidade: cuba.alertasDensidade,
-      pontoAguardentacao: cuba.pontoAguardentacao,
-      desvioAguardentacaoAlerta: cuba.desvioAguardentacaoAlerta,
-      leituras: leituras as LeituraRow[],
+    const raw = calcularAlertasClient({
+      tempPretendida: cuba?.tempPretendida,
+      desvioTempAlerta: cuba?.desvioTempAlerta ?? "5.0",
+      desvioDesnsAlerta: cuba?.desvioDesnsAlerta ?? "0.010",
+      alertasDensidade: cuba?.alertasDensidade,
+      pontoAguardentacao: cuba?.pontoAguardentacao,
+      desvioAguardentacaoAlerta: cuba?.desvioAguardentacaoAlerta,
+      leituras: (leituras ?? []) as LeituraRow[],
     });
-  }, [leituras, cuba]);
+    if (!alertasHistorico || alertasHistorico.length === 0) return raw;
+    return raw.filter(({ leituraId }) => {
+      const l = leituras?.find((x) => x.id === leituraId);
+      if (!l) return true;
+      const dataLeitura = new Date(l.dataLeitura).toDateString();
+      const alertasDaData = alertasHistorico.filter(a =>
+        new Date(a.criadoEm).toDateString() === dataLeitura
+      );
+      if (alertasDaData.length === 0) return true;
+      return alertasDaData.some(a => !a.reconhecidoEm);
+    });
+  }, [leituras, cuba, alertasHistorico]);
 
   // ── Marcadores de adições nos gráficos ────────────────────────
   const adicaoMarkers = useMemo(() => {
