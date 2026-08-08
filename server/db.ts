@@ -29,6 +29,8 @@ import {
   type InsertMovimentoCuba,
   analisesCuba,
   type InsertAnaliseCuba,
+  comentariosCuba,
+  type InsertComentarioCuba,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -928,4 +930,35 @@ export async function getAnalisesByCuba(cubaId: number, fermentacaoNum?: number)
     ? and(eq(analisesCuba.cubaId, cubaId), eq(analisesCuba.fermentacaoNum, fermentacaoNum))
     : eq(analisesCuba.cubaId, cubaId);
   return db.select().from(analisesCuba).where(conditions).orderBy(desc(analisesCuba.dataAnalise));
+}
+
+/** Criar comentário numa cuba */
+export async function criarComentario(data: InsertComentarioCuba) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(comentariosCuba).values(data);
+}
+
+/** Listar comentários de uma cuba (todos os fermentacaoNum) */
+export async function getComentariosByCuba(cubaId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(comentariosCuba).where(eq(comentariosCuba.cubaId, cubaId)).orderBy(desc(comentariosCuba.createdAt));
+}
+
+/** Copiar comentários de uma cuba para outra (com nota de herança) */
+export async function copiarComentarios(origemId: number, destinoId: number, destinoFermentacaoNum: number, herdadoDe: string) {
+  const db = await getDb();
+  if (!db) return;
+  const comentariosOrigem = await db.select().from(comentariosCuba).where(eq(comentariosCuba.cubaId, origemId)).orderBy(asc(comentariosCuba.createdAt));
+  for (const c of comentariosOrigem) {
+    await db.insert(comentariosCuba).values({
+      cubaId: destinoId,
+      fermentacaoNum: destinoFermentacaoNum,
+      texto: c.texto,
+      herdadoDe,
+      userId: c.userId,
+      userName: c.userName,
+    });
+  }
 }

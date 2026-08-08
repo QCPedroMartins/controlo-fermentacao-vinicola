@@ -225,7 +225,7 @@ export default function CubaPage() {
   const [limiteTemp, setLimiteTemp] = useState("");
 
   // Estado tab activa
-  const [activeTab, setActiveTab] = useState<"leituras" | "graficos" | "adicoes" | "movimentos" | "arquivo">("leituras");
+  const [activeTab, setActiveTab] = useState<"leituras" | "graficos" | "adicoes" | "movimentos" | "comentarios" | "arquivo">("leituras");
 
   // Estado formulário de adição
   const [formAdicao, setFormAdicao] = useState({
@@ -447,6 +447,16 @@ export default function CubaPage() {
   const { data: todasCubasLista } = trpc.cubas.list.useQuery();
   const { data: movimentosCuba } = trpc.movimentos.byCuba.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
   const { data: historicoAnalises } = trpc.cubas.getAnalises.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
+  const { data: comentarios, refetch: refetchComentarios } = trpc.cubas.getComentarios.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
+  const [novoComentario, setNovoComentario] = useState("");
+  const addComentarioMutation = trpc.cubas.addComentario.useMutation({
+    onSuccess: () => { setNovoComentario(""); refetchComentarios(); toast.success("Comentário guardado"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteComentarioMutation = trpc.cubas.deleteComentario.useMutation({
+    onSuccess: () => { refetchComentarios(); toast.success("Comentário eliminado"); },
+    onError: (e) => toast.error(e.message),
+  });
 
   const transferirMutation = trpc.movimentos.transferir.useMutation({
     onSuccess: (data) => {
@@ -1136,7 +1146,7 @@ export default function CubaPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-fit">
-        {(["leituras", "graficos", "adicoes", "movimentos", "arquivo"] as const).map((tab) => (
+        {(["leituras", "graficos", "adicoes", "movimentos", "comentarios", "arquivo"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1146,7 +1156,7 @@ export default function CubaPage() {
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            {tab === "leituras" ? "Histórico" : tab === "graficos" ? "Gráficos" : tab === "adicoes" ? "Adições" : tab === "movimentos" ? "Movimentos" : "Arquivo"}
+            {tab === "leituras" ? "Histórico" : tab === "graficos" ? "Gráficos" : tab === "adicoes" ? "Adições" : tab === "movimentos" ? "Movimentos" : tab === "comentarios" ? "Comentários" : "Arquivo"}
           </button>
         ))}
       </div>
@@ -1575,6 +1585,75 @@ export default function CubaPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+
+      {/* Tab: Comentários */}
+      {activeTab === "comentarios" && (
+        <div className="space-y-4 animate-fade-in">
+          {/* Formulário novo comentário */}
+          {canEdit && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Novo Comentário</h3>
+              <textarea
+                className="w-full border border-gray-200 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-vinho)] min-h-[80px]"
+                placeholder="Escreva um comentário sobre esta cuba (parcelas, observações de campo, etc.)..."
+                value={novoComentario}
+                onChange={(e) => setNovoComentario(e.target.value)}
+                maxLength={2000}
+              />
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-xs text-gray-400">{novoComentario.length}/2000</span>
+                <button
+                  onClick={() => {
+                    if (!novoComentario.trim() || !cuba) return;
+                    addComentarioMutation.mutate({ cubaId: cuba.id, fermentacaoNum: cuba.fermentacaoNum, texto: novoComentario.trim() });
+                  }}
+                  disabled={!novoComentario.trim() || addComentarioMutation.isPending}
+                  className="px-4 py-2 bg-[var(--color-vinho)] text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-all"
+                >
+                  {addComentarioMutation.isPending ? "A guardar..." : "Guardar Comentário"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Histórico de comentários */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Histórico de Comentários</h3>
+            {!comentarios || comentarios.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <p className="text-sm">Sem comentários registados.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {comentarios.map((c) => (
+                  <div key={c.id} className={`rounded-xl p-4 border ${c.herdadoDe ? "border-blue-200 bg-blue-50" : "border-gray-100 bg-gray-50"}`}>
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1">
+                        {c.herdadoDe && (
+                          <div className="text-xs text-blue-600 font-medium mb-1">↓ Herdado de {c.herdadoDe}</div>
+                        )}
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{c.texto}</p>
+                      </div>
+                      {canEdit && (
+                        <button
+                          onClick={() => { if (confirm("Eliminar este comentário?")) deleteComentarioMutation.mutate({ id: c.id }); }}
+                          className="text-gray-300 hover:text-red-400 transition-colors text-xs shrink-0"
+                          title="Eliminar"
+                        >✕</button>
+                      )}
+                    </div>
+                    <div className="mt-2 flex gap-3 text-xs text-gray-400">
+                      <span>{new Date(c.createdAt).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      {c.userName && <span>· {c.userName}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

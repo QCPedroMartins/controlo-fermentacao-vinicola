@@ -21,6 +21,9 @@ import {
   updateFichaInicial,
   criarAnalise,
   getAnalisesByCuba,
+  criarComentario,
+  getComentariosByCuba,
+  copiarComentarios,
   verificarFermentacaoCompleta,
   calcularAlertas,
   createLeitura,
@@ -172,6 +175,38 @@ const cubasRouter = router({
   getAnalises: publicProcedure
     .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number().optional() }))
     .query(async ({ input }) => getAnalisesByCuba(input.cubaId, input.fermentacaoNum)),
+
+  getComentarios: publicProcedure
+    .input(z.object({ cubaId: z.number() }))
+    .query(async ({ input }) => getComentariosByCuba(input.cubaId)),
+
+  addComentario: editProcedure
+    .input(z.object({
+      cubaId: z.number(),
+      fermentacaoNum: z.number(),
+      texto: z.string().min(1).max(2000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await criarComentario({
+        cubaId: input.cubaId,
+        fermentacaoNum: input.fermentacaoNum,
+        texto: input.texto,
+        userId: ctx.user.id,
+        userName: ctx.user.name ?? ctx.user.email ?? null,
+      });
+      return { success: true };
+    }),
+
+  deleteComentario: editProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("DB unavailable");
+      const { comentariosCuba } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.delete(comentariosCuba).where(eq(comentariosCuba.id, input.id));
+      return { success: true };
+    }),
 
   getBaumeCalculo: publicProcedure
     .input(z.object({ cubaId: z.number() }))
@@ -1235,6 +1270,9 @@ const movimentosRouter = router({
           );
         }
 
+        // Copiar comentários da origem para o destino
+        await copiarComentarios(input.cubaOrigemId, dest.cubaId, destino.fermentacaoNum, `${origem.codigo.toUpperCase()} (transferência ${input.dataMovimento})`);
+
         // Actualizar destino: herda nomeLote e ficha (blend: soma litros se já tem vinho)
         const litrosTotal = origem.fichaLitros ? parseFloat(origem.fichaLitros) : null;
         const litrosDest = dest.litros;
@@ -1412,6 +1450,9 @@ const movimentosRouter = router({
           );
           totalAdicoes += adicoesOrigem.length;
         }
+
+        // Copiar comentários da origem para o destino
+        await copiarComentarios(origemId, input.cubaDestinoId, destino.fermentacaoNum, `${origem.codigo.toUpperCase()} (junção ${input.dataMovimento})`);
 
         // Acumular kg e litros transferidos
         if (origem.fichaKilos) totalKg += parseFloat(origem.fichaKilos);

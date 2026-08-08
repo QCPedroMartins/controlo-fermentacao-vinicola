@@ -6,7 +6,7 @@
 
 import ExcelJS from "exceljs";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia, getMovimentosByCuba, getAnalisesByCuba } from "./db";
+import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia, getMovimentosByCuba, getAnalisesByCuba, getComentariosByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -327,6 +327,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
   const movimentos = await getMovimentosByCuba(cuba.id);
   const analises = await getAnalisesByCuba(cuba.id);
+  const comentarios = await getComentariosByCuba(cuba.id);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Controlo de Fermentação Vinícola";
@@ -741,6 +742,32 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       { width: 13 }, { width: 10 }, { width: 8 }, { width: 12 }, { width: 12 },
       { width: 14 }, { width: 10 }, { width: 16 }, { width: 18 }, { width: 22 },
     ];
+  }
+
+  // ── Folha 6: Comentários ─────────────────────────────────
+  if (comentarios.length > 0) {
+    const wsCom = wb.addWorksheet("Comentários");
+    wsCom.mergeCells("A1:D1");
+    wsCom.getCell("A1").value = `Comentários — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`;
+    wsCom.getCell("A1").font = { bold: true, size: 12, color: { argb: "FF4A148C" } };
+    wsCom.getCell("A1").alignment = { horizontal: "center" };
+    const hdrCom = wsCom.addRow(["Data / Hora", "Utilizador", "Herdado de", "Comentário"]);
+    hdrCom.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4A148C" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      cell.alignment = { horizontal: "center" };
+    });
+    comentarios.forEach((c, idx) => {
+      const data = c.createdAt ? new Date(c.createdAt).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+      const row = wsCom.addRow([data, c.userName ?? "—", c.herdadoDe ?? "", c.texto]);
+      const bg = idx % 2 === 0 ? "FFFFFFFF" : "FFF3E5F5";
+      row.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+        cell.font = { size: 10 };
+        cell.alignment = { wrapText: true, vertical: "top" };
+      });
+    });
+    wsCom.columns = [{ width: 18 }, { width: 20 }, { width: 25 }, { width: 60 }];
   }
 
   return wb.xlsx.writeBuffer();

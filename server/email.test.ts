@@ -52,6 +52,7 @@ vi.mock("./db", () => ({
   getRecepcoesDoDia: vi.fn().mockResolvedValue([]),
   getMovimentosByCuba: vi.fn().mockResolvedValue([]),
   getAnalisesByCuba: vi.fn().mockResolvedValue([]),
+  getComentariosByCuba: vi.fn().mockResolvedValue([]),
 }));
 
 // ── Mock do Resend ─────────────────────────────────────────

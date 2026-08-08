@@ -248,3 +248,19 @@ export const movimentosCuba = mysqlTable("movimentos_cuba", {
 
 export type MovimentoCuba = typeof movimentosCuba.$inferSelect;
 export type InsertMovimentoCuba = typeof movimentosCuba.$inferInsert;
+
+// ── Comentários de Cuba ───────────────────────────────────
+export const comentariosCuba = mysqlTable("comentarios_cuba", {
+  id: int("id").autoincrement().primaryKey(),
+  cubaId: int("cuba_id").notNull(),
+  fermentacaoNum: int("fermentacao_num").notNull().default(1),
+  texto: text("texto").notNull(),
+  /** Indica se foi herdado de outra cuba (transferência/junção) */
+  herdadoDe: varchar("herdado_de", { length: 120 }),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ComentarioCuba = typeof comentariosCuba.$inferSelect;
+export type InsertComentarioCuba = typeof comentariosCuba.$inferInsert;
+

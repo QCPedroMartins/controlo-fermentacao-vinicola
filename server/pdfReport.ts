@@ -5,7 +5,7 @@
 
 import PDFDocument from "pdfkit";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getLeiturasByCuba, getAdicoesByCuba, getMovimentosByCuba, getAnalisesByCuba } from "./db";
+import { getLeiturasByCuba, getAdicoesByCuba, getMovimentosByCuba, getAnalisesByCuba, getComentariosByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -294,6 +294,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
   const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
   const movimentos = await getMovimentosByCuba(cuba.id);
   const analises = await getAnalisesByCuba(cuba.id);
+  const comentarios = await getComentariosByCuba(cuba.id);
 
   const isPorto = cuba.tipoCuba === "porto";
 
@@ -830,6 +831,37 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
             .text(String(v), anx + 2, y + 3, { width: anCols[i].width - 4, align: i === 0 || i === 9 ? "left" : "center", lineBreak: false });
           anx += anCols[i].width;
         });
+        y += rowH;
+      });
+      y += 6;
+    }
+
+    // ── Comentários ────────────────────────────────────────
+    if (comentarios.length > 0) {
+      if (y + 60 > doc.page.height - 50) {
+        doc.addPage({ size: "A4", layout: "landscape" });
+        y = MARGIN;
+      }
+      doc.rect(MARGIN, y, CONTENT_W, 16).fill("#4A148C");
+      doc.fillColor("#FFFFFF").fontSize(9).font("Helvetica-Bold")
+        .text("COMENTÁRIOS", MARGIN, y + 3, { width: CONTENT_W, align: "center" });
+      y += 18;
+
+      comentarios.forEach((c, idx) => {
+        const rowH = 30;
+        if (y + rowH > doc.page.height - 50) {
+          doc.addPage({ size: "A4", layout: "landscape" });
+          y = MARGIN;
+        }
+        const bg = idx % 2 === 0 ? "#FFFFFF" : "#F3E5F5";
+        doc.rect(MARGIN, y, CONTENT_W, rowH).fill(bg);
+        const data = c.createdAt ? new Date(c.createdAt).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+        const autor = c.userName ?? "—";
+        const herdado = c.herdadoDe ? ` [Herdado de ${c.herdadoDe}]` : "";
+        doc.fillColor("#666666").fontSize(7).font("Helvetica")
+          .text(`${data} · ${autor}${herdado}`, MARGIN + 4, y + 4, { width: CONTENT_W - 8, lineBreak: false });
+        doc.fillColor("#333333").fontSize(8).font("Helvetica")
+          .text(c.texto, MARGIN + 4, y + 14, { width: CONTENT_W - 8, lineBreak: false });
         y += rowH;
       });
       y += 6;
