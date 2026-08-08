@@ -6,7 +6,7 @@
 
 import ExcelJS from "exceljs";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia, getMovimentosByCuba } from "./db";
+import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia, getMovimentosByCuba, getAnalisesByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -326,6 +326,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   const leituras = (await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum)) as LeituraRow[];
   const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
   const movimentos = await getMovimentosByCuba(cuba.id);
+  const analises = await getAnalisesByCuba(cuba.id);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Controlo de Fermentação Vinícola";
@@ -701,6 +702,44 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     });
     wsM.columns = [
       { width: 13 }, { width: 15 }, { width: 12 }, { width: 25 }, { width: 30 }, { width: 12 }, { width: 35 },
+    ];
+  }
+
+  // ── Folha 5: Histórico de Análises ─────────────────────
+  if (analises.length > 0) {
+    const wsAn = wb.addWorksheet("Histórico Análises");
+    wsAn.mergeCells("A1:J1");
+    wsAn.getCell("A1").value = `Histórico de Análises — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`;
+    wsAn.getCell("A1").font = { bold: true, size: 12, color: { argb: "FF2E7D32" } };
+    wsAn.getCell("A1").alignment = { horizontal: "center" };
+    const hdrAn = wsAn.addRow(["Data", "Litros", "pH", "AT (g/L)", "AV (g/L)", "NFA (mg/L)", "NTU", "Glucónico (g/L)", "Álcool Prov. (%)", "Registado por"]);
+    hdrAn.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2E7D32" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      cell.alignment = { horizontal: "center" };
+    });
+    analises.forEach((a, idx) => {
+      const row = wsAn.addRow([
+        a.dataAnalise ?? "—",
+        a.fichaLitros ?? "—",
+        a.fichaPh ?? "—",
+        a.fichaAt ?? "—",
+        a.fichaAv ?? "—",
+        a.fichaNfa ?? "—",
+        a.fichaNtu ?? "—",
+        a.fichaGluconico ?? "—",
+        a.fichaAlcoolProvavel ?? "—",
+        a.userName ?? "—",
+      ]);
+      const bg = idx % 2 === 0 ? "FFFFFFFF" : "FFF1F8E9";
+      row.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+        cell.font = { size: 10 };
+      });
+    });
+    wsAn.columns = [
+      { width: 13 }, { width: 10 }, { width: 8 }, { width: 12 }, { width: 12 },
+      { width: 14 }, { width: 10 }, { width: 16 }, { width: 18 }, { width: 22 },
     ];
   }
 

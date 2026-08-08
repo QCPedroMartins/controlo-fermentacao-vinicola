@@ -5,7 +5,7 @@
 
 import PDFDocument from "pdfkit";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getLeiturasByCuba, getAdicoesByCuba, getMovimentosByCuba } from "./db";
+import { getLeiturasByCuba, getAdicoesByCuba, getMovimentosByCuba, getAnalisesByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -293,6 +293,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
   const leituras = (await getLeiturasByCuba(cuba.id, cuba.fermentacaoNum)) as LeituraRow[];
   const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
   const movimentos = await getMovimentosByCuba(cuba.id);
+  const analises = await getAnalisesByCuba(cuba.id);
 
   const isPorto = cuba.tipoCuba === "porto";
 
@@ -762,6 +763,72 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
             .fontSize(7).font("Helvetica")
             .text(String(v), mx2 + 2, y + 3, { width: movCols[i].width - 4, align: "left", lineBreak: false });
           mx2 += movCols[i].width;
+        });
+        y += rowH;
+      });
+      y += 6;
+    }
+
+    // ── Histórico de Análises ──────────────────────────────
+    if (analises.length > 0) {
+      if (y + 60 > doc.page.height - 50) {
+        doc.addPage({ size: "A4", layout: "landscape" });
+        y = MARGIN;
+      }
+      doc.rect(MARGIN, y, CONTENT_W, 16).fill("#2E7D32");
+      doc.fillColor("#FFFFFF").fontSize(9).font("Helvetica-Bold")
+        .text("HISTÓRICO DE ANÁLISES", MARGIN, y + 3, { width: CONTENT_W, align: "center" });
+      y += 18;
+
+      const anCols = [
+        { header: "Data", width: 60 },
+        { header: "Litros", width: 50 },
+        { header: "pH", width: 35 },
+        { header: "AT (g/L)", width: 45 },
+        { header: "AV (g/L)", width: 45 },
+        { header: "NFA (mg/L)", width: 50 },
+        { header: "NTU", width: 40 },
+        { header: "Glucónico", width: 50 },
+        { header: "Álcool (%)", width: 50 },
+        { header: "Por", width: 0 },
+      ];
+      const totalAnFixed = anCols.filter((_, i) => i !== 9).reduce((s, c) => s + c.width, 0);
+      anCols[9].width = Math.max(CONTENT_W - totalAnFixed, 60);
+
+      doc.rect(MARGIN, y, CONTENT_W, 14).fill("#E8F5E9");
+      let anx = MARGIN;
+      anCols.forEach((col) => {
+        doc.fillColor("#2E7D32").fontSize(7).font("Helvetica-Bold")
+          .text(col.header, anx + 2, y + 3, { width: col.width - 4, align: "center" });
+        anx += col.width;
+      });
+      y += 14;
+
+      analises.forEach((a, idx) => {
+        const rowH = 13;
+        if (y + rowH > doc.page.height - 50) {
+          doc.addPage({ size: "A4", layout: "landscape" });
+          y = MARGIN;
+        }
+        const bg = idx % 2 === 0 ? "#FFFFFF" : "#F1F8E9";
+        doc.rect(MARGIN, y, CONTENT_W, rowH).fill(bg);
+        const vals = [
+          a.dataAnalise ?? "—",
+          a.fichaLitros ?? "—",
+          a.fichaPh ?? "—",
+          a.fichaAt ?? "—",
+          a.fichaAv ?? "—",
+          a.fichaNfa ?? "—",
+          a.fichaNtu ?? "—",
+          a.fichaGluconico ?? "—",
+          a.fichaAlcoolProvavel ?? "—",
+          a.userName ?? "—",
+        ];
+        anx = MARGIN;
+        vals.forEach((v, i) => {
+          doc.fillColor("#333333").fontSize(7).font("Helvetica")
+            .text(String(v), anx + 2, y + 3, { width: anCols[i].width - 4, align: i === 0 || i === 9 ? "left" : "center", lineBreak: false });
+          anx += anCols[i].width;
         });
         y += rowH;
       });
