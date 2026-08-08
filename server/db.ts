@@ -31,6 +31,8 @@ import {
   type InsertAnaliseCuba,
   comentariosCuba,
   type InsertComentarioCuba,
+  alertasHistorico,
+  type InsertAlertaHistorico,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -961,4 +963,32 @@ export async function copiarComentarios(origemId: number, destinoId: number, des
       userName: c.userName,
     });
   }
+}
+
+/** Registar um alerta no histórico */
+export async function registarAlerta(data: InsertAlertaHistorico) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(alertasHistorico).values(data);
+}
+
+/** Listar alertas de uma cuba (activos e reconhecidos) */
+export async function getAlertasByCuba(cubaId: number, fermentacaoNum?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = fermentacaoNum !== undefined
+    ? and(eq(alertasHistorico.cubaId, cubaId), eq(alertasHistorico.fermentacaoNum, fermentacaoNum))
+    : eq(alertasHistorico.cubaId, cubaId);
+  return db.select().from(alertasHistorico).where(conditions).orderBy(desc(alertasHistorico.criadoEm));
+}
+
+/** Reconhecer um alerta */
+export async function reconhecerAlerta(id: number, userId: number, userName: string | null) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(alertasHistorico).set({
+    reconhecidoEm: new Date(),
+    reconhecidoPorId: userId,
+    reconhecidoPorNome: userName,
+  }).where(eq(alertasHistorico.id, id));
 }

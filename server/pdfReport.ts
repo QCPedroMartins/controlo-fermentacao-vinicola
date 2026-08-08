@@ -5,7 +5,7 @@
 
 import PDFDocument from "pdfkit";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getLeiturasByCuba, getAdicoesByCuba, getMovimentosByCuba, getAnalisesByCuba, getComentariosByCuba } from "./db";
+import { getLeiturasByCuba, getAdicoesByCuba, getMovimentosByCuba, getAnalisesByCuba, getComentariosByCuba, getAlertasByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -295,6 +295,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
   const movimentos = await getMovimentosByCuba(cuba.id);
   const analises = await getAnalisesByCuba(cuba.id);
   const comentarios = await getComentariosByCuba(cuba.id);
+  const alertasHist = await getAlertasByCuba(cuba.id);
 
   const isPorto = cuba.tipoCuba === "porto";
 
@@ -862,6 +863,46 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
           .text(`${data} · ${autor}${herdado}`, MARGIN + 4, y + 4, { width: CONTENT_W - 8, lineBreak: false });
         doc.fillColor("#333333").fontSize(8).font("Helvetica")
           .text(c.texto, MARGIN + 4, y + 14, { width: CONTENT_W - 8, lineBreak: false });
+        y += rowH;
+      });
+      y += 6;
+    }
+
+    // ── Histórico de Alertas ──────────────────────────────────
+    if (alertasHist.length > 0) {
+      if (y + 60 > doc.page.height - 50) {
+        doc.addPage({ size: "A4", layout: "landscape" });
+        y = MARGIN;
+      }
+      doc.rect(MARGIN, y, CONTENT_W, 16).fill("#B71C1C");
+      doc.fillColor("#FFFFFF").fontSize(9).font("Helvetica-Bold")
+        .text("HISTÓRICO DE ALERTAS", MARGIN, y + 3, { width: CONTENT_W, align: "center" });
+      y += 18;
+      const alertaCols = [{ w: 90, label: "Data" }, { w: 100, label: "Tipo" }, { w: 70, label: "Valor" }, { w: 100, label: "Reconhecido em" }, { w: 80, label: "Por" }];
+      let ax = MARGIN;
+      alertaCols.forEach(col => {
+        doc.rect(ax, y, col.w, 14).fill("#FFCDD2");
+        doc.fillColor("#B71C1C").fontSize(7).font("Helvetica-Bold").text(col.label, ax + 2, y + 3, { width: col.w - 4, lineBreak: false });
+        ax += col.w;
+      });
+      y += 14;
+      alertasHist.forEach((a, idx) => {
+        const rowH = 14;
+        if (y + rowH > doc.page.height - 50) {
+          doc.addPage({ size: "A4", layout: "landscape" });
+          y = MARGIN;
+        }
+        const bg = idx % 2 === 0 ? "#FFFFFF" : "#FFEBEE";
+        const data = a.criadoEm ? new Date(a.criadoEm).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+        const recEm = a.reconhecidoEm ? new Date(a.reconhecidoEm).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Por reconhecer";
+        const vals = [data, a.tipoAlerta.replace(/_/g, " "), a.valorAlerta ?? "—", recEm, a.reconhecidoPorNome ?? "—"];
+        let vx = MARGIN;
+        alertaCols.forEach((col, ci) => {
+          doc.rect(vx, y, col.w, rowH).fill(bg);
+          const textColor = ci === 3 && !a.reconhecidoEm ? "#B71C1C" : "#333333";
+          doc.fillColor(textColor).fontSize(7).font("Helvetica").text(vals[ci], vx + 2, y + 3, { width: col.w - 4, lineBreak: false });
+          vx += col.w;
+        });
         y += rowH;
       });
       y += 6;

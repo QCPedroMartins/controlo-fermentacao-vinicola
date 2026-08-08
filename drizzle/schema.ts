@@ -264,3 +264,22 @@ export const comentariosCuba = mysqlTable("comentarios_cuba", {
 export type ComentarioCuba = typeof comentariosCuba.$inferSelect;
 export type InsertComentarioCuba = typeof comentariosCuba.$inferInsert;
 
+// ── Histórico de Alertas ──────────────────────────────────
+export const alertasHistorico = mysqlTable("alertas_historico", {
+  id: int("id").autoincrement().primaryKey(),
+  cubaId: int("cuba_id").notNull(),
+  fermentacaoNum: int("fermentacao_num").notNull().default(1),
+  /** Tipo de alerta: temperatura_alta, temperatura_baixa, densidade_limite, etc. */
+  tipoAlerta: varchar("tipo_alerta", { length: 64 }).notNull(),
+  /** Valor que despoletou o alerta (ex: "18.5°C", "0.991") */
+  valorAlerta: varchar("valor_alerta", { length: 64 }),
+  /** Data/hora em que o alerta foi gerado */
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+  /** Data/hora em que foi reconhecido (null = por reconhecer) */
+  reconhecidoEm: timestamp("reconhecido_em"),
+  /** Utilizador que reconheceu */
+  reconhecidoPorId: int("reconhecido_por_id"),
+  reconhecidoPorNome: varchar("reconhecido_por_nome", { length: 120 }),
+});
+export type AlertaHistorico = typeof alertasHistorico.$inferSelect;
+export type InsertAlertaHistorico = typeof alertasHistorico.$inferInsert;

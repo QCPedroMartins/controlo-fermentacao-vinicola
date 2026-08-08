@@ -6,7 +6,7 @@
 
 import ExcelJS from "exceljs";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia, getMovimentosByCuba, getAnalisesByCuba, getComentariosByCuba } from "./db";
+import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia, getMovimentosByCuba, getAnalisesByCuba, getComentariosByCuba, getAlertasByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -328,6 +328,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   const movimentos = await getMovimentosByCuba(cuba.id);
   const analises = await getAnalisesByCuba(cuba.id);
   const comentarios = await getComentariosByCuba(cuba.id);
+  const alertasHist = await getAlertasByCuba(cuba.id);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Controlo de Fermentação Vinícola";
@@ -768,6 +769,32 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       });
     });
     wsCom.columns = [{ width: 18 }, { width: 20 }, { width: 25 }, { width: 60 }];
+  }
+
+  // ── Folha 7: Histórico de Alertas ────────────────────────
+  if (alertasHist.length > 0) {
+    const wsAl = wb.addWorksheet("Histórico Alertas");
+    wsAl.mergeCells("A1:E1");
+    wsAl.getCell("A1").value = `Alertas — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`;
+    wsAl.getCell("A1").font = { bold: true, size: 12, color: { argb: "FFB71C1C" } };
+    wsAl.getCell("A1").alignment = { horizontal: "center" };
+    const hdrAl = wsAl.addRow(["Data", "Tipo", "Valor", "Reconhecido em", "Por"]);
+    hdrAl.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB71C1C" } };
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      cell.alignment = { horizontal: "center" };
+    });
+    alertasHist.forEach((a, idx) => {
+      const data = a.criadoEm ? new Date(a.criadoEm).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+      const recEm = a.reconhecidoEm ? new Date(a.reconhecidoEm).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Por reconhecer";
+      const row = wsAl.addRow([data, a.tipoAlerta.replace(/_/g, " "), a.valorAlerta ?? "—", recEm, a.reconhecidoPorNome ?? "—"]);
+      const bg = idx % 2 === 0 ? "FFFFFFFF" : "FFFFEBEE";
+      row.eachCell((cell, col) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+        cell.font = { size: 10, color: col === 4 && !a.reconhecidoEm ? { argb: "FFB71C1C" } : { argb: "FF333333" } };
+      });
+    });
+    wsAl.columns = [{ width: 18 }, { width: 22 }, { width: 15 }, { width: 18 }, { width: 20 }];
   }
 
   return wb.xlsx.writeBuffer();

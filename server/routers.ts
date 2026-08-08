@@ -24,6 +24,9 @@ import {
   criarComentario,
   getComentariosByCuba,
   copiarComentarios,
+  registarAlerta,
+  getAlertasByCuba,
+  reconhecerAlerta,
   verificarFermentacaoCompleta,
   calcularAlertas,
   createLeitura,
@@ -208,6 +211,17 @@ const cubasRouter = router({
       return { success: true };
     }),
 
+  getAlertas: publicProcedure
+    .input(z.object({ cubaId: z.number() }))
+    .query(async ({ input }) => getAlertasByCuba(input.cubaId)),
+
+  reconhecerAlerta: editProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      await reconhecerAlerta(input.id, ctx.user.id, ctx.user.name ?? ctx.user.email ?? null);
+      return { success: true };
+    }),
+
   getBaumeCalculo: publicProcedure
     .input(z.object({ cubaId: z.number() }))
     .query(async ({ input }) => {
@@ -302,6 +316,24 @@ async function processarAlertas(params: {
       title: `⚠️ Alerta de Fermentação — ${nomeCuba.toUpperCase()}`,
       content: alertas.join("\n") + `\nDia de fermentação: ${params.diaNr}\nRegistado por: ${params.userName}`,
     }).catch(() => {});
+    // Registar cada alerta no histórico
+    for (const alerta of alertas) {
+      // Extrair valor do alerta (ex: "Temperatura alta: 22.5°C" → "22.5°C")
+      const match = alerta.match(/:\s*(.+)$/);
+      const valorAlerta = match ? match[1].trim() : null;
+      // Determinar tipo
+      let tipoAlerta = "outro";
+      if (alerta.toLowerCase().includes("temperatura")) tipoAlerta = alerta.toLowerCase().includes("alta") ? "temperatura_alta" : "temperatura_baixa";
+      else if (alerta.toLowerCase().includes("densidade")) tipoAlerta = "densidade_limite";
+      else if (alerta.toLowerCase().includes("baumé") || alerta.toLowerCase().includes("baume")) tipoAlerta = "baume_alerta";
+      else if (alerta.toLowerCase().includes("aguardentação") || alerta.toLowerCase().includes("aguardentacao")) tipoAlerta = "aguardentacao";
+      await registarAlerta({
+        cubaId: params.cuba.id,
+        fermentacaoNum: params.diaNr > 0 ? undefined : 1,
+        tipoAlerta,
+        valorAlerta,
+      }).catch(() => {});
+    }
   }
 
   return { fermentacaoCompleta, alertas };

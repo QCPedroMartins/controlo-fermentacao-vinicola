@@ -457,6 +457,11 @@ export default function CubaPage() {
     onSuccess: () => { refetchComentarios(); toast.success("Comentário eliminado"); },
     onError: (e) => toast.error(e.message),
   });
+  const { data: alertasHistorico, refetch: refetchAlertasHistorico } = trpc.cubas.getAlertas.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
+  const reconhecerAlertaMutation = trpc.cubas.reconhecerAlerta.useMutation({
+    onSuccess: () => { refetchAlertasHistorico(); toast.success("Alerta reconhecido"); },
+    onError: (e) => toast.error(e.message),
+  });
 
   const transferirMutation = trpc.movimentos.transferir.useMutation({
     onSuccess: (data) => {
@@ -968,12 +973,28 @@ export default function CubaPage() {
               const dataStr = l ? new Date(l.dataLeitura).toLocaleDateString("pt-PT") : "—";
               return (
                 <div key={leituraId} className="bg-white border border-red-100 rounded-xl px-3 py-2">
-                  <p className="text-xs font-medium text-red-600 mb-0.5">
-                    Dia {l?.diaNr ?? "—"} — {dataStr}
-                  </p>
-                  {mensagens.map((m, i) => (
-                    <p key={i} className="text-xs text-red-700">• {m}</p>
-                  ))}
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-red-600 mb-0.5">
+                        Dia {l?.diaNr ?? "—"} — {dataStr}
+                      </p>
+                      {mensagens.map((m, i) => (
+                        <p key={i} className="text-xs text-red-700">• {m}</p>
+                      ))}
+                    </div>
+                    {canEdit && alertasHistorico && (() => {
+                      // Encontrar alertas por reconhecer correspondentes a esta leitura
+                      const alertasPorReconhecer = alertasHistorico.filter(a => !a.reconhecidoEm && l && new Date(a.criadoEm).toDateString() === new Date(l.dataLeitura).toDateString());
+                      if (alertasPorReconhecer.length === 0) return null;
+                      return (
+                        <button
+                          onClick={() => alertasPorReconhecer.forEach(a => reconhecerAlertaMutation.mutate({ id: a.id }))}
+                          className="shrink-0 px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200 transition-colors"
+                          title="Marcar como reconhecido"
+                        >✓ Reconhecer</button>
+                      );
+                    })()}
+                  </div>
                 </div>
               );
             })}
@@ -1588,6 +1609,44 @@ export default function CubaPage() {
         </div>
       )}
 
+
+
+
+
+          {/* Histórico de Alertas */}
+          {alertasHistorico && alertasHistorico.length > 0 && (
+            <>
+              <h3 className="text-sm font-semibold text-gray-700 mt-6 pt-4 border-t border-gray-100">Histórico de Alertas</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-red-700 text-white">
+                      <th className="px-3 py-2 text-left">Data</th>
+                      <th className="px-3 py-2 text-left">Tipo</th>
+                      <th className="px-3 py-2 text-left">Valor</th>
+                      <th className="px-3 py-2 text-left">Reconhecido em</th>
+                      <th className="px-3 py-2 text-left">Por</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alertasHistorico.map((a, i) => (
+                      <tr key={a.id} className={i % 2 === 0 ? "bg-white" : "bg-red-50"}>
+                        <td className="px-3 py-2 border border-gray-200">{new Date(a.criadoEm).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+                        <td className="px-3 py-2 border border-gray-200">{a.tipoAlerta.replace(/_/g, " ")}</td>
+                        <td className="px-3 py-2 border border-gray-200">{a.valorAlerta ?? "—"}</td>
+                        <td className="px-3 py-2 border border-gray-200">
+                          {a.reconhecidoEm
+                            ? new Date(a.reconhecidoEm).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                            : <span className="text-red-500 font-medium">Por reconhecer</span>}
+                        </td>
+                        <td className="px-3 py-2 border border-gray-200">{a.reconhecidoPorNome ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
 
       {/* Tab: Comentários */}
       {activeTab === "comentarios" && (
