@@ -820,7 +820,7 @@ export async function getMovimentosByCuba(cubaId: number) {
     .select()
     .from(movimentosCuba)
     .orderBy(desc(movimentosCuba.dataMovimento));
-  return todos.filter((m) => {
+  const filtrados = todos.filter((m) => {
     if (m.cubaDestinoId === cubaId) return true;
     try {
       const origens: number[] = JSON.parse(m.cubasOrigemIds);
@@ -828,6 +828,29 @@ export async function getMovimentosByCuba(cubaId: number) {
     } catch {
       return false;
     }
+  });
+  // Também incluir movimentos onde a cuba aparece no destinosJson (múltiplos destinos)
+  const filtradosComDestinos = todos.filter((m) => {
+    // Já incluído pelo filtro anterior?
+    if (filtrados.some(f => f.id === m.id)) return false;
+    try {
+      const destinos: { cubaId: number }[] = JSON.parse(m.destinosJson ?? "[]");
+      return destinos.some(d => d.cubaId === cubaId);
+    } catch { return false; }
+  });
+  const todos2 = [...filtrados, ...filtradosComDestinos].sort((a, b) =>
+    (b.dataMovimento ?? "").localeCompare(a.dataMovimento ?? "")
+  );
+  // Enriquecer com códigos das cubas de origem
+  const todasCubas = await db.select({ id: cubas.id, codigo: cubas.codigo }).from(cubas);
+  const cubaMap = new Map(todasCubas.map(c => [c.id, c.codigo]));
+  return todos2.map(m => {
+    let origensStr = "";
+    try {
+      const ids: number[] = JSON.parse(m.cubasOrigemIds);
+      origensStr = ids.map(id => cubaMap.get(id) ?? String(id)).join(", ");
+    } catch { origensStr = ""; }
+    return { ...m, cubasOrigemCodigos: origensStr };
   });
 }
 

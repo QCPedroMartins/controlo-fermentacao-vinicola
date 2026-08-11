@@ -1577,7 +1577,7 @@ export default function CubaPage() {
                         <p>
                           {eOrigem
                             ? <>Transferido para: <strong>{destinos.map((d) => `${d.cubaCodigo.toUpperCase()} (${d.litros.toLocaleString("pt-PT")} L)`).join(", ")}</strong></>
-                            : <>Recebido de: <strong>{origens.map((id) => `#${id}`).join(", ")}</strong>{litrosDest ? ` — ${litrosDest.toLocaleString("pt-PT")} L` : ""}</>
+                            : <>Recebido de: <strong>{(m as any).cubasOrigemCodigos || origens.map((id) => `#${id}`).join(", ")}</strong>{litrosDest ? ` — ${litrosDest.toLocaleString("pt-PT")} L` : ""}</>
                           }
                         </p>
                       )}
@@ -1585,7 +1585,7 @@ export default function CubaPage() {
                         <p>
                           {eOrigem
                             ? <>Juntado em: <strong>{m.cubaDestinoId ? `Cuba #${m.cubaDestinoId}` : "—"}</strong></>
-                            : <>Junção de: <strong>{origens.map((id) => `Cuba #${id}`).join(" + ")}</strong></>
+                            : <>Junção de: <strong>{(m as any).cubasOrigemCodigos || origens.map((id) => `#${id}`).join(" + ")}</strong></>
                           }
                         </p>
                       )}

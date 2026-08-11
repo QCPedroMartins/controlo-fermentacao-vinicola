@@ -753,7 +753,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
           m.dataMovimento ?? "—",
           m.tipo === "transferencia" ? "Transferência" : "Junção",
           sentido,
-          origens.join(", ") || "—",
+          (m as any).cubasOrigemCodigos || origens.join(", ") || "—",
           destinosStr || "—",
           (() => { try { const d = JSON.parse(m.destinosJson ?? "[]") as {litros:number}[]; const tot = d.reduce((s,x)=>s+x.litros,0); return tot > 0 ? `${tot} L` : "—"; } catch { return "—"; } })(),
           m.motivo ?? "",
