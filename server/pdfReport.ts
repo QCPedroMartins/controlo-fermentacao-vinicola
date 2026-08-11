@@ -739,7 +739,14 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
         // Determinar sentido
         let origens: number[] = [];
         try { origens = JSON.parse(m.cubasOrigemIds); } catch { origens = []; }
-        const isDestino = m.cubaDestinoId === cuba.id;
+        // Para transferências multi-destino, verificar também no destinosJson
+        let isDestino = m.cubaDestinoId === cuba.id;
+        if (!isDestino) {
+          try {
+            const destinos = JSON.parse(m.destinosJson ?? "[]") as { cubaId: number }[];
+            isDestino = destinos.some(d => d.cubaId === cuba.id);
+          } catch { /* */ }
+        }
         const sentido = isDestino ? "↓ Entrada" : "↑ Saída";
 
         // Destinos (pode ser JSON com múltiplos)

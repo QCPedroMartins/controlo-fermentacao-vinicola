@@ -1556,11 +1556,17 @@ export default function CubaPage() {
                 try { origens = JSON.parse(m.cubasOrigemIds); } catch { /* */ }
                 let destinos: { cubaId: number; litros: number; cubaCodigo: string }[] = [];
                 try { destinos = m.destinosJson ? JSON.parse(m.destinosJson) : []; } catch { /* */ }
-                const eOrigem = origens.includes(cuba.id);
-                const eDestino = m.cubaDestinoId === cuba.id || destinos.some((d) => d.cubaId === cuba.id);
-                const litrosDest = destinos.find((d) => d.cubaId === cuba.id)?.litros;
-                return (
-                  <div key={m.id} className={`rounded-xl border px-4 py-3 ${m.tipo === "transferencia" ? "border-blue-200 bg-blue-50" : "border-purple-200 bg-purple-50"}`}>
+               const eOrigem = origens.includes(cuba.id);
+               const eDestino = m.cubaDestinoId === cuba.id || destinos.some((d) => d.cubaId === cuba.id);
+               const litrosDest = destinos.find((d) => d.cubaId === cuba.id)?.litros;
+                // cubasOrigemCodigos vem do servidor como string enriquecida
+                const origemCodigos = (m as any).cubasOrigemCodigos as string | undefined;
+                // Código do destino: tentar obter do destinosJson ou de allCubas
+                const destinoCodigo = destinos.find(d => d.cubaId === m.cubaDestinoId)?.cubaCodigo
+                  || todasCubasLista?.find((c: {id: number; codigo: string}) => c.id === m.cubaDestinoId)?.codigo
+                  || (m.cubaDestinoId ? `#${m.cubaDestinoId}` : "—");
+               return (
+                 <div key={m.id} className={`rounded-xl border px-4 py-3 ${m.tipo === "transferencia" ? "border-blue-200 bg-blue-50" : "border-purple-200 bg-purple-50"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.tipo === "transferencia" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
@@ -1575,18 +1581,18 @@ export default function CubaPage() {
                     <div className="mt-2 text-sm text-gray-700">
                       {m.tipo === "transferencia" && destinos.length > 0 && (
                         <p>
-                          {eOrigem
-                            ? <>Transferido para: <strong>{destinos.map((d) => `${d.cubaCodigo.toUpperCase()} (${d.litros.toLocaleString("pt-PT")} L)`).join(", ")}</strong></>
-                            : <>Recebido de: <strong>{(m as any).cubasOrigemCodigos || origens.map((id) => `#${id}`).join(", ")}</strong>{litrosDest ? ` — ${litrosDest.toLocaleString("pt-PT")} L` : ""}</>
-                          }
+                         {eOrigem
+                           ? <>Transferido para: <strong>{destinos.map((d) => `${d.cubaCodigo.toUpperCase()} (${d.litros.toLocaleString("pt-PT")} L)`).join(", ")}</strong></>
+                            : <>Recebido de: <strong>{origemCodigos || origens.map((id) => todasCubasLista?.find((c: {id: number; codigo: string}) => c.id === id)?.codigo ?? `#${id}`).join(", ")}</strong>{litrosDest ? ` — ${litrosDest.toLocaleString("pt-PT")} L` : ""}</>
+                         }
                         </p>
                       )}
                       {m.tipo === "juncao" && (
                         <p>
-                          {eOrigem
-                            ? <>Juntado em: <strong>{m.cubaDestinoId ? `Cuba #${m.cubaDestinoId}` : "—"}</strong></>
-                            : <>Junção de: <strong>{(m as any).cubasOrigemCodigos || origens.map((id) => `#${id}`).join(" + ")}</strong></>
-                          }
+                         {eOrigem
+                            ? <>Juntado em: <strong>{destinoCodigo}</strong></>
+                            : <>Junção de: <strong>{origemCodigos || origens.map((id) => todasCubasLista?.find((c: {id: number; codigo: string}) => c.id === id)?.codigo ?? `#${id}`).join(" + ")}</strong></>
+                         }
                         </p>
                       )}
                       {m.motivo && <p className="text-xs text-gray-500 mt-1">Nota: {m.motivo}</p>}
