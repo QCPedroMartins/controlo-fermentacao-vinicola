@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Exemplo em HTML, CSS e JavaScript para gerir movimentos entre cubas de vinho."
+    />
+    <title>Controlo de Fermentação — Exemplo HTML/JS</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CASTELARES</p>
+        <h1>Controlo de Fermentação</h1>
+      </div>
+      <button id="reset-button" class="button button-secondary" type="button">Limpar demonstração</button>
+    </header>
+
+    <main class="page-shell">
+      <section class="intro-panel" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">EXEMPLO SEM SERVIDOR</p>
+          <h2 id="page-title">Movimentos entre cubas</h2>
+          <p>
+            Esta versão demonstra, em JavaScript puro, o comportamento pretendido: a cuba de origem vê todos os destinos;
+            cada cuba de destino vê apenas os litros que recebeu.
+          </p>
+        </div>
+        <button id="open-movement-button" class="button button-primary" type="button">Registar transferência</button>
+      </section>
+
+      <section class="metrics" aria-label="Resumo das cubas">
+        <article class="metric-card"><span>Cubas configuradas</span><strong id="tank-count">0</strong></article>
+        <article class="metric-card"><span>Litros em cubas</span><strong id="litre-total">0 L</strong></article>
+        <article class="metric-card"><span>Movimentos registados</span><strong id="movement-count">0</strong></article>
+      </section>
+
+      <section class="workspace">
+        <aside class="tank-panel" aria-labelledby="tank-list-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">CUBAS</p>
+              <h2 id="tank-list-title">Seleccionar cuba</h2>
+            </div>
+            <button id="open-tank-button" class="text-button" type="button">Adicionar</button>
+          </div>
+          <div id="tank-list" class="tank-list" aria-live="polite"></div>
+        </aside>
+
+        <section class="history-panel" aria-labelledby="movement-history-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">RASTREABILIDADE</p>
+              <h2 id="movement-history-title">Histórico de movimentos</h2>
+            </div>
+            <span id="selected-tank-label" class="selection-pill">Sem cuba seleccionada</span>
+          </div>
+          <p id="history-description" class="history-description">Seleccione uma cuba para consultar os movimentos.</p>
+          <div id="movement-history" class="movement-history" aria-live="polite"></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="movement-dialog" class="dialog">
+      <form id="movement-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">NOVO MOVIMENTO</p>
+            <h2>Transferência entre cubas</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Fechar" type="submit">×</button>
+        </div>
+
+        <label>
+          Cuba de origem
+          <select id="source-select" required></select>
+        </label>
+        <p id="source-availability" class="help-text">Seleccione uma cuba com volume disponível.</p>
+
+        <fieldset>
+          <legend>Destinos e litros</legend>
+          <div id="destination-rows" class="destination-rows"></div>
+          <button id="add-destination-button" class="text-button" type="button">+ Adicionar destino</button>
+        </fieldset>
+
+        <label>
+          Observação <span class="optional">(opcional)</span>
+          <textarea id="reason-input" rows="3" placeholder="Ex.: passagem a limpo"></textarea>
+        </label>
+
+        <div id="movement-balance" class="balance" aria-live="polite">Seleccione uma origem e indique os destinos.</div>
+        <p id="movement-error" class="form-error" role="alert"></p>
+
+        <div class="dialog-actions">
+          <button class="button button-secondary" value="cancel" type="submit">Cancelar</button>
+          <button class="button button-primary" value="default" type="submit">Guardar transferência</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="tank-dialog" class="dialog dialog-small">
+      <form id="tank-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">NOVA CUBA</p>
+            <h2>Configurar cuba</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Fechar" type="submit">×</button>
+        </div>
+        <label>
+          Código
+          <input id="tank-code-input" maxlength="20" placeholder="Ex.: CF200" required />
+        </label>
+        <label>
+          Volume inicial (L)
+          <input id="tank-volume-input" type="number" min="0" step="0.01" placeholder="0" required />
+        </label>
+        <p id="tank-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="button button-secondary" value="cancel" type="submit">Cancelar</button>
+          <button class="button button-primary" value="default" type="submit">Guardar cuba</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
