@@ -397,4 +397,4 @@
 ## Entrega de Código-Fonte (v65)
 - [x] Preparar uma versão limpa e documentada do frontend em HTML, CSS e JavaScript
 - [x] Gerar pacote ZIP do código-fonte sem dependências e ficheiros temporários
-- [ ] Criar repositório GitHub privado com o código-fonte e documentação de instalação
+- [x] Criar repositório GitHub privado com o código-fonte e documentação de instalação
