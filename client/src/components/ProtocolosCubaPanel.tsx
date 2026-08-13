@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 type Props = { cubaId: number; canEdit: boolean };
 
 function condicao(etapa: any) {
-  if (etapa.gatilhoTipo === "manual") return "Etapa manual";
+  if (etapa.gatilhoTipo === "manual") return "Acção inicial — sem leitura";
   const campo = etapa.gatilhoTipo === "densidade" ? "Densidade" : etapa.gatilhoTipo === "baume" ? "Baumé" : etapa.gatilhoTipo === "temperatura" ? "Temperatura" : "Dia";
   const operador = etapa.operador === "menor_igual" ? "≤" : etapa.operador === "maior_igual" ? "≥" : "=";
   return `${campo} ${operador} ${etapa.valorGatilho ?? "—"}`;

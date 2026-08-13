@@ -410,3 +410,8 @@
 - [x] Criar biblioteca de protocolos e atribuição/consulta na página de cada cuba
 - [x] Validar com testes e publicar
 - [ ] Recolher protocolos reais da adega para configuração
+
+## Etapas Iniciais de Protocolo
+- [x] Permitir adições iniciais e manuais sem dependência de leituras
+- [x] Mostrar as etapas iniciais como acções pendentes logo após atribuir o protocolo
+- [x] Validar e publicar a correcção

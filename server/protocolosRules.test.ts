@@ -13,8 +13,8 @@ describe("regras de protocolos de fermentação", () => {
     expect(gatilhoFoiAtingido("dia", "maior_igual", 3, { dia: 2 })).toBe(false);
   });
 
-  it("mantém as etapas manuais inactivas até confirmação do operador", () => {
-    expect(gatilhoFoiAtingido("manual", null, null, {})).toBe(false);
+  it("activa as etapas manuais logo na atribuição, mesmo sem leituras", () => {
+    expect(gatilhoFoiAtingido("manual", null, null, {})).toBe(true);
   });
 
   it("calcula o dia de fermentação e a dose total a partir do volume", () => {

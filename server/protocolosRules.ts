@@ -17,7 +17,9 @@ export function gatilhoFoiAtingido(
   valorGatilho: number | null | undefined,
   valores: { densidade?: number | null; baume?: number | null; temperatura?: number | null; dia?: number | null }
 ) {
-  if (tipo === "manual") return false;
+  // Etapas manuais são acções iniciais: ficam pendentes e visíveis logo que o
+  // protocolo é atribuído, mesmo antes da primeira leitura da cuba.
+  if (tipo === "manual") return true;
   if (valorGatilho === null || valorGatilho === undefined || !operador) return false;
 
   const valorAtual = tipo === "densidade"
