@@ -415,3 +415,13 @@
 - [x] Permitir adições iniciais e manuais sem dependência de leituras
 - [x] Mostrar as etapas iniciais como acções pendentes logo após atribuir o protocolo
 - [x] Validar e publicar a correcção
+
+## Fluxograma de Produção
+- [x] Extrair etapas do fluxograma de produção fornecido
+- [x] Mapear etapas do fluxograma para condições e avisos dos protocolos
+- [x] Rever o primeiro protocolo proposto com a adega antes de o configurar
+
+## Protocolo Inicial Branco/Rosé
+- [x] Criar um protocolo inicial Branco/Rosé a partir do fluxograma
+- [x] Permitir editar protocolos e respectivas etapas após a criação
+- [x] Validar e publicar o protocolo inicial editável

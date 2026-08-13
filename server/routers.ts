@@ -67,6 +67,7 @@ import {
 import { upsertUser, getLocalUserByEmail } from "./db";
 import {
   atribuirProtocoloACuba,
+  atualizarProtocolo,
   concluirEtapaDeProtocolo,
   criarProtocolo,
   definirEstadoProtocolo,
@@ -1603,6 +1604,7 @@ const movimentosRouter = router({
 
 // ── Router de Protocolos de Fermentação ────────────────────
 const protocoloEtapaInput = z.object({
+  id: z.number().optional(),
   ordem: z.number().int().min(1),
   titulo: z.string().trim().min(1).max(160),
   descricao: z.string().trim().max(2000).nullable().optional(),
@@ -1643,6 +1645,23 @@ const protocolosRouter = router({
         userName: ctx.user.name ?? ctx.user.email ?? undefined,
       });
       return { success: true, id };
+    }),
+
+  actualizar: editProcedure
+    .input(z.object({
+      id: z.number(),
+      nome: z.string().trim().min(1).max(160),
+      descricao: z.string().trim().max(3000).nullable().optional(),
+      tipoCuba: z.enum(["vinho", "porto", "todos"]),
+      etapas: z.array(protocoloEtapaInput).max(30),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        await atualizarProtocolo(input);
+        return { success: true, id: input.id };
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Não foi possível actualizar o protocolo" });
+      }
     }),
 
   definirEstado: editProcedure

@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   cubas,
   protocoloEtapas,
@@ -10,6 +10,7 @@ import { createAdicao, getDb, getLeiturasByCuba } from "./db";
 import { calcularDiaFermentacao, calcularDoseTotal, gatilhoFoiAtingido, unidadeTotal } from "./protocolosRules";
 
 export type EtapaInput = {
+  id?: number;
   ordem: number;
   titulo: string;
   descricao?: string | null;
@@ -77,6 +78,66 @@ export async function criarProtocolo(input: {
     })));
   }
   return protocoloId;
+}
+
+export async function atualizarProtocolo(input: {
+  id: number;
+  nome: string;
+  descricao?: string | null;
+  tipoCuba: "vinho" | "porto" | "todos";
+  etapas: EtapaInput[];
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de dados indisponível");
+  const protocolo = (await db.select().from(protocolosFermentacao).where(eq(protocolosFermentacao.id, input.id)).limit(1))[0];
+  if (!protocolo) throw new Error("Protocolo não encontrado");
+
+  const existentes = await db.select().from(protocoloEtapas)
+    .where(eq(protocoloEtapas.protocoloId, input.id));
+  const existentesPorId = new Map(existentes.map((etapa) => [etapa.id, etapa]));
+  const idsMantidos = new Set(input.etapas.flatMap((etapa) => etapa.id ? [etapa.id] : []));
+  const idsRemovidos = existentes.filter((etapa) => !idsMantidos.has(etapa.id)).map((etapa) => etapa.id);
+
+  // Não apagar etapas que já pertencem ao histórico de uma cuba. Podem ser
+  // corrigidas, mas a sua rastreabilidade deve manter-se intacta.
+  if (idsRemovidos.length > 0) {
+    const referencias = await db.select().from(protocoloEtapasCuba)
+      .where(inArray(protocoloEtapasCuba.protocoloEtapaId, idsRemovidos));
+    if (referencias.length > 0) {
+      throw new Error("Não é possível remover uma etapa que já foi atribuída a uma cuba. Edite-a ou mantenha-a no protocolo.");
+    }
+    await db.delete(protocoloEtapas).where(inArray(protocoloEtapas.id, idsRemovidos));
+  }
+
+  await db.update(protocolosFermentacao).set({
+    nome: input.nome,
+    descricao: input.descricao ?? null,
+    tipoCuba: input.tipoCuba,
+  }).where(eq(protocolosFermentacao.id, input.id));
+
+  for (let indice = 0; indice < input.etapas.length; indice += 1) {
+    const etapa = input.etapas[indice];
+    const valores = {
+      ordem: etapa.ordem || indice + 1,
+      titulo: etapa.titulo,
+      descricao: etapa.descricao ?? null,
+      tipoEtapa: etapa.tipoEtapa,
+      gatilhoTipo: etapa.gatilhoTipo,
+      operador: etapa.gatilhoTipo === "manual" ? null : etapa.operador ?? null,
+      valorGatilho: etapa.gatilhoTipo === "manual" ? null : etapa.valorGatilho ?? null,
+      produto: etapa.produto ?? null,
+      dosePorHl: etapa.dosePorHl ?? null,
+      doseUnidade: etapa.doseUnidade ?? "g/hL",
+      instrucoes: etapa.instrucoes ?? null,
+    };
+    if (etapa.id) {
+      if (!existentesPorId.has(etapa.id)) throw new Error("A etapa indicada não pertence a este protocolo");
+      await db.update(protocoloEtapas).set(valores).where(eq(protocoloEtapas.id, etapa.id));
+    } else {
+      await db.insert(protocoloEtapas).values({ protocoloId: input.id, ...valores });
+    }
+  }
+  return input.id;
 }
 
 export async function definirEstadoProtocolo(id: number, ativo: boolean) {
