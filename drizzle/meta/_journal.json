@@ -120,6 +120,13 @@
       "when": 1786207540944,
       "tag": "0016_large_weapon_omega",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1786613256057,
+      "tag": "0017_stiff_oracle",
+      "breakpoints": true
     }
   ]
 }

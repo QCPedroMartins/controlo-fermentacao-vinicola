@@ -52,6 +52,7 @@ import {
 
 import CalculadoraCorrecao from "@/components/CalculadoraCorrecao";
 import CalculadoraBaumeEnvasilhamento from "@/components/CalculadoraBaumeEnvasilhamento";
+import ProtocolosCubaPanel from "@/components/ProtocolosCubaPanel";
 
 // ── Cores fixas dos gráficos ──────────────────────────────
 const CORES = {
@@ -225,7 +226,7 @@ export default function CubaPage() {
   const [limiteTemp, setLimiteTemp] = useState("");
 
   // Estado tab activa
-  const [activeTab, setActiveTab] = useState<"leituras" | "graficos" | "adicoes" | "movimentos" | "comentarios" | "arquivo">("leituras");
+  const [activeTab, setActiveTab] = useState<"leituras" | "graficos" | "adicoes" | "protocolos" | "movimentos" | "comentarios" | "arquivo">("leituras");
 
   // Estado formulário de adição
   const [formAdicao, setFormAdicao] = useState({
@@ -283,6 +284,12 @@ export default function CubaPage() {
     { enabled: !!cuba?.id }
   );
 
+  const { data: protocoloCuba } = trpc.protocolos.daCuba.useQuery(
+    { cubaId: cuba?.id ?? 0 },
+    { enabled: !!cuba?.id }
+  );
+  const avisosProtocoloAtivos = protocoloCuba?.etapas.filter((etapa) => etapa.alertaAtivo) ?? [];
+
   const { data: arquivo } = trpc.arquivo.listByCuba.useQuery(
     { cubaId: cuba?.id ?? 0 },
     { enabled: !!cuba?.id }
@@ -318,6 +325,7 @@ export default function CubaPage() {
       utils.leituras.resumo.invalidate();
       utils.cubas.dashboard.invalidate();
       utils.cubas.get.invalidate();
+      utils.protocolos.daCuba.invalidate();
     },
     onError: (e) => toast.error("Erro ao registar: " + e.message),
   });
@@ -332,6 +340,7 @@ export default function CubaPage() {
       utils.leituras.listByCuba.invalidate();
       utils.leituras.resumo.invalidate();
       utils.cubas.get.invalidate();
+      utils.protocolos.daCuba.invalidate();
     },
     onError: (e) => toast.error("Erro ao editar: " + e.message),
   });
@@ -1183,6 +1192,21 @@ export default function CubaPage() {
         </div>
       )}
 
+      {avisosProtocoloAtivos.length > 0 && (
+        <div className="mb-5 flex items-center justify-between gap-4 bg-amber-50 border border-amber-300 rounded-xl px-5 py-3">
+          <div className="flex items-center gap-2 text-amber-800">
+            <ClipboardList size={19} className="text-amber-700" />
+            <div>
+              <p className="text-sm font-semibold">{avisosProtocoloAtivos.length} etapa{avisosProtocoloAtivos.length > 1 ? "s" : ""} do protocolo requer{avisosProtocoloAtivos.length === 1 ? "" : "em"} atenção</p>
+              <p className="text-xs text-amber-700">A leitura actual atingiu uma condição definida no protocolo. Confirme a operação antes de concluir a etapa.</p>
+            </div>
+          </div>
+          <button onClick={() => setActiveTab("protocolos")} className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors whitespace-nowrap">
+            Ver protocolo
+          </button>
+        </div>
+      )}
+
       {/* Banner — visível quando estado = completa E não há leituras activas (cuba realmente vazia) */}
       {canEdit && cuba.estado === "completa" && (!leituras || leituras.length === 0) && (
         <div className="mb-5 flex items-center justify-between gap-4 bg-gray-50 border border-gray-200 rounded-xl px-5 py-3">
@@ -1201,7 +1225,7 @@ export default function CubaPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-fit">
-        {(["leituras", "graficos", "adicoes", "movimentos", "comentarios", "arquivo"] as const).map((tab) => (
+        {(["leituras", "graficos", "adicoes", "protocolos", "movimentos", "comentarios", "arquivo"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1211,7 +1235,7 @@ export default function CubaPage() {
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            {tab === "leituras" ? "Histórico" : tab === "graficos" ? "Gráficos" : tab === "adicoes" ? "Adições" : tab === "movimentos" ? "Movimentos" : tab === "comentarios" ? "Comentários" : "Arquivo"}
+            {tab === "leituras" ? "Histórico" : tab === "graficos" ? "Gráficos" : tab === "adicoes" ? "Adições" : tab === "protocolos" ? "Protocolos" : tab === "movimentos" ? "Movimentos" : tab === "comentarios" ? "Comentários" : "Arquivo"}
           </button>
         ))}
       </div>
@@ -1540,6 +1564,9 @@ export default function CubaPage() {
           </div>
         </div>
       )}
+
+      {/* Tab: Protocolos e avisos operacionais */}
+      {activeTab === "protocolos" && <ProtocolosCubaPanel cubaId={cuba.id} canEdit={canEdit} />}
 
       {/* Tab: Movimentos (rastreabilidade) */}
       {activeTab === "movimentos" && (

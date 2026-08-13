@@ -398,3 +398,15 @@
 - [x] Preparar uma versão limpa e documentada do frontend em HTML, CSS e JavaScript
 - [x] Gerar pacote ZIP do código-fonte sem dependências e ficheiros temporários
 - [x] Criar repositório GitHub privado com o código-fonte e documentação de instalação
+
+## Criação de Site a partir do Código-Fonte
+- [ ] Analisar o ZIP fornecido e confirmar a aplicação a disponibilizar
+- [ ] Preparar, testar e publicar o site baseado no código-fonte
+
+## Protocolos de Fermentação
+- [x] Definir modelo de protocolo, etapas e regras por densidade, Baumé, temperatura e dias de fermentação
+- [x] Criar tabelas e procedimentos para protocolos, etapas e atribuição a cubas
+- [x] Criar avaliação automática de etapas e avisos na entrada de leituras
+- [x] Criar biblioteca de protocolos e atribuição/consulta na página de cada cuba
+- [x] Validar com testes e publicar
+- [ ] Recolher protocolos reais da adega para configuração

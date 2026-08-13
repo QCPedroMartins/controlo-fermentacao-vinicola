@@ -65,6 +65,15 @@ import {
   toggleLocalUserActive,
 } from "./db";
 import { upsertUser, getLocalUserByEmail } from "./db";
+import {
+  atribuirProtocoloACuba,
+  concluirEtapaDeProtocolo,
+  criarProtocolo,
+  definirEstadoProtocolo,
+  listarProtocolos,
+  obterProtocolo,
+  obterProtocoloDaCuba,
+} from "./protocolos";
 import { localUsers } from "../drizzle/schema";
 import { notifyOwner } from "./_core/notification";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
@@ -1592,6 +1601,95 @@ const movimentosRouter = router({
 
 
 
+// ── Router de Protocolos de Fermentação ────────────────────
+const protocoloEtapaInput = z.object({
+  ordem: z.number().int().min(1),
+  titulo: z.string().trim().min(1).max(160),
+  descricao: z.string().trim().max(2000).nullable().optional(),
+  tipoEtapa: z.enum(["adicao", "controlo", "manual"]),
+  gatilhoTipo: z.enum(["densidade", "baume", "temperatura", "dia", "manual"]),
+  operador: z.enum(["menor_igual", "maior_igual", "igual"]).nullable().optional(),
+  valorGatilho: z.string().nullable().optional(),
+  produto: z.string().trim().max(200).nullable().optional(),
+  dosePorHl: z.string().nullable().optional(),
+  doseUnidade: z.string().trim().max(30).nullable().optional(),
+  instrucoes: z.string().trim().max(3000).nullable().optional(),
+});
+
+const protocolosRouter = router({
+  list: publicProcedure
+    .input(z.object({ apenasAtivos: z.boolean().optional() }).optional())
+    .query(({ input }) => listarProtocolos(input?.apenasAtivos ?? false)),
+
+  get: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const protocolo = await obterProtocolo(input.id);
+      if (!protocolo) throw new TRPCError({ code: "NOT_FOUND", message: "Protocolo não encontrado" });
+      return protocolo;
+    }),
+
+  criar: editProcedure
+    .input(z.object({
+      nome: z.string().trim().min(1).max(160),
+      descricao: z.string().trim().max(3000).nullable().optional(),
+      tipoCuba: z.enum(["vinho", "porto", "todos"]),
+      etapas: z.array(protocoloEtapaInput).max(30),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const id = await criarProtocolo({
+        ...input,
+        userId: ctx.user.id,
+        userName: ctx.user.name ?? ctx.user.email ?? undefined,
+      });
+      return { success: true, id };
+    }),
+
+  definirEstado: editProcedure
+    .input(z.object({ id: z.number(), ativo: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await definirEstadoProtocolo(input.id, input.ativo);
+      return { success: true };
+    }),
+
+  atribuirACuba: editProcedure
+    .input(z.object({ cubaId: z.number(), protocoloId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const protocoloCubaId = await atribuirProtocoloACuba({
+          ...input,
+          userId: ctx.user.id,
+          userName: ctx.user.name ?? ctx.user.email ?? undefined,
+        });
+        return { success: true, protocoloCubaId };
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Não foi possível atribuir o protocolo" });
+      }
+    }),
+
+  daCuba: publicProcedure
+    .input(z.object({ cubaId: z.number() }))
+    .query(({ input }) => obterProtocoloDaCuba(input.cubaId)),
+
+  concluirEtapa: editProcedure
+    .input(z.object({
+      etapaCubaId: z.number(),
+      estado: z.enum(["concluida", "dispensada"]),
+      observacoes: z.string().trim().max(3000).nullable().optional(),
+      registarAdicao: z.boolean().optional(),
+      doseReal: z.string().trim().max(100).nullable().optional(),
+      data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await concluirEtapaDeProtocolo({
+        ...input,
+        userId: ctx.user.id,
+        userName: ctx.user.name ?? ctx.user.email ?? undefined,
+      });
+      return { success: true };
+    }),
+});
+
 // ── Router de Login Local ─────────────────────────────────
 const localAuthRouter = router({
   login: publicProcedure
@@ -1663,6 +1761,7 @@ export const appRouter = router({
   pesquisa: pesquisaRouter,
   recepcoes: recepcaoRouter,
   movimentos: movimentosRouter,
+  protocolos: protocolosRouter,
   localAuth: localAuthRouter,
 });
 export type AppRouter = typeof appRouter;

@@ -9,6 +9,7 @@ import {
   date,
   smallint,
   boolean,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
 // ── Utilizadores ──────────────────────────────────────────
@@ -283,3 +284,73 @@ export const alertasHistorico = mysqlTable("alertas_historico", {
 });
 export type AlertaHistorico = typeof alertasHistorico.$inferSelect;
 export type InsertAlertaHistorico = typeof alertasHistorico.$inferInsert;
+
+// ── Protocolos de Fermentação ──────────────────────────────
+// Um protocolo é um modelo reutilizável, composto por etapas que podem ser
+// accionadas por densidade, Baumé, temperatura, dia de fermentação ou manualmente.
+export const protocolosFermentacao = mysqlTable("protocolos_fermentacao", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 160 }).notNull(),
+  descricao: text("descricao"),
+  tipoCuba: mysqlEnum("tipo_cuba", ["vinho", "porto", "todos"]).default("todos").notNull(),
+  ativo: boolean("ativo").default(true).notNull(),
+  criadoPorId: int("criado_por_id"),
+  criadoPorNome: varchar("criado_por_nome", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ProtocoloFermentacao = typeof protocolosFermentacao.$inferSelect;
+export type InsertProtocoloFermentacao = typeof protocolosFermentacao.$inferInsert;
+
+export const protocoloEtapas = mysqlTable("protocolo_etapas", {
+  id: int("id").autoincrement().primaryKey(),
+  protocoloId: int("protocolo_id").notNull(),
+  ordem: int("ordem").default(1).notNull(),
+  titulo: varchar("titulo", { length: 160 }).notNull(),
+  descricao: text("descricao"),
+  tipoEtapa: mysqlEnum("tipo_etapa", ["adicao", "controlo", "manual"]).default("controlo").notNull(),
+  gatilhoTipo: mysqlEnum("gatilho_tipo", ["densidade", "baume", "temperatura", "dia", "manual"]).default("manual").notNull(),
+  operador: mysqlEnum("operador", ["menor_igual", "maior_igual", "igual"]),
+  valorGatilho: decimal("valor_gatilho", { precision: 8, scale: 4 }),
+  produto: varchar("produto", { length: 200 }),
+  dosePorHl: decimal("dose_por_hl", { precision: 8, scale: 3 }),
+  doseUnidade: varchar("dose_unidade", { length: 30 }).default("g/hL"),
+  instrucoes: text("instrucoes"),
+  ativo: boolean("ativo").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ProtocoloEtapa = typeof protocoloEtapas.$inferSelect;
+export type InsertProtocoloEtapa = typeof protocoloEtapas.$inferInsert;
+
+// A atribuição pertence a uma fermentação concreta de uma cuba. Quando inicia
+// uma nova fermentação, a escolha do protocolo é feita de novo.
+export const protocolosCuba = mysqlTable("protocolos_cuba", {
+  id: int("id").autoincrement().primaryKey(),
+  cubaId: int("cuba_id").notNull(),
+  fermentacaoNum: int("fermentacao_num").notNull(),
+  protocoloId: int("protocolo_id").notNull(),
+  atribuidoPorId: int("atribuido_por_id"),
+  atribuidoPorNome: varchar("atribuido_por_nome", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [uniqueIndex("protocolos_cuba_fermentacao_unq").on(table.cubaId, table.fermentacaoNum)]);
+export type ProtocoloCuba = typeof protocolosCuba.$inferSelect;
+export type InsertProtocoloCuba = typeof protocolosCuba.$inferInsert;
+
+// Cada etapa recebe um estado independente para manter a evidência de quem a
+// concluiu, dispensou ou deixou pendente para aquela cuba.
+export const protocoloEtapasCuba = mysqlTable("protocolo_etapas_cuba", {
+  id: int("id").autoincrement().primaryKey(),
+  protocoloCubaId: int("protocolo_cuba_id").notNull(),
+  protocoloEtapaId: int("protocolo_etapa_id").notNull(),
+  estado: mysqlEnum("estado", ["pendente", "concluida", "dispensada"]).default("pendente").notNull(),
+  concluidaEm: timestamp("concluida_em"),
+  concluidaPorId: int("concluida_por_id"),
+  concluidaPorNome: varchar("concluida_por_nome", { length: 120 }),
+  observacoes: text("observacoes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [uniqueIndex("protocolo_etapa_cuba_unq").on(table.protocoloCubaId, table.protocoloEtapaId)]);
+export type ProtocoloEtapaCuba = typeof protocoloEtapasCuba.$inferSelect;
+export type InsertProtocoloEtapaCuba = typeof protocoloEtapasCuba.$inferInsert;
