@@ -425,3 +425,9 @@
 - [x] Criar um protocolo inicial Branco/Rosé a partir do fluxograma
 - [x] Permitir editar protocolos e respectivas etapas após a criação
 - [x] Validar e publicar o protocolo inicial editável
+
+## Indicadores de Fermentação no Dashboard
+- [x] Mostrar a temperatura da leitura mais recente em cada cuba activa
+- [x] Mostrar densidade anterior e densidade actual em sequência
+- [x] Mostrar o estado de inoculação LSA por cuba a partir das etapas de protocolo concluídas
+- [x] Validar e publicar os novos indicadores do Dashboard

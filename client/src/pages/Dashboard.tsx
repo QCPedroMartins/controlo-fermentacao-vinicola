@@ -398,16 +398,24 @@ export default function Dashboard() {
 
       {/* Grid de cubas */}
       {isLoading ? (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {Array.from({ length: 84 }).map((_, i) => (
             <div key={i} className="h-24 rounded-lg bg-gray-100 animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {cubasFiltradas?.map((cuba) => {
             const cfg = estadoConfig[cuba.estado];
             const temAlerta = alertasPorCuba.get(cuba.id) === true;
+            const indicadores = cuba as typeof cuba & {
+              ultimaDensidade?: string | null;
+              densidadeAnterior?: string | null;
+              ultimoBaume?: string | null;
+              ultimaTemperatura?: string | null;
+              inoculacaoLsa?: boolean;
+              produtoInoculacao?: string | null;
+            };
             return (
               <Link key={cuba.id} href={`/cuba/${cuba.codigo}`}>
                 <div
@@ -437,20 +445,32 @@ export default function Dashboard() {
                   <p className="text-sm font-semibold text-gray-700 truncate leading-tight">
                     {cuba.nomeLote ?? "—"}
                   </p>
-                 {(cuba as { ultimaDensidade?: string | null }).ultimaDensidade && (
-                   <p className="text-xs font-mono text-gray-600 mt-0.5 truncate">
-                     {formatarDensidade((cuba as { ultimaDensidade: string }).ultimaDensidade)}
-                   </p>
-                 )}
-                 {!(cuba as { ultimaDensidade?: string | null }).ultimaDensidade && (cuba as { ultimoBaume?: string | null }).ultimoBaume && (
-                   <p className="text-xs font-mono mt-0.5 truncate" style={{ color: "#f59e0b" }}>
-                     {parseFloat((cuba as { ultimoBaume: string }).ultimoBaume).toFixed(2)}°Bé
-                   </p>
-                 )}
+                  {indicadores.ultimaDensidade && (
+                    <p className="text-[11px] font-mono text-gray-700 mt-1 whitespace-nowrap" title="Densidade anterior → densidade actual">
+                      <span className="font-sans text-[10px] text-gray-500">D:</span>{" "}
+                      {indicadores.densidadeAnterior ? `${formatarDensidade(indicadores.densidadeAnterior)}→` : ""}{formatarDensidade(indicadores.ultimaDensidade)}
+                    </p>
+                  )}
+                  {!indicadores.ultimaDensidade && indicadores.ultimoBaume && (
+                    <p className="text-xs font-mono mt-1 truncate" style={{ color: "#f59e0b" }}>
+                      <span className="font-sans text-[10px]">Baumé</span>{" "}{parseFloat(indicadores.ultimoBaume).toFixed(2)}°Bé
+                    </p>
+                  )}
+                  {indicadores.ultimaTemperatura && (
+                    <p className="text-xs font-mono text-gray-600 mt-0.5 truncate">
+                      <span className="font-sans text-[10px] text-gray-500">Temp.</span>{" "}{parseFloat(indicadores.ultimaTemperatura).toFixed(1)}°C
+                    </p>
+                  )}
                   {(cuba as { fichaLitros?: string | null }).fichaLitros && (
                     <p className="text-xs font-mono text-gray-500 truncate">
                       {Math.round(parseFloat((cuba as { fichaLitros: string }).fichaLitros)).toLocaleString("pt-PT")} L
                     </p>
+                  )}
+                  {cuba.estado === "em_fermentacao" && (
+                    <div title={indicadores.produtoInoculacao ?? "Ainda não existe uma inoculação LSA/levedura registada nesta fermentação"} className={`mt-1 inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold ${indicadores.inoculacaoLsa ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                      {indicadores.inoculacaoLsa ? <CheckCircle2 size={10} /> : <Circle size={10} />}
+                      <span>LSA: {indicadores.inoculacaoLsa ? "sim" : "por registar"}</span>
+                    </div>
                   )}
                   <div className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${
                     temAlerta ? "bg-red-100 text-red-700" : cfg.badge

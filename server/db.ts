@@ -16,6 +16,9 @@ import {
   cubas,
   fermentacoesArquivo,
   leituras,
+  protocoloEtapas,
+  protocoloEtapasCuba,
+  protocolosCuba,
   users,
 } from "../drizzle/schema";
 import { localUsers } from "../drizzle/schema";
@@ -35,6 +38,7 @@ import {
   type InsertAlertaHistorico,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { encontrarInoculacaoLsa } from "./dashboardRules";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -443,20 +447,54 @@ export async function getDashboardCubas() {
   const db = await getDb();
   if (!db) return [];
   const todasCubas = await db.select().from(cubas).orderBy(asc(cubas.id));
-  // Para cada cuba em fermentação, obter a última leitura (densL1 ou baumeL1)
+  // Para cada cuba em fermentação, obter as duas últimas leituras e o estado
+  // de inoculação. A inoculação pode ter sido registada como adição ou como
+  // etapa concluída de um protocolo.
   const resultado = await Promise.all(
     todasCubas.map(async (cuba) => {
-      if (cuba.estado !== "em_fermentacao") return { ...cuba, ultimaDensidade: null as string | null };
-      const ultimaLeitura = await db
-        .select({ densL1: leituras.densL1, baumeL1: leituras.baumeL1 })
+      if (cuba.estado !== "em_fermentacao") {
+        return {
+          ...cuba,
+          ultimaDensidade: null as string | null,
+          densidadeAnterior: null as string | null,
+          ultimoBaume: null as string | null,
+          ultimaTemperatura: null as string | null,
+          inoculacaoLsa: false,
+          produtoInoculacao: null as string | null,
+        };
+      }
+      const leiturasRecentes = await db
+        .select({ densL1: leituras.densL1, baumeL1: leituras.baumeL1, tempL1: leituras.tempL1 })
         .from(leituras)
         .where(and(eq(leituras.cubaId, cuba.id), eq(leituras.fermentacaoNum, cuba.fermentacaoNum)))
         .orderBy(desc(leituras.dataLeitura), desc(leituras.hora))
-        .limit(1);
-      const ul = ultimaLeitura[0];
+        .limit(2);
+      const ul = leiturasRecentes[0];
+      const leituraAnterior = leiturasRecentes[1];
       const ultimaDensidade = ul ? (ul.densL1 ?? null) : null;
       const ultimoBaume = ul ? (ul.baumeL1 ?? null) : null;
-      return { ...cuba, ultimaDensidade, ultimoBaume };
+      const ultimaTemperatura = ul ? (ul.tempL1 ?? null) : null;
+      const densidadeAnterior = leituraAnterior ? (leituraAnterior.densL1 ?? null) : null;
+
+      const adicoesDaFermentacao = await db.select({ produto: adicoes.produto })
+        .from(adicoes)
+        .where(and(eq(adicoes.cubaId, cuba.id), eq(adicoes.fermentacaoNum, cuba.fermentacaoNum)));
+      const etapasConcluidas = await db.select({ titulo: protocoloEtapas.titulo, produto: protocoloEtapas.produto })
+        .from(protocolosCuba)
+        .innerJoin(protocoloEtapasCuba, eq(protocoloEtapasCuba.protocoloCubaId, protocolosCuba.id))
+        .innerJoin(protocoloEtapas, eq(protocoloEtapas.id, protocoloEtapasCuba.protocoloEtapaId))
+        .where(and(
+          eq(protocolosCuba.cubaId, cuba.id),
+          eq(protocolosCuba.fermentacaoNum, cuba.fermentacaoNum),
+          eq(protocoloEtapasCuba.estado, "concluida"),
+        ));
+      const referenciaInoculacao = encontrarInoculacaoLsa([
+        ...adicoesDaFermentacao.map((adicao) => adicao.produto),
+        ...etapasConcluidas.flatMap((etapa) => [etapa.titulo, etapa.produto]),
+      ]);
+      const inoculacaoLsa = !!referenciaInoculacao;
+
+      return { ...cuba, ultimaDensidade, densidadeAnterior, ultimoBaume, ultimaTemperatura, inoculacaoLsa, produtoInoculacao: referenciaInoculacao ?? null };
     })
   );
   return resultado;
