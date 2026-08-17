@@ -431,3 +431,8 @@
 - [x] Mostrar densidade anterior e densidade actual em sequência
 - [x] Mostrar o estado de inoculação LSA por cuba a partir das etapas de protocolo concluídas
 - [x] Validar e publicar os novos indicadores do Dashboard
+
+## Correcção de Reconhecimento de Alertas
+- [x] Diagnosticar e corrigir a gravação do reconhecimento no histórico de alertas
+- [x] Testar que o alerta reconhecido desaparece dos activos e permanece no histórico
+- [x] Publicar a correcção do reconhecimento de alertas

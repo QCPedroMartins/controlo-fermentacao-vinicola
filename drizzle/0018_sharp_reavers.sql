@@ -1,0 +1,1 @@
+ALTER TABLE `alertas_historico` MODIFY COLUMN `valor_alerta` text;

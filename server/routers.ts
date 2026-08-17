@@ -250,8 +250,8 @@ const cubasRouter = router({
     .input(z.object({
       cubaId: z.number(),
       fermentacaoNum: z.number(),
-      tipoAlerta: z.string(),
-      valorAlerta: z.string().optional(),
+      tipoAlerta: z.string().trim().min(1).max(64),
+      valorAlerta: z.string().trim().max(3000).optional(),
       dataLeitura: z.string(), // ISO date string
     }))
     .mutation(async ({ input, ctx }) => {

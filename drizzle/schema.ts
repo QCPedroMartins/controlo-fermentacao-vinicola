@@ -272,8 +272,8 @@ export const alertasHistorico = mysqlTable("alertas_historico", {
   fermentacaoNum: int("fermentacao_num").notNull().default(1),
   /** Tipo de alerta: temperatura_alta, temperatura_baixa, densidade_limite, etc. */
   tipoAlerta: varchar("tipo_alerta", { length: 64 }).notNull(),
-  /** Valor que despoletou o alerta (ex: "18.5°C", "0.991") */
-  valorAlerta: varchar("valor_alerta", { length: 64 }),
+  /** Detalhe que despoletou o alerta; pode incluir vários avisos da mesma leitura. */
+  valorAlerta: text("valor_alerta"),
   /** Data/hora em que o alerta foi gerado */
   criadoEm: timestamp("criado_em").defaultNow().notNull(),
   /** Data/hora em que foi reconhecido (null = por reconhecer) */

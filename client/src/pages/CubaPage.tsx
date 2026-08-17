@@ -1028,7 +1028,7 @@ export default function CubaPage() {
                           onClick={() => criarEReconhecerAlertaMutation.mutate({
                             cubaId: cuba.id,
                             fermentacaoNum: cuba.fermentacaoNum ?? 1,
-                            tipoAlerta: mensagens[0] ?? "alerta",
+                            tipoAlerta: "alerta_leitura",
                             valorAlerta: mensagens.join("; "),
                             dataLeitura: new Date(l.dataLeitura).toISOString(),
                           })}
