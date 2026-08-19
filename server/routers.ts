@@ -79,6 +79,7 @@ import { localUsers } from "../drizzle/schema";
 import { notifyOwner } from "./_core/notification";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { inArray } from "drizzle-orm";
+import { normalizarNumeroDecimal } from "./numeros";
 import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas, movimentosCuba, alertasHistorico } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -151,7 +152,18 @@ const cubasRouter = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
-      await updateFichaInicial(id, data);
+      const fichaNormalizada = {
+        fichaKilos: normalizarNumeroDecimal(data.fichaKilos),
+        fichaLitros: normalizarNumeroDecimal(data.fichaLitros),
+        fichaPh: normalizarNumeroDecimal(data.fichaPh),
+        fichaAt: normalizarNumeroDecimal(data.fichaAt),
+        fichaAv: normalizarNumeroDecimal(data.fichaAv),
+        fichaNfa: normalizarNumeroDecimal(data.fichaNfa),
+        fichaNtu: normalizarNumeroDecimal(data.fichaNtu),
+        fichaGluconico: normalizarNumeroDecimal(data.fichaGluconico),
+        fichaAlcoolProvavel: normalizarNumeroDecimal(data.fichaAlcoolProvavel),
+      };
+      await updateFichaInicial(id, fichaNormalizada);
       // Guardar no histórico de análises
       const hoje = new Date().toISOString().slice(0, 10);
       const dbConn = await getDb();
@@ -163,15 +175,15 @@ const cubasRouter = router({
           cubaId: id,
           fermentacaoNum,
           dataAnalise: hoje,
-          fichaKilos: data.fichaKilos ?? null,
-          fichaLitros: data.fichaLitros ?? null,
-          fichaPh: data.fichaPh ?? null,
-          fichaAt: data.fichaAt ?? null,
-          fichaAv: data.fichaAv ?? null,
-          fichaNfa: data.fichaNfa ?? null,
-          fichaNtu: data.fichaNtu ?? null,
-          fichaGluconico: data.fichaGluconico ?? null,
-          fichaAlcoolProvavel: data.fichaAlcoolProvavel ?? null,
+          fichaKilos: fichaNormalizada.fichaKilos ?? null,
+          fichaLitros: fichaNormalizada.fichaLitros ?? null,
+          fichaPh: fichaNormalizada.fichaPh ?? null,
+          fichaAt: fichaNormalizada.fichaAt ?? null,
+          fichaAv: fichaNormalizada.fichaAv ?? null,
+          fichaNfa: fichaNormalizada.fichaNfa ?? null,
+          fichaNtu: fichaNormalizada.fichaNtu ?? null,
+          fichaGluconico: fichaNormalizada.fichaGluconico ?? null,
+          fichaAlcoolProvavel: fichaNormalizada.fichaAlcoolProvavel ?? null,
           userId: ctx.user.id,
           userName: ctx.user.name ?? ctx.user.email ?? null,
         });

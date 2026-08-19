@@ -436,3 +436,8 @@
 - [x] Diagnosticar e corrigir a gravação do reconhecimento no histórico de alertas
 - [x] Testar que o alerta reconhecido desaparece dos activos e permanece no histórico
 - [x] Publicar a correcção do reconhecimento de alertas
+
+## Correcção de Histórico de Análises
+- [x] Diagnosticar e corrigir a inserção de análises da ficha inicial
+- [x] Testar o registo de análises com vírgula decimal e todos os parâmetros
+- [x] Publicar a correcção do histórico de análises

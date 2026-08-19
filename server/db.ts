@@ -39,6 +39,7 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { encontrarInoculacaoLsa } from "./dashboardRules";
+import { normalizarNumeroDecimal } from "./numeros";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -186,7 +187,7 @@ export async function updateFichaInicial(
       if (raw === null || raw === undefined || (typeof raw === "string" && raw.trim() === "")) {
         set[f] = null;
       } else {
-        const trimmed = typeof raw === "string" ? raw.trim().replace(",", ".") : raw;
+        const trimmed = normalizarNumeroDecimal(raw);
         const num = parseFloat(trimmed as string);
         set[f] = isNaN(num) ? null : trimmed;
       }
