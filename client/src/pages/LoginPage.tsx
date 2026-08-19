@@ -1,4 +1,4 @@
-import { getLoginUrl } from "@/const";
+import { getLoginUrl, isExternalOAuthEnabled } from "@/const";
 import { FlaskConical, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [tab, setTab] = useState<"local" | "manus">("local");
+  const oauthDisponivel = isExternalOAuthEnabled();
 
   const loginMutation = trpc.localAuth.login.useMutation({
     onSuccess: async () => {
@@ -46,23 +47,25 @@ export default function LoginPage() {
             Bem-vindo
           </h2>
 
-          {/* Tabs */}
-          <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
-            <button
-              onClick={() => setTab("local")}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "local" ? "bg-white text-[var(--color-vinho)] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-            >
-              Email / Password
-            </button>
-            <button
-              onClick={() => setTab("manus")}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "manus" ? "bg-white text-[var(--color-vinho)] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-            >
-              Conta Manus
-            </button>
-          </div>
+          {/* Tabs — o separador externo so aparece se o OAuth estiver configurado */}
+          {oauthDisponivel && (
+            <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
+              <button
+                onClick={() => setTab("local")}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "local" ? "bg-white text-[var(--color-vinho)] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                Email / Password
+              </button>
+              <button
+                onClick={() => setTab("manus")}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "manus" ? "bg-white text-[var(--color-vinho)] shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                Conta externa
+              </button>
+            </div>
+          )}
 
-          {tab === "local" ? (
+          {tab === "local" || !oauthDisponivel ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -117,13 +120,13 @@ export default function LoginPage() {
           ) : (
             <div>
               <p className="text-gray-500 text-sm mb-5">
-                Para o proprietário do projecto — inicie sessão com a sua conta Manus.
+                Inicie sessão através do portal de autenticação configurado.
               </p>
               <a
                 href={getLoginUrl()}
                 className="flex items-center justify-center w-full py-3 px-6 rounded-xl bg-[var(--color-vinho)] text-white font-semibold text-sm hover:bg-[var(--color-vinho-light)] transition-colors shadow-sm"
               >
-                Iniciar sessão com Manus
+                Iniciar sessão no portal externo
               </a>
             </div>
           )}

@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Stack completa para VPS: aplicacao + MySQL + arranque das migracoes.
+#
+# Uso:
+#   cp .env.example .env      # preencher MYSQL_PASSWORD e JWT_SECRET
+#   docker compose up -d --build
+#   docker compose run --rm migrate       # aplicar migracoes da base de dados
+#   docker compose run --rm criar-admin   # criar a primeira conta de acesso
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-raiz_alterar}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-fermentacao}
+      MYSQL_USER: ${MYSQL_USER:-adega}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - dados_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-raiz_alterar}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: mysql://${MYSQL_USER:-adega}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE:-fermentacao}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env}
+      VITE_APP_ID: ${VITE_APP_ID:-fermentacao-vinicola}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+  # Aplica as migracoes Drizzle. Executar sempre depois de cada actualizacao.
+  migrate:
+    build: .
+    profiles: ["ferramentas"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-adega}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE:-fermentacao}
+    entrypoint: ["npx", "drizzle-kit", "migrate"]
+
+  # Cria ou actualiza a conta de administrador local.
+  criar-admin:
+    build: .
+    profiles: ["ferramentas"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-adega}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE:-fermentacao}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@adega.pt}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrador}
+    entrypoint: ["node", "scripts/criar-admin.mjs"]
+
+volumes:
+  dados_mysql:

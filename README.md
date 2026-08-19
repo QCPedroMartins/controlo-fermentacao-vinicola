@@ -11,7 +11,7 @@ Aplicação web para gestão operacional de fermentações numa adega. Centraliz
 | Vindima | Campanhas, recepção de uvas e distribuição de quilogramas por várias cubas. |
 | Dados e alertas | Importação de CSV, registo rápido, limites de densidade, alertas reconhecíveis e histórico de alertas. |
 | Relatórios | Exportação PDF/Excel, gráficos, digest diário por email e inclusão de análises, movimentos, alertas e comentários. |
-| Acesso | Manus OAuth e contas locais, com permissões de edição para a equipa de enologia e laboratório. |
+| Acesso | Contas locais próprias (email e password), com permissões de edição para a equipa de enologia e laboratório. Login OAuth externo opcional. |
 
 ## Tecnologias
 
@@ -47,15 +47,24 @@ O servidor de desenvolvimento inicia por defeito em `http://localhost:3000`.
 Crie um ficheiro `.env` local, que **não deve ser enviado para o GitHub**, e configure as variáveis necessárias ao seu ambiente:
 
 ```dotenv
+NODE_ENV=production
+PORT=3000
 DATABASE_URL=mysql://utilizador:palavra-passe@host:3306/base_de_dados
 JWT_SECRET=uma_chave_longa_e_aleatoria
-OAUTH_SERVER_URL=https://...
-VITE_APP_ID=...
-VITE_OAUTH_PORTAL_URL=https://...
+VITE_APP_ID=fermentacao-vinicola
+# Opcional: envio de relatórios por email
 RESEND_API_KEY=re_...
 ```
 
-As variáveis de autenticação Manus, armazenamento e notificações são fornecidas automaticamente no ambiente gerido. Numa instalação independente, devem ser configuradas de acordo com os fornecedores que utilizar.
+O ficheiro [`.env.example`](./.env.example) descreve cada variável em detalhe. Apenas `DATABASE_URL`, `JWT_SECRET`, `NODE_ENV`, `PORT` e `VITE_APP_ID` são obrigatórias; as restantes são opcionais.
+
+A autenticação é **autónoma**: as contas ficam na tabela `local_users`, com as passwords guardadas apenas como hash bcrypt, e as sessões são JWT assinados localmente com o `JWT_SECRET`. Nenhum pedido sai do servidor para validar um início de sessão. Crie a primeira conta com:
+
+```bash
+ADMIN_EMAIL=admin@adega.pt ADMIN_PASSWORD='...' node scripts/criar-admin.mjs
+```
+
+Se preferir delegar o login num portal OAuth externo, defina `OAUTH_SERVER_URL` e `VITE_OAUTH_PORTAL_URL`; nesse caso a página de login passa a apresentar também essa opção.
 
 ## Base de dados
 
@@ -73,6 +82,19 @@ pnpm db:push
 pnpm build
 pnpm start
 ```
+
+## Publicação em servidor próprio
+
+O repositório inclui `Dockerfile`, `docker-compose.yml` e o script `scripts/criar-admin.mjs`, que permitem colocar a aplicação online num servidor independente. O caminho mais rápido é:
+
+```bash
+cp .env.example .env      # preencher MYSQL_PASSWORD, JWT_SECRET e ADMIN_PASSWORD
+docker compose up -d --build
+docker compose run --rm migrate
+docker compose run --rm criar-admin
+```
+
+Consulte o [guia de publicação](./DEPLOY.md) para as opções detalhadas: VPS com Docker, plataformas geridas como Railway ou Render, instalação directa com systemd, HTTPS com domínio próprio, tarefas agendadas e cópias de segurança.
 
 ## Exemplo HTML/JavaScript autónomo
 

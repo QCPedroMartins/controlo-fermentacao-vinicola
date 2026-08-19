@@ -1,0 +1,43 @@
+name: CI
+
+# Verifica tipos, testes e build em cada alteracao enviada para o repositorio.
+# Nao publica nada: serve apenas para detectar erros antes do deployment.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    name: Tipos, testes e build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Obter o codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Verificar tipos
+        run: pnpm check
+
+      - name: Executar testes
+        run: pnpm test
+
+      - name: Compilar para producao
+        run: pnpm build
