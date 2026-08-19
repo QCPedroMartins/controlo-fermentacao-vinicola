@@ -1733,7 +1733,18 @@ const localAuthRouter = router({
       const sessionToken = await sdk.createSessionToken(openId, { name: user.name, expiresInMs: 365 * 24 * 60 * 60 * 1000 });
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
-      await upsertUser({ openId, name: user.name, email: user.email, loginMethod: "local", lastSignedIn: new Date() });
+      // O papel definido na conta local (`local_users.role`) e propagado para a
+      // tabela `users`, que e a fonte usada por `protectedProcedure` e
+      // `adminProcedure`. Sem isto, um administrador local perderia as
+      // permissoes de administracao ao iniciar sessao.
+      await upsertUser({
+        openId,
+        name: user.name,
+        email: user.email,
+        loginMethod: "local",
+        role: user.role,
+        lastSignedIn: new Date(),
+      });
       return { ok: true, name: user.name, email: user.email };
     }),
 
