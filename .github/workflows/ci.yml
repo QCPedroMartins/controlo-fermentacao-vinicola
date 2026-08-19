@@ -19,10 +19,9 @@ jobs:
       - name: Obter o codigo
         uses: actions/checkout@v4
 
+      # A versao do pnpm e lida do campo packageManager do package.json
       - name: Instalar pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10.4.1
 
       - name: Instalar Node 22
         uses: actions/setup-node@v4
