@@ -51,19 +51,20 @@ export const handoffAdegaSchema = z.object({
 
 export type HandoffAdega = z.infer<typeof handoffAdegaSchema>;
 
-const secretKey = () => new TextEncoder().encode(ENV.cookieSecret);
+const secretKey = (secret: string) => new TextEncoder().encode(secret);
 
-export async function criarTokenHandoff(payload: HandoffAdega) {
-  if (!ENV.cookieSecret) throw new Error("Não foi possível preparar o envio para a adega.");
+export async function criarTokenHandoff(payload: HandoffAdega, secret = ENV.cookieSecret) {
+  if (!secret) throw new Error("Não foi possível preparar o envio para a adega.");
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("15m")
-    .sign(secretKey());
+    .sign(secretKey(secret));
 }
 
-export async function lerTokenHandoff(token: string): Promise<HandoffAdega> {
-  const { payload } = await jwtVerify(token, secretKey());
+export async function lerTokenHandoff(token: string, secret = ENV.cookieSecret): Promise<HandoffAdega> {
+  if (!secret) throw new Error("Não foi possível validar o envio para a adega.");
+  const { payload } = await jwtVerify(token, secretKey(secret));
   return handoffAdegaSchema.parse(payload);
 }
 

@@ -19,8 +19,8 @@ describe("handoff para Gestão de Adega", () => {
       comentarios: ["Proveniência preservada"],
       observacoes: "Junção parcial para estágio",
     };
-    const token = await criarTokenHandoff(dados);
-    const recuperado = await lerTokenHandoff(token);
+    const token = await criarTokenHandoff(dados, "segredo-de-teste-ci");
+    const recuperado = await lerTokenHandoff(token, "segredo-de-teste-ci");
 
     expect(recuperado.referenciaExterna).toBe(dados.referenciaExterna);
     expect(recuperado.origens.reduce((total, origem) => total + origem.litros, 0)).toBe(2000);
