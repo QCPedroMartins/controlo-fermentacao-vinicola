@@ -468,6 +468,11 @@
 - [x] Diagnosticar e corrigir a falha de arranque da aplicação publicada
 - [x] Validar e publicar novamente a aplicação
 
+## Correcção de Dependência Vite em Produção
+- [x] Identificar e isolar a importação de desenvolvimento no bundle de produção
+- [x] Testar o bundle final sem dependências de Vite
+- [x] Publicar a correcção de arranque
+
 ## Envio para Gestão de Adega
 - [x] Definir os dados de fermentação, análises e rastreabilidade a transferir
 - [x] Criar uma API autenticada de recepção na Gestão de Adega para actualizar cubas existentes

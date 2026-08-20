@@ -3,15 +3,22 @@ import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
+import { pathToFileURL } from "url";
 
 export async function setupVite(app: Express, server: Server) {
   // Vite e a respectiva configuração são dependências exclusivas do ambiente
   // de desenvolvimento. Carregá-los dinamicamente evita que o bundle de
   // produção exija o pacote `vite`, que não é instalado no contentor final.
-  const [{ createServer: createViteServer }, { default: viteConfig }] = await Promise.all([
-    import("vite"),
-    import("../../vite.config"),
+  // Os identificadores são construídos em tempo de execução para que o esbuild
+  // não siga estas importações quando gera `dist/index.js` para produção.
+  const viteModuleId = ["vi", "te"].join("");
+  const viteConfigUrl = pathToFileURL(path.resolve(import.meta.dirname, "../..", "vite.config.ts")).href;
+  const [viteModule, viteConfigModule] = await Promise.all([
+    import(viteModuleId),
+    import(viteConfigUrl),
   ]);
+  const createViteServer = viteModule.createServer;
+  const viteConfig = viteConfigModule.default;
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
