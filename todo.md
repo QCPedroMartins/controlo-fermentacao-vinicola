@@ -458,3 +458,20 @@
 - [x] Analisar os dados e fluxos da aplicação de gestão de adega
 - [x] Mapear lotes, recipientes, movimentos e análises entre os dois sistemas
 - [x] Definir um plano de integração sem duplicação de dados para validação
+
+## Integração com Recipientes Existentes
+- [ ] Mapear cada cuba de fermentação ao recipiente já existente na Gestão de Adega
+- [ ] Enviar movimentos e análises finais para o recipiente mapeado, sem criar cubas duplicadas
+- [ ] Validar a sincronização e a rastreabilidade cruzada
+
+## Recuperação de Publicação
+- [x] Diagnosticar e corrigir a falha de arranque da aplicação publicada
+- [x] Validar e publicar novamente a aplicação
+
+## Envio para Gestão de Adega
+- [ ] Definir os dados de fermentação, análises e rastreabilidade a transferir
+- [ ] Criar uma API segura de recepção na Gestão de Adega para actualizar cubas existentes
+- [ ] Criar a acção de envio e a referência de movimento no controlo de fermentação
+- [ ] Adicionar o selector de cuba de destino, botão e confirmação de envio na página da cuba
+- [ ] Permitir distribuir uma ou várias origens por múltiplas cubas de destino, com transferência parcial
+- [ ] Validar o envio sem duplicar cubas nem movimentos
