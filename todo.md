@@ -453,3 +453,8 @@
 - [x] Copiar análises e comentários da cuba para as barricas no momento da transferência
 - [x] Integrar a consulta das barricas e das transferências nas páginas da aplicação
 - [x] Validar e publicar análises finais e transferências para barricas
+
+## Integração com Gestão de Adega
+- [x] Analisar os dados e fluxos da aplicação de gestão de adega
+- [x] Mapear lotes, recipientes, movimentos e análises entre os dois sistemas
+- [x] Definir um plano de integração sem duplicação de dados para validação
