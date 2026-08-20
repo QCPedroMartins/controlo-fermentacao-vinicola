@@ -476,7 +476,7 @@
 ## Correcção de CI no GitHub
 - [x] Identificar a causa da falha de tipos, testes ou build no workflow
 - [x] Corrigir a falha e reproduzir localmente as verificações do CI
-- [ ] Enviar a correcção e confirmar uma execução bem-sucedida no GitHub
+- [x] Enviar a correcção e confirmar uma execução bem-sucedida no GitHub
 
 ## Envio para Gestão de Adega
 - [x] Definir os dados de fermentação, análises e rastreabilidade a transferir
