@@ -134,6 +134,13 @@
       "when": 1786987079415,
       "tag": "0018_sharp_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1787231708419,
+      "tag": "0019_lowly_sabretooth",
+      "breakpoints": true
     }
   ]
 }

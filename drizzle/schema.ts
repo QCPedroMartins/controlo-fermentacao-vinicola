@@ -113,6 +113,35 @@ export const analisesCuba = mysqlTable("analises_cuba", {
 export type AnaliseCuba = typeof analisesCuba.$inferSelect;
 export type InsertAnaliseCuba = typeof analisesCuba.$inferInsert;
 
+// ── Análises Finais de Fermentação ──────────────────────────
+// Mantém um histórico independente da ficha inicial, incluindo os parâmetros
+// finais adicionais necessários antes de estágio, loteamento ou barrica.
+export const analisesFinaisFermentacao = mysqlTable("analises_finais_fermentacao", {
+  id: int("id").autoincrement().primaryKey(),
+  cubaId: int("cuba_id").notNull(),
+  fermentacaoNum: int("fermentacao_num").default(1).notNull(),
+  dataAnalise: date("data_analise", { mode: "string" }).notNull(),
+  fichaKilos: decimal("ficha_kilos", { precision: 10, scale: 1 }),
+  fichaLitros: decimal("ficha_litros", { precision: 10, scale: 1 }),
+  fichaPh: decimal("ficha_ph", { precision: 4, scale: 2 }),
+  fichaAt: decimal("ficha_at", { precision: 6, scale: 2 }),
+  fichaAv: decimal("ficha_av", { precision: 6, scale: 2 }),
+  fichaNfa: decimal("ficha_nfa", { precision: 7, scale: 1 }),
+  fichaNtu: decimal("ficha_ntu", { precision: 8, scale: 1 }),
+  fichaGluconico: decimal("ficha_gluconico", { precision: 6, scale: 2 }),
+  fichaAlcoolProvavel: decimal("ficha_alcool_provavel", { precision: 5, scale: 2 }),
+  /** Açúcares residuais em g/L. */
+  acucaresResiduais: decimal("acucares_residuais", { precision: 8, scale: 3 }),
+  /** Ácido málico em g/L. */
+  acidoMalico: decimal("acido_malico", { precision: 7, scale: 3 }),
+  observacoes: text("observacoes"),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AnaliseFinalFermentacao = typeof analisesFinaisFermentacao.$inferSelect;
+export type InsertAnaliseFinalFermentacao = typeof analisesFinaisFermentacao.$inferInsert;
+
 // ── Leituras Diárias ──────────────────────────────────────
 export const leituras = mysqlTable("leituras", {
   id: int("id").autoincrement().primaryKey(),
@@ -249,6 +278,78 @@ export const movimentosCuba = mysqlTable("movimentos_cuba", {
 
 export type MovimentoCuba = typeof movimentosCuba.$inferSelect;
 export type InsertMovimentoCuba = typeof movimentosCuba.$inferInsert;
+
+// ── Barricas e transferências para barrica ──────────────────
+export const barricas = mysqlTable("barricas", {
+  id: int("id").autoincrement().primaryKey(),
+  codigo: varchar("codigo", { length: 32 }).notNull().unique(),
+  capacidadeLitros: decimal("capacidade_litros", { precision: 10, scale: 1 }).notNull(),
+  litrosAtual: decimal("litros_atual", { precision: 10, scale: 1 }).notNull().default("0"),
+  estado: mysqlEnum("estado", ["activa", "vazia"]).default("activa").notNull(),
+  cubaOrigemId: int("cuba_origem_id"),
+  fermentacaoOrigemNum: int("fermentacao_origem_num"),
+  campanhaId: int("campanha_id"),
+  nomeLote: varchar("nome_lote", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Barrica = typeof barricas.$inferSelect;
+export type InsertBarrica = typeof barricas.$inferInsert;
+
+export const movimentosBarrica = mysqlTable("movimentos_barrica", {
+  id: int("id").autoincrement().primaryKey(),
+  dataMovimento: date("data_movimento", { mode: "string" }).notNull(),
+  cubaOrigemId: int("cuba_origem_id").notNull(),
+  fermentacaoOrigemNum: int("fermentacao_origem_num").notNull(),
+  /** JSON: [{ barricaId, codigo, capacidadeLitros, litros }] */
+  barricasJson: text("barricas_json").notNull(),
+  litrosTotal: decimal("litros_total", { precision: 10, scale: 1 }).notNull(),
+  motivo: text("motivo"),
+  campanhaId: int("campanha_id"),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MovimentoBarrica = typeof movimentosBarrica.$inferSelect;
+export type InsertMovimentoBarrica = typeof movimentosBarrica.$inferInsert;
+
+// Cópia imutável das análises existentes no momento da transferência.
+export const analisesBarrica = mysqlTable("analises_barrica", {
+  id: int("id").autoincrement().primaryKey(),
+  barricaId: int("barrica_id").notNull(),
+  origemCubaId: int("origem_cuba_id").notNull(),
+  tipoAnalise: mysqlEnum("tipo_analise", ["inicial", "final"]).notNull(),
+  dataAnalise: date("data_analise", { mode: "string" }).notNull(),
+  fichaKilos: decimal("ficha_kilos", { precision: 10, scale: 1 }),
+  fichaLitros: decimal("ficha_litros", { precision: 10, scale: 1 }),
+  fichaPh: decimal("ficha_ph", { precision: 4, scale: 2 }),
+  fichaAt: decimal("ficha_at", { precision: 6, scale: 2 }),
+  fichaAv: decimal("ficha_av", { precision: 6, scale: 2 }),
+  fichaNfa: decimal("ficha_nfa", { precision: 7, scale: 1 }),
+  fichaNtu: decimal("ficha_ntu", { precision: 8, scale: 1 }),
+  fichaGluconico: decimal("ficha_gluconico", { precision: 6, scale: 2 }),
+  fichaAlcoolProvavel: decimal("ficha_alcool_provavel", { precision: 5, scale: 2 }),
+  acucaresResiduais: decimal("acucares_residuais", { precision: 8, scale: 3 }),
+  acidoMalico: decimal("acido_malico", { precision: 7, scale: 3 }),
+  origemAnaliseId: int("origem_analise_id"),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AnaliseBarrica = typeof analisesBarrica.$inferSelect;
+export type InsertAnaliseBarrica = typeof analisesBarrica.$inferInsert;
+
+export const comentariosBarrica = mysqlTable("comentarios_barrica", {
+  id: int("id").autoincrement().primaryKey(),
+  barricaId: int("barrica_id").notNull(),
+  texto: text("texto").notNull(),
+  herdadoDe: varchar("herdado_de", { length: 120 }),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ComentarioBarrica = typeof comentariosBarrica.$inferSelect;
+export type InsertComentarioBarrica = typeof comentariosBarrica.$inferInsert;
 
 // ── Comentários de Cuba ───────────────────────────────────
 export const comentariosCuba = mysqlTable("comentarios_cuba", {

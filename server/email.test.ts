@@ -49,9 +49,12 @@ vi.mock("./db", () => ({
   ]),
 
   getMovimentosHoje: vi.fn().mockResolvedValue([]),
+  getMovimentosBarricaHoje: vi.fn().mockResolvedValue([]),
   getRecepcoesDoDia: vi.fn().mockResolvedValue([]),
   getMovimentosByCuba: vi.fn().mockResolvedValue([]),
+  getMovimentosBarricaByCuba: vi.fn().mockResolvedValue([]),
   getAnalisesByCuba: vi.fn().mockResolvedValue([]),
+  getAnalisesFinaisByCuba: vi.fn().mockResolvedValue([]),
   getComentariosByCuba: vi.fn().mockResolvedValue([]),
   getAlertasByCuba: vi.fn().mockResolvedValue([]),
 }));

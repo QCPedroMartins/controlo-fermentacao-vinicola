@@ -36,6 +36,12 @@ import {
   type InsertComentarioCuba,
   alertasHistorico,
   type InsertAlertaHistorico,
+  analisesFinaisFermentacao,
+  type InsertAnaliseFinalFermentacao,
+  barricas,
+  movimentosBarrica,
+  analisesBarrica,
+  comentariosBarrica,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { encontrarInoculacaoLsa } from "./dashboardRules";
@@ -905,6 +911,16 @@ export async function getMovimentosHoje() {
     .orderBy(asc(movimentosCuba.createdAt));
 }
 
+/** Transferências para barricas do dia de hoje (para o digest diário). */
+export async function getMovimentosBarricaHoje() {
+  const db = await getDb();
+  if (!db) return [];
+  const hoje = new Date().toISOString().slice(0, 10);
+  return db.select().from(movimentosBarrica)
+    .where(eq(movimentosBarrica.dataMovimento, hoje))
+    .orderBy(asc(movimentosBarrica.createdAt));
+}
+
 /** Recepções do dia de hoje (para o digest diário) */
 export async function getRecepcoesDoDia(data: string) {
   const db = await getDb();
@@ -994,6 +1010,69 @@ export async function getAnalisesByCuba(cubaId: number, fermentacaoNum?: number)
     ? and(eq(analisesCuba.cubaId, cubaId), eq(analisesCuba.fermentacaoNum, fermentacaoNum))
     : eq(analisesCuba.cubaId, cubaId);
   return db.select().from(analisesCuba).where(conditions).orderBy(desc(analisesCuba.dataAnalise));
+}
+
+/** Guardar uma análise final de fermentação, preservando todos os registos anteriores. */
+export async function criarAnaliseFinal(data: InsertAnaliseFinalFermentacao) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(analisesFinaisFermentacao).values(data);
+}
+
+/** Listar análises finais de uma fermentação por data, incluindo registos do mesmo dia. */
+export async function getAnalisesFinaisByCuba(cubaId: number, fermentacaoNum?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const condition = fermentacaoNum === undefined
+    ? eq(analisesFinaisFermentacao.cubaId, cubaId)
+    : and(
+        eq(analisesFinaisFermentacao.cubaId, cubaId),
+        eq(analisesFinaisFermentacao.fermentacaoNum, fermentacaoNum),
+      );
+  return db.select().from(analisesFinaisFermentacao).where(condition)
+    .orderBy(desc(analisesFinaisFermentacao.dataAnalise), desc(analisesFinaisFermentacao.id));
+}
+
+/** Listar barricas com a identificação da cuba de origem. */
+export async function getAllBarricas() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: barricas.id,
+    codigo: barricas.codigo,
+    capacidadeLitros: barricas.capacidadeLitros,
+    litrosAtual: barricas.litrosAtual,
+    estado: barricas.estado,
+    cubaOrigemId: barricas.cubaOrigemId,
+    fermentacaoOrigemNum: barricas.fermentacaoOrigemNum,
+    campanhaId: barricas.campanhaId,
+    nomeLote: barricas.nomeLote,
+    createdAt: barricas.createdAt,
+    updatedAt: barricas.updatedAt,
+    cubaOrigemCodigo: cubas.codigo,
+  }).from(barricas).leftJoin(cubas, eq(barricas.cubaOrigemId, cubas.id)).orderBy(asc(barricas.codigo));
+}
+
+export async function getMovimentosBarricaByCuba(cubaId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(movimentosBarrica)
+    .where(eq(movimentosBarrica.cubaOrigemId, cubaId))
+    .orderBy(desc(movimentosBarrica.dataMovimento), desc(movimentosBarrica.id));
+}
+
+export async function getAnalisesByBarrica(barricaId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(analisesBarrica).where(eq(analisesBarrica.barricaId, barricaId))
+    .orderBy(desc(analisesBarrica.dataAnalise), desc(analisesBarrica.id));
+}
+
+export async function getComentariosByBarrica(barricaId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(comentariosBarrica).where(eq(comentariosBarrica.barricaId, barricaId))
+    .orderBy(desc(comentariosBarrica.createdAt));
 }
 
 /** Criar comentário numa cuba */

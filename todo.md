@@ -441,3 +441,15 @@
 - [x] Diagnosticar e corrigir a inserção de análises da ficha inicial
 - [x] Testar o registo de análises com vírgula decimal e todos os parâmetros
 - [x] Publicar a correcção do histórico de análises
+
+## Análises Finais de Fermentação
+- [x] Criar análises finais com os parâmetros da ficha inicial, açúcares residuais e ácido málico
+- [x] Permitir vários registos por cuba e apresentar histórico datado com operador
+- [x] Incluir análises finais na rastreabilidade e nos relatórios
+
+## Transferência para Barricas
+- [x] Criar recipientes de barrica com capacidade, código e volume actual
+- [x] Permitir transferir vinho da cuba para várias barricas, mantendo rastreabilidade e balanço de litros
+- [x] Copiar análises e comentários da cuba para as barricas no momento da transferência
+- [x] Integrar a consulta das barricas e das transferências nas páginas da aplicação
+- [x] Validar e publicar análises finais e transferências para barricas

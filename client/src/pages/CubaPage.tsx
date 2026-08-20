@@ -53,6 +53,8 @@ import {
 import CalculadoraCorrecao from "@/components/CalculadoraCorrecao";
 import CalculadoraBaumeEnvasilhamento from "@/components/CalculadoraBaumeEnvasilhamento";
 import ProtocolosCubaPanel from "@/components/ProtocolosCubaPanel";
+import AnalisesFinaisCubaPanel from "@/components/AnalisesFinaisCubaPanel";
+import TransferenciaBarricasDialog from "@/components/TransferenciaBarricasDialog";
 
 // ── Cores fixas dos gráficos ──────────────────────────────
 const CORES = {
@@ -226,7 +228,7 @@ export default function CubaPage() {
   const [limiteTemp, setLimiteTemp] = useState("");
 
   // Estado tab activa
-  const [activeTab, setActiveTab] = useState<"leituras" | "graficos" | "adicoes" | "protocolos" | "movimentos" | "comentarios" | "arquivo">("leituras");
+  const [activeTab, setActiveTab] = useState<"leituras" | "graficos" | "adicoes" | "analises_finais" | "protocolos" | "movimentos" | "comentarios" | "arquivo">("leituras");
 
   // Estado formulário de adição
   const [formAdicao, setFormAdicao] = useState({
@@ -455,6 +457,7 @@ export default function CubaPage() {
 
   const { data: todasCubasLista } = trpc.cubas.list.useQuery();
   const { data: movimentosCuba } = trpc.movimentos.byCuba.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
+  const { data: movimentosBarricaCuba } = trpc.barricas.movimentosByCuba.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
   const { data: historicoAnalises } = trpc.cubas.getAnalises.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
   const { data: comentarios, refetch: refetchComentarios } = trpc.cubas.getComentarios.useQuery({ cubaId: cuba?.id ?? 0 }, { enabled: !!cuba?.id });
   const [novoComentario, setNovoComentario] = useState("");
@@ -1170,6 +1173,12 @@ export default function CubaPage() {
           >
             <GitMerge size={15} /> Juntar com outra(s) cuba(s)
           </button>
+          <TransferenciaBarricasDialog cuba={cuba} canEdit={canEdit} />
+        </div>
+      )}
+      {canEdit && cuba.estado === "completa" && Number(cuba.fichaLitros ?? 0) > 0 && (
+        <div className="mb-3 flex justify-end gap-2">
+          <TransferenciaBarricasDialog cuba={cuba} canEdit={canEdit} />
         </div>
       )}
 
@@ -1225,7 +1234,7 @@ export default function CubaPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-fit">
-        {(["leituras", "graficos", "adicoes", "protocolos", "movimentos", "comentarios", "arquivo"] as const).map((tab) => (
+        {(["leituras", "graficos", "adicoes", "analises_finais", "protocolos", "movimentos", "comentarios", "arquivo"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1235,7 +1244,7 @@ export default function CubaPage() {
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            {tab === "leituras" ? "Histórico" : tab === "graficos" ? "Gráficos" : tab === "adicoes" ? "Adições" : tab === "protocolos" ? "Protocolos" : tab === "movimentos" ? "Movimentos" : tab === "comentarios" ? "Comentários" : "Arquivo"}
+            {tab === "leituras" ? "Histórico" : tab === "graficos" ? "Gráficos" : tab === "adicoes" ? "Adições" : tab === "analises_finais" ? "Análises finais" : tab === "protocolos" ? "Protocolos" : tab === "movimentos" ? "Movimentos" : tab === "comentarios" ? "Comentários" : "Arquivo"}
           </button>
         ))}
       </div>
@@ -1568,6 +1577,9 @@ export default function CubaPage() {
       {/* Tab: Protocolos e avisos operacionais */}
       {activeTab === "protocolos" && <ProtocolosCubaPanel cubaId={cuba.id} canEdit={canEdit} />}
 
+      {/* Tab: Análises finais de fermentação */}
+      {activeTab === "analises_finais" && <AnalisesFinaisCubaPanel cuba={cuba} canEdit={canEdit} />}
+
       {/* Tab: Movimentos (rastreabilidade) */}
       {activeTab === "movimentos" && (
         <div className="space-y-4 animate-fade-in">
@@ -1627,6 +1639,24 @@ export default function CubaPage() {
                     </div>
                   </div>
                 );
+              })}
+            </div>
+          )}
+
+          <h3 className="mt-6 border-t border-gray-100 pt-4 text-sm font-semibold text-gray-700">Transferências para Barricas</h3>
+          {!movimentosBarricaCuba || movimentosBarricaCuba.length === 0 ? (
+            <p className="py-3 text-sm text-gray-400">Sem transferências para barricas registadas.</p>
+          ) : (
+            <div className="space-y-3">
+              {movimentosBarricaCuba.map((movimento) => {
+                let destinos: Array<{ codigo: string; litros: number; capacidadeLitros: number }> = [];
+                try { destinos = JSON.parse(movimento.barricasJson); } catch { /* registo histórico inválido */ }
+                return <div key={movimento.id} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3"><span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">Barricas</span><span className="text-xs text-gray-500">{movimento.dataMovimento}</span></div>
+                  <p className="mt-2 text-sm text-gray-700">Transferido para: <strong>{destinos.map((destino) => `${destino.codigo} (${Number(destino.litros).toLocaleString("pt-PT")} L / ${Number(destino.capacidadeLitros).toLocaleString("pt-PT")} L)`).join(", ")}</strong></p>
+                  {movimento.motivo && <p className="mt-1 text-xs text-gray-500">Nota: {movimento.motivo}</p>}
+                  {movimento.userName && <p className="mt-0.5 text-xs text-gray-400">Por: {movimento.userName}</p>}
+                </div>;
               })}
             </div>
           )}

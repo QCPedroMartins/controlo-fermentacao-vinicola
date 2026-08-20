@@ -13,6 +13,7 @@ import ArquivoDetalhe from "./pages/ArquivoDetalhe";
 import Campanhas from "./pages/Campanhas";
 import Recepcoes from "./pages/Recepcoes";
 import Protocolos from "./pages/Protocolos";
+import Barricas from "./pages/Barricas";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/campanhas" component={Campanhas} />
       <Route path="/recepcoes" component={Recepcoes} />
       <Route path="/protocolos" component={Protocolos} />
+      <Route path="/barricas" component={Barricas} />
       <Route path="/login" component={LoginPage} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

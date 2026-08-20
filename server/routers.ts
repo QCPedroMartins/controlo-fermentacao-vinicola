@@ -21,6 +21,12 @@ import {
   updateFichaInicial,
   criarAnalise,
   getAnalisesByCuba,
+  criarAnaliseFinal,
+  getAnalisesFinaisByCuba,
+  getAllBarricas,
+  getMovimentosBarricaByCuba,
+  getAnalisesByBarrica,
+  getComentariosByBarrica,
   criarComentario,
   getComentariosByCuba,
   copiarComentarios,
@@ -80,7 +86,22 @@ import { notifyOwner } from "./_core/notification";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { inArray } from "drizzle-orm";
 import { normalizarNumeroDecimal } from "./numeros";
-import { cubas, leituras, adicoes, fermentacoesArquivo, campanhas, movimentosCuba, alertasHistorico } from "../drizzle/schema";
+import { validarDistribuicaoBarricas } from "./barricasRules";
+import {
+  cubas,
+  leituras,
+  adicoes,
+  fermentacoesArquivo,
+  campanhas,
+  movimentosCuba,
+  alertasHistorico,
+  analisesFinaisFermentacao,
+  analisesBarrica,
+  barricas,
+  movimentosBarrica,
+  comentariosBarrica,
+  comentariosCuba,
+} from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 // ── Router de Cubas ───────────────────────────────────────
@@ -1775,6 +1796,202 @@ const localAuthRouter = router({
     }),
 });
 
+const camposAnaliseFinal = [
+  "fichaKilos", "fichaLitros", "fichaPh", "fichaAt", "fichaAv",
+  "fichaNfa", "fichaNtu", "fichaGluconico", "fichaAlcoolProvavel",
+  "acucaresResiduais", "acidoMalico",
+] as const;
+
+function normalizarCamposAnalise(input: Partial<Record<(typeof camposAnaliseFinal)[number], string | null | undefined>>) {
+  return Object.fromEntries(camposAnaliseFinal.map((campo) => [
+    campo,
+    normalizarNumeroDecimal(input[campo]) ?? null,
+  ])) as Record<(typeof camposAnaliseFinal)[number], string | null>;
+}
+
+// ── Análises Finais de Fermentação ─────────────────────────
+const analisesFinaisRouter = router({
+  byCuba: publicProcedure
+    .input(z.object({ cubaId: z.number(), fermentacaoNum: z.number().optional() }))
+    .query(({ input }) => getAnalisesFinaisByCuba(input.cubaId, input.fermentacaoNum)),
+
+  criar: editProcedure
+    .input(z.object({
+      cubaId: z.number(),
+      dataAnalise: z.string().min(10).max(10),
+      fichaKilos: z.string().nullable().optional(),
+      fichaLitros: z.string().nullable().optional(),
+      fichaPh: z.string().nullable().optional(),
+      fichaAt: z.string().nullable().optional(),
+      fichaAv: z.string().nullable().optional(),
+      fichaNfa: z.string().nullable().optional(),
+      fichaNtu: z.string().nullable().optional(),
+      fichaGluconico: z.string().nullable().optional(),
+      fichaAlcoolProvavel: z.string().nullable().optional(),
+      acucaresResiduais: z.string().nullable().optional(),
+      acidoMalico: z.string().nullable().optional(),
+      observacoes: z.string().max(4000).nullable().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Base de dados indisponível" });
+      const cuba = (await db.select().from(cubas).where(eq(cubas.id, input.cubaId)).limit(1))[0];
+      if (!cuba) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba não encontrada" });
+      const valores = normalizarCamposAnalise(input);
+      await criarAnaliseFinal({
+        cubaId: input.cubaId,
+        fermentacaoNum: cuba.fermentacaoNum,
+        dataAnalise: input.dataAnalise,
+        ...valores,
+        observacoes: input.observacoes?.trim() || null,
+        userId: ctx.user.id,
+        userName: ctx.user.name ?? ctx.user.email ?? null,
+      });
+      return { ok: true };
+    }),
+});
+
+// ── Barricas ────────────────────────────────────────────────
+const barricasRouter = router({
+  list: publicProcedure.query(() => getAllBarricas()),
+  movimentosByCuba: publicProcedure
+    .input(z.object({ cubaId: z.number() }))
+    .query(({ input }) => getMovimentosBarricaByCuba(input.cubaId)),
+  analises: publicProcedure
+    .input(z.object({ barricaId: z.number() }))
+    .query(({ input }) => getAnalisesByBarrica(input.barricaId)),
+  comentarios: publicProcedure
+    .input(z.object({ barricaId: z.number() }))
+    .query(({ input }) => getComentariosByBarrica(input.barricaId)),
+
+  transferirDaCuba: editProcedure
+    .input(z.object({
+      cubaOrigemId: z.number(),
+      dataMovimento: z.string().min(10).max(10),
+      motivo: z.string().max(4000).optional(),
+      campanhaId: z.number().optional(),
+      destinos: z.array(z.object({
+        capacidadeLitros: z.number().positive(),
+        litros: z.number().positive(),
+        codigo: z.string().trim().max(32).optional(),
+      })).min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Base de dados indisponível" });
+      const origem = (await db.select().from(cubas).where(eq(cubas.id, input.cubaOrigemId)).limit(1))[0];
+      if (!origem) throw new TRPCError({ code: "NOT_FOUND", message: "Cuba de origem não encontrada" });
+
+      const litrosDisponiveis = Number(origem.fichaLitros ?? 0);
+      const distribuicao = validarDistribuicaoBarricas(litrosDisponiveis, input.destinos);
+      if (!distribuicao.ok) throw new TRPCError({ code: "BAD_REQUEST", message: distribuicao.erro });
+
+      const codigosExistentes = new Set((await db.select({ codigo: barricas.codigo }).from(barricas)).map((b) => b.codigo.toUpperCase()));
+      const proximoNumero = Math.max(0, ...Array.from(codigosExistentes).map((codigo) => Number(codigo.match(/^BR-(\d+)$/)?.[1] ?? 0))) + 1;
+      let sequencia = proximoNumero;
+      const destinosComCodigo = input.destinos.map((destino) => {
+        const codigo = destino.codigo?.trim().toUpperCase() || `BR-${String(sequencia++).padStart(3, "0")}`;
+        if (codigosExistentes.has(codigo)) {
+          throw new TRPCError({ code: "CONFLICT", message: `O código de barrica ${codigo} já existe` });
+        }
+        codigosExistentes.add(codigo);
+        return { ...destino, codigo };
+      });
+
+      const analiseFinal = (await db.select().from(analisesFinaisFermentacao)
+        .where(and(eq(analisesFinaisFermentacao.cubaId, origem.id), eq(analisesFinaisFermentacao.fermentacaoNum, origem.fermentacaoNum)))
+        .orderBy(desc(analisesFinaisFermentacao.dataAnalise), desc(analisesFinaisFermentacao.id)).limit(1))[0];
+      const comentariosOrigem = await db.select().from(comentariosCuba)
+        .where(eq(comentariosCuba.cubaId, origem.id)).orderBy(desc(comentariosCuba.createdAt));
+
+      const barricasCriadas: Array<{ barricaId: number; codigo: string; capacidadeLitros: number; litros: number }> = [];
+      for (const destino of destinosComCodigo) {
+        const resultado = await db.insert(barricas).values({
+          codigo: destino.codigo,
+          capacidadeLitros: String(destino.capacidadeLitros),
+          litrosAtual: String(destino.litros),
+          estado: "activa",
+          cubaOrigemId: origem.id,
+          fermentacaoOrigemNum: origem.fermentacaoNum,
+          campanhaId: input.campanhaId ?? null,
+          nomeLote: origem.nomeLote,
+        });
+        const barricaId = Number((resultado as any).insertId ?? (resultado as any)[0]?.insertId ?? 0);
+        if (!barricaId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível criar a barrica" });
+        barricasCriadas.push({ barricaId, codigo: destino.codigo, capacidadeLitros: destino.capacidadeLitros, litros: destino.litros });
+
+        const analise = analiseFinal
+          ? {
+              tipoAnalise: "final" as const,
+              dataAnalise: analiseFinal.dataAnalise,
+              fichaKilos: analiseFinal.fichaKilos,
+              fichaLitros: analiseFinal.fichaLitros,
+              fichaPh: analiseFinal.fichaPh,
+              fichaAt: analiseFinal.fichaAt,
+              fichaAv: analiseFinal.fichaAv,
+              fichaNfa: analiseFinal.fichaNfa,
+              fichaNtu: analiseFinal.fichaNtu,
+              fichaGluconico: analiseFinal.fichaGluconico,
+              fichaAlcoolProvavel: analiseFinal.fichaAlcoolProvavel,
+              acucaresResiduais: analiseFinal.acucaresResiduais,
+              acidoMalico: analiseFinal.acidoMalico,
+              origemAnaliseId: analiseFinal.id,
+            }
+          : {
+              tipoAnalise: "inicial" as const,
+              dataAnalise: input.dataMovimento,
+              fichaKilos: origem.fichaKilos,
+              fichaLitros: origem.fichaLitros,
+              fichaPh: origem.fichaPh,
+              fichaAt: origem.fichaAt,
+              fichaAv: origem.fichaAv,
+              fichaNfa: origem.fichaNfa,
+              fichaNtu: origem.fichaNtu,
+              fichaGluconico: origem.fichaGluconico,
+              fichaAlcoolProvavel: origem.fichaAlcoolProvavel,
+              acucaresResiduais: null,
+              acidoMalico: null,
+              origemAnaliseId: null,
+            };
+        await db.insert(analisesBarrica).values({
+          barricaId,
+          origemCubaId: origem.id,
+          ...analise,
+          userId: ctx.user.id,
+          userName: ctx.user.name ?? ctx.user.email ?? null,
+        });
+        if (comentariosOrigem.length) {
+          await db.insert(comentariosBarrica).values(comentariosOrigem.map((comentario) => ({
+            barricaId,
+            texto: comentario.texto,
+            herdadoDe: `${origem.codigo.toUpperCase()} (transferência ${input.dataMovimento})`,
+            userId: comentario.userId,
+            userName: comentario.userName,
+          })));
+        }
+      }
+
+      const factorRestante = litrosDisponiveis > 0 ? distribuicao.litrosRestantes / litrosDisponiveis : 0;
+      await db.update(cubas).set({
+        fichaLitros: String(distribuicao.litrosRestantes),
+        fichaKilos: origem.fichaKilos ? String(Math.round(Number(origem.fichaKilos) * factorRestante * 10) / 10) : null,
+        estado: distribuicao.litrosRestantes > 0 ? origem.estado : "completa",
+      }).where(eq(cubas.id, origem.id));
+      await db.insert(movimentosBarrica).values({
+        dataMovimento: input.dataMovimento,
+        cubaOrigemId: origem.id,
+        fermentacaoOrigemNum: origem.fermentacaoNum,
+        barricasJson: JSON.stringify(barricasCriadas),
+        litrosTotal: String(distribuicao.litrosTotal),
+        motivo: input.motivo?.trim() || null,
+        campanhaId: input.campanhaId ?? null,
+        userId: ctx.user.id,
+        userName: ctx.user.name ?? ctx.user.email ?? null,
+      });
+      return { ok: true, barricas: barricasCriadas, litrosRestantes: distribuicao.litrosRestantes };
+    }),
+});
+
 // ── App Router ────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -1803,6 +2020,8 @@ export const appRouter = router({
   pesquisa: pesquisaRouter,
   recepcoes: recepcaoRouter,
   movimentos: movimentosRouter,
+  analisesFinais: analisesFinaisRouter,
+  barricas: barricasRouter,
   protocolos: protocolosRouter,
   localAuth: localAuthRouter,
 });

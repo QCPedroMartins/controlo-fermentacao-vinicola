@@ -12,6 +12,7 @@ import {
   User,
   X,
   Grape,
+  Wine,
 } from "lucide-react";
 import { Truck } from "lucide-react";
 import { useState } from "react";
@@ -95,6 +96,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {navLink("/campanhas", "Campanhas de Vindima", <Grape size={16} />)}
         {navLink("/recepcoes", "Recepção de Uvas", <Truck size={16} />)}
         {navLink("/protocolos", "Protocolos", <ClipboardList size={16} />)}
+        {navLink("/barricas", "Barricas", <Wine size={16} />)}
 
         {/* Cubas expandível */}
         <div>

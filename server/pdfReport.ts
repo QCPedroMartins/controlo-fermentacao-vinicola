@@ -5,7 +5,7 @@
 
 import PDFDocument from "pdfkit";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getLeiturasByCuba, getAdicoesByCuba, getMovimentosByCuba, getAnalisesByCuba, getComentariosByCuba, getAlertasByCuba } from "./db";
+import { getLeiturasByCuba, getAdicoesByCuba, getMovimentosByCuba, getAnalisesByCuba, getAnalisesFinaisByCuba, getMovimentosBarricaByCuba, getComentariosByCuba, getAlertasByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -294,6 +294,8 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
   const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
   const movimentos = await getMovimentosByCuba(cuba.id);
   const analises = await getAnalisesByCuba(cuba.id);
+  const analisesFinais = await getAnalisesFinaisByCuba(cuba.id, cuba.fermentacaoNum);
+  const movimentosBarrica = await getMovimentosBarricaByCuba(cuba.id);
   const comentarios = await getComentariosByCuba(cuba.id);
   const alertasHist = await getAlertasByCuba(cuba.id);
 
@@ -840,6 +842,54 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
           anx += anCols[i].width;
         });
         y += rowH;
+      });
+      y += 6;
+    }
+
+    // ── Análises Finais de Fermentação ───────────────────────
+    if (analisesFinais.length > 0) {
+      if (y + 60 > doc.page.height - 50) { doc.addPage({ size: "A4", layout: "landscape" }); y = MARGIN; }
+      doc.rect(MARGIN, y, CONTENT_W, 16).fill("#7B1FA2");
+      doc.fillColor("#FFFFFF").fontSize(9).font("Helvetica-Bold")
+        .text("ANÁLISES FINAIS DE FERMENTAÇÃO", MARGIN, y + 3, { width: CONTENT_W, align: "center" });
+      y += 18;
+      const finalCols = [
+        { header: "Data", width: 65 }, { header: "Litros", width: 55 }, { header: "pH", width: 45 },
+        { header: "AT", width: 50 }, { header: "AV", width: 50 }, { header: "Álcool", width: 55 },
+        { header: "AR (g/L)", width: 65 }, { header: "Málico (g/L)", width: 75 }, { header: "Por", width: 0 },
+      ];
+      const fixoFinal = finalCols.slice(0, -1).reduce((s, col) => s + col.width, 0);
+      finalCols[finalCols.length - 1].width = Math.max(CONTENT_W - fixoFinal, 70);
+      doc.rect(MARGIN, y, CONTENT_W, 14).fill("#F3E5F5");
+      let fx = MARGIN;
+      finalCols.forEach((col) => { doc.fillColor("#7B1FA2").fontSize(7).font("Helvetica-Bold").text(col.header, fx + 2, y + 3, { width: col.width - 4, align: "center" }); fx += col.width; });
+      y += 14;
+      analisesFinais.forEach((a, idx) => {
+        if (y + 13 > doc.page.height - 50) { doc.addPage({ size: "A4", layout: "landscape" }); y = MARGIN; }
+        doc.rect(MARGIN, y, CONTENT_W, 13).fill(idx % 2 === 0 ? "#FFFFFF" : "#FAF2FB");
+        const valores = [a.dataAnalise, a.fichaLitros ?? "—", a.fichaPh ?? "—", a.fichaAt ?? "—", a.fichaAv ?? "—", a.fichaAlcoolProvavel ?? "—", a.acucaresResiduais ?? "—", a.acidoMalico ?? "—", a.userName ?? "—"];
+        fx = MARGIN;
+        valores.forEach((valor, i) => { doc.fillColor("#333333").fontSize(7).font("Helvetica").text(String(valor), fx + 2, y + 3, { width: finalCols[i].width - 4, align: i === 0 || i === valores.length - 1 ? "left" : "center", lineBreak: false }); fx += finalCols[i].width; });
+        y += 13;
+      });
+      y += 6;
+    }
+
+    // ── Transferências para Barricas ─────────────────────────
+    if (movimentosBarrica.length > 0) {
+      if (y + 55 > doc.page.height - 50) { doc.addPage({ size: "A4", layout: "landscape" }); y = MARGIN; }
+      doc.rect(MARGIN, y, CONTENT_W, 16).fill("#A16207");
+      doc.fillColor("#FFFFFF").fontSize(9).font("Helvetica-Bold").text("TRANSFERÊNCIAS PARA BARRICAS", MARGIN, y + 3, { width: CONTENT_W, align: "center" });
+      y += 18;
+      movimentosBarrica.forEach((movimento, idx) => {
+        if (y + 24 > doc.page.height - 50) { doc.addPage({ size: "A4", layout: "landscape" }); y = MARGIN; }
+        let destinos = "—";
+        try { destinos = (JSON.parse(movimento.barricasJson) as { codigo: string; litros: number; capacidadeLitros: number }[]).map((b) => `${b.codigo}: ${b.litros} L / ${b.capacidadeLitros} L`).join(", "); } catch { /* manter valor */ }
+        doc.rect(MARGIN, y, CONTENT_W, 24).fill(idx % 2 === 0 ? "#FFF8E1" : "#FFFFFF");
+        doc.fillColor("#7C5300").fontSize(7).font("Helvetica-Bold").text(`${movimento.dataMovimento} · ${movimento.litrosTotal} L`, MARGIN + 4, y + 4);
+        doc.fillColor("#333333").fontSize(7).font("Helvetica").text(destinos, MARGIN + 115, y + 4, { width: CONTENT_W - 120, lineBreak: false });
+        if (movimento.motivo) doc.fillColor("#666666").fontSize(6).text(`Nota: ${movimento.motivo}`, MARGIN + 4, y + 14, { width: CONTENT_W - 8, lineBreak: false });
+        y += 24;
       });
       y += 6;
     }

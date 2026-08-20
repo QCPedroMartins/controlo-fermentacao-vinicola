@@ -6,7 +6,7 @@
 
 import ExcelJS from "exceljs";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getRecepcoesDoDia, getMovimentosByCuba, getAnalisesByCuba, getComentariosByCuba, getAlertasByCuba } from "./db";
+import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, getMovimentosBarricaHoje, getRecepcoesDoDia, getMovimentosByCuba, getAnalisesByCuba, getAnalisesFinaisByCuba, getMovimentosBarricaByCuba, getComentariosByCuba, getAlertasByCuba } from "./db";
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
@@ -327,6 +327,8 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   const adicoes = (await getAdicoesByCuba(cuba.id, cuba.fermentacaoNum)) as AdicaoRow[];
   const movimentos = await getMovimentosByCuba(cuba.id);
   const analises = await getAnalisesByCuba(cuba.id);
+  const analisesFinais = await getAnalisesFinaisByCuba(cuba.id, cuba.fermentacaoNum);
+  const movimentosBarrica = await getMovimentosBarricaByCuba(cuba.id);
   const comentarios = await getComentariosByCuba(cuba.id);
   const alertasHist = await getAlertasByCuba(cuba.id);
 
@@ -662,7 +664,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   }
 
   // ── Folha 4: Movimentos / Rastreabilidade ─────────────
-  if (movimentos.length > 0) {
+  if (movimentos.length > 0 || movimentosBarrica.length > 0) {
     const wsM = wb.addWorksheet("Movimentos");
     wsM.mergeCells("A1:G1");
     wsM.getCell("A1").value = `Movimentos / Rastreabilidade — ${cuba.codigo.toUpperCase()}`;
@@ -701,6 +703,17 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
         cell.font = { size: 10 };
       });
       row.getCell(3).font = { bold: true, size: 10, color: { argb: isDestino ? "FF1565C0" : "FFc62828" } };
+    });
+    movimentosBarrica.forEach((m, idx) => {
+      let destinos = "—";
+      try {
+        destinos = (JSON.parse(m.barricasJson) as { codigo: string; litros: number; capacidadeLitros: number }[])
+          .map((b) => `${b.codigo} (${b.litros}L / ${b.capacidadeLitros}L)`).join(", ");
+      } catch { /* manter indicação indisponível */ }
+      const row = wsM.addRow([m.dataMovimento, "Transferência para barricas", "↑ Saída", cuba.codigo.toUpperCase(), destinos, m.litrosTotal, m.motivo ?? ""]);
+      const bg = idx % 2 === 0 ? "FFFFF8E1" : "FFFFF3CD";
+      row.eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } }; cell.font = { size: 10 }; });
+      row.getCell(3).font = { bold: true, size: 10, color: { argb: "FFc62828" } };
     });
     wsM.columns = [
       { width: 13 }, { width: 15 }, { width: 12 }, { width: 25 }, { width: 30 }, { width: 12 }, { width: 35 },
@@ -743,6 +756,23 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       { width: 13 }, { width: 10 }, { width: 8 }, { width: 12 }, { width: 12 },
       { width: 14 }, { width: 10 }, { width: 16 }, { width: 18 }, { width: 22 },
     ];
+  }
+
+  // ── Folha: Análises Finais de Fermentação ───────────────
+  if (analisesFinais.length > 0) {
+    const wsFinal = wb.addWorksheet("Análises Finais");
+    wsFinal.mergeCells("A1:M1");
+    wsFinal.getCell("A1").value = `Análises Finais de Fermentação — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`;
+    wsFinal.getCell("A1").font = { bold: true, size: 12, color: { argb: "FF7B1FA2" } };
+    wsFinal.getCell("A1").alignment = { horizontal: "center" };
+    const headers = ["Data", "Kg", "Litros", "pH", "AT", "AV", "NFA", "NTU", "Glucónico", "Álcool", "AR (g/L)", "Málico (g/L)", "Por"];
+    const header = wsFinal.addRow(headers);
+    header.eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF7B1FA2" } }; cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 }; cell.alignment = { horizontal: "center" }; });
+    analisesFinais.forEach((a, idx) => {
+      const row = wsFinal.addRow([a.dataAnalise, a.fichaKilos ?? "—", a.fichaLitros ?? "—", a.fichaPh ?? "—", a.fichaAt ?? "—", a.fichaAv ?? "—", a.fichaNfa ?? "—", a.fichaNtu ?? "—", a.fichaGluconico ?? "—", a.fichaAlcoolProvavel ?? "—", a.acucaresResiduais ?? "—", a.acidoMalico ?? "—", a.userName ?? "—"]);
+      row.eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: idx % 2 === 0 ? "FFFFFFFF" : "FFF3E5F5" } }; cell.font = { size: 10 }; });
+    });
+    wsFinal.columns = [{ width: 13 }, { width: 10 }, { width: 10 }, { width: 8 }, { width: 9 }, { width: 9 }, { width: 10 }, { width: 8 }, { width: 12 }, { width: 10 }, { width: 12 }, { width: 13 }, { width: 22 }];
   }
 
   // ── Folha 6: Comentários ─────────────────────────────────
@@ -1009,9 +1039,10 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
 /** Adiciona folha de Movimentos e Recepções ao workbook do digest diário */
 async function adicionarFolhaMovimentos(wb: ExcelJS.Workbook, dataHoje: string): Promise<void> {
   const movimentos = await getMovimentosHoje();
+  const movimentosBarrica = await getMovimentosBarricaHoje();
   const recepcoes = await getRecepcoesDoDia(dataHoje);
 
-  if (movimentos.length === 0 && recepcoes.length === 0) return;
+  if (movimentos.length === 0 && movimentosBarrica.length === 0 && recepcoes.length === 0) return;
 
   const todasCubas = await getAllCubas();
   const cubaPorId = new Map(todasCubas.map((c) => [c.id, c]));
@@ -1090,6 +1121,37 @@ async function adicionarFolhaMovimentos(wb: ExcelJS.Workbook, dataHoje: string):
         destinoNome,
         m.motivo ?? "—",
         m.userName ?? "—",
+      ].forEach((v, i) => { row.getCell(i + 1).value = v; row.getCell(i + 1).font = { size: 9 }; });
+    }
+  }
+
+  if (movimentosBarrica.length > 0) {
+    if (linha > 3) linha++;
+    ws.mergeCells(`A${linha}:F${linha}`);
+    ws.getCell(`A${linha}`).value = "TRANSFERÊNCIAS PARA BARRICAS";
+    ws.getCell(`A${linha}`).font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
+    ws.getCell(`A${linha}`).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFA16207" } };
+    ws.getCell(`A${linha}`).alignment = { horizontal: "center" };
+    linha++;
+    const hdrB = ws.getRow(linha++);
+    ["Data", "Cuba origem", "Barricas", "Litros", "Motivo", "Registado por"].forEach((v, i) => {
+      const cell = hdrB.getCell(i + 1);
+      cell.value = v;
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF3CD" } };
+      cell.font = { bold: true, size: 9 };
+      cell.alignment = { horizontal: "center" };
+    });
+    for (const movimento of movimentosBarrica) {
+      let destinos = "—";
+      try { destinos = (JSON.parse(movimento.barricasJson) as { codigo: string; litros: number }[]).map((b) => `${b.codigo} (${b.litros} L)`).join(", "); } catch { /* manter indisponível */ }
+      const row = ws.getRow(linha++);
+      [
+        new Date(movimento.dataMovimento + "T12:00:00").toLocaleDateString("pt-PT"),
+        cubaPorId.get(movimento.cubaOrigemId)?.codigo.toUpperCase() ?? `#${movimento.cubaOrigemId}`,
+        destinos,
+        `${movimento.litrosTotal} L`,
+        movimento.motivo ?? "—",
+        movimento.userName ?? "—",
       ].forEach((v, i) => { row.getCell(i + 1).value = v; row.getCell(i + 1).font = { size: 9 }; });
     }
   }
