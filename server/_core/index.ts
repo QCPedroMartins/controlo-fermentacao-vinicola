@@ -13,6 +13,7 @@ import { gerarPdfDashboard } from "../pdfReport";
 import { gerarExcelDigestDiario } from "../emailReport";
 import { COOKIE_NAME } from "@shared/const";
 import { sdk } from "./sdk";
+import { confirmarHandoffHandler } from "../gestaoAdegaHandoff";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -41,6 +42,9 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  // Confirmação do lado da fermentação após o utilizador validar a entrada na
+  // Gestão de Adega. O token é assinado, expira em 15 minutos e é idempotente.
+  app.get("/api/integracao/adega/confirmar", confirmarHandoffHandler);
 
   // Rota para limpar cookie inválido e ir para /login
   app.get("/clear-session-and-login", (_req, res) => {

@@ -55,6 +55,7 @@ import CalculadoraBaumeEnvasilhamento from "@/components/CalculadoraBaumeEnvasil
 import ProtocolosCubaPanel from "@/components/ProtocolosCubaPanel";
 import AnalisesFinaisCubaPanel from "@/components/AnalisesFinaisCubaPanel";
 import TransferenciaBarricasDialog from "@/components/TransferenciaBarricasDialog";
+import EnviarGestaoAdegaDialog from "@/components/EnviarGestaoAdegaDialog";
 
 // ── Cores fixas dos gráficos ──────────────────────────────
 const CORES = {
@@ -1174,11 +1175,13 @@ export default function CubaPage() {
             <GitMerge size={15} /> Juntar com outra(s) cuba(s)
           </button>
           <TransferenciaBarricasDialog cuba={cuba} canEdit={canEdit} />
+          <EnviarGestaoAdegaDialog cuba={cuba} canEdit={canEdit} />
         </div>
       )}
       {canEdit && cuba.estado === "completa" && Number(cuba.fichaLitros ?? 0) > 0 && (
         <div className="mb-3 flex justify-end gap-2">
           <TransferenciaBarricasDialog cuba={cuba} canEdit={canEdit} />
+          <EnviarGestaoAdegaDialog cuba={cuba} canEdit={canEdit} />
         </div>
       )}
 

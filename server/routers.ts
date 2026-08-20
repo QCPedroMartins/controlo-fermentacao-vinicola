@@ -103,6 +103,7 @@ import {
   comentariosCuba,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { criarTokenHandoff, destinosAdegaSchema, novaReferenciaAdega, origensAdegaSchema } from "./gestaoAdegaHandoff";
 
 // ── Router de Cubas ───────────────────────────────────────
 const cubasRouter = router({
@@ -1992,6 +1993,77 @@ const barricasRouter = router({
     }),
 });
 
+const gestaoAdegaRouter = router({
+  prepararEnvio: editProcedure
+    .input(z.object({
+      origens: origensAdegaSchema,
+      destinos: destinosAdegaSchema,
+      observacoes: z.string().max(4000).nullable().optional(),
+      origemUrl: z.string().url(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const totalOrigem = input.origens.reduce((total, origem) => total + origem.litros, 0);
+      const totalDestino = input.destinos.reduce((total, destino) => total + destino.litros, 0);
+      if (Math.abs(totalOrigem - totalDestino) > 0.001) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Balanço inválido: saem ${totalOrigem} L e entram ${totalDestino} L.` });
+      }
+      const adegaUrl = process.env.GESTAO_ADEGA_API_URL;
+      if (!adegaUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A ligação à Gestão de Adega ainda não está disponível." });
+
+      const todasCubas = await getAllCubas();
+      const porId = new Map(todasCubas.map(cuba => [cuba.id, cuba]));
+      const fontes = input.origens.map(origem => ({ origem, cuba: porId.get(origem.cubaId) }));
+      if (fontes.some(fonte => !fonte.cuba)) throw new TRPCError({ code: "NOT_FOUND", message: "Uma das cubas de origem não foi encontrada." });
+      for (const { origem, cuba } of fontes) {
+        const disponivel = Number(cuba!.fichaLitros ?? 0);
+        if (disponivel + 0.001 < origem.litros) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `${cuba!.codigo} tem apenas ${disponivel} L disponíveis.` });
+        }
+      }
+
+      const analises = await Promise.all(fontes.map(({ cuba }) => getAnalisesFinaisByCuba(cuba!.id, cuba!.fermentacaoNum)));
+      const analiseFinal = analises.flat().sort((a, b) => String(b.dataAnalise).localeCompare(String(a.dataAnalise)))[0];
+      const comentarios = (await Promise.all(fontes.map(({ cuba }) => getComentariosByCuba(cuba!.id)))).flat()
+        .map(comentario => `${comentario.userName ?? "Operador"}: ${comentario.texto}`);
+      const primeiraCuba = fontes[0].cuba!;
+      const dataMovimento = new Date().toISOString();
+      const operador = ctx.user.name ?? ctx.user.email ?? "Utilizador";
+      const payload = {
+        referenciaExterna: novaReferenciaAdega(),
+        dataMovimento,
+        operador,
+        operadorId: ctx.user.id ?? null,
+        origens: fontes.map(({ origem, cuba }) => ({ cubaId: cuba!.id, cubaCodigo: cuba!.codigo, fermentacaoNumero: cuba!.fermentacaoNum, litros: origem.litros })),
+        destinos: input.destinos,
+        tipoVinho: primeiraCuba.tipoCuba === "porto" ? "Vinho do Porto" as const : null,
+        lote: primeiraCuba.nomeLote,
+        proveniencia: fontes.map(({ cuba }) => cuba!.codigo).join(" + "),
+        anoProducao: new Date().getFullYear(),
+        analiseFinal: analiseFinal ? {
+          dataAnalise: String(analiseFinal.dataAnalise), ph: analiseFinal.fichaPh ? Number(analiseFinal.fichaPh) : null,
+          at: analiseFinal.fichaAt ? Number(analiseFinal.fichaAt) : null, av: analiseFinal.fichaAv ? Number(analiseFinal.fichaAv) : null,
+          nfa: analiseFinal.fichaNfa ? Number(analiseFinal.fichaNfa) : null, ntu: analiseFinal.fichaNtu ? Number(analiseFinal.fichaNtu) : null,
+          gluconico: analiseFinal.fichaGluconico ? Number(analiseFinal.fichaGluconico) : null,
+          alcoolProvavel: analiseFinal.fichaAlcoolProvavel ? Number(analiseFinal.fichaAlcoolProvavel) : null,
+          acucaresResiduais: analiseFinal.acucaresResiduais ? Number(analiseFinal.acucaresResiduais) : null,
+          acidoMalico: analiseFinal.acidoMalico ? Number(analiseFinal.acidoMalico) : null,
+        } : undefined,
+        comentarios,
+        observacoes: input.observacoes ?? null,
+      };
+      const token = await criarTokenHandoff(payload);
+      const dados = Buffer.from(JSON.stringify(payload)).toString("base64url");
+      const voltar = new URL(`/cubas/${primeiraCuba.id}`, input.origemUrl).toString();
+      const confirmarUrl = new URL("/api/integracao/adega/confirmar", input.origemUrl);
+      confirmarUrl.searchParams.set("token", token);
+      confirmarUrl.searchParams.set("voltar", voltar);
+      const urlAdega = new URL("/integracao/fermentacao", adegaUrl);
+      urlAdega.searchParams.set("dados", dados);
+      urlAdega.searchParams.set("confirmarUrl", confirmarUrl.toString());
+      return { urlConfirmacao: urlAdega.toString(), referenciaExterna: payload.referenciaExterna, totalLitros: totalOrigem };
+    }),
+});
+
 // ── App Router ────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -2023,6 +2095,7 @@ export const appRouter = router({
   analisesFinais: analisesFinaisRouter,
   barricas: barricasRouter,
   protocolos: protocolosRouter,
+  gestaoAdega: gestaoAdegaRouter,
   localAuth: localAuthRouter,
 });
 export type AppRouter = typeof appRouter;

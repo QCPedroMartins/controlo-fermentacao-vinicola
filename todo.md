@@ -469,9 +469,13 @@
 - [x] Validar e publicar novamente a aplicação
 
 ## Envio para Gestão de Adega
-- [ ] Definir os dados de fermentação, análises e rastreabilidade a transferir
-- [ ] Criar uma API segura de recepção na Gestão de Adega para actualizar cubas existentes
-- [ ] Criar a acção de envio e a referência de movimento no controlo de fermentação
-- [ ] Adicionar o selector de cuba de destino, botão e confirmação de envio na página da cuba
-- [ ] Permitir distribuir uma ou várias origens por múltiplas cubas de destino, com transferência parcial
+- [x] Definir os dados de fermentação, análises e rastreabilidade a transferir
+- [x] Criar uma API autenticada de recepção na Gestão de Adega para actualizar cubas existentes
+- [x] Criar a acção de envio e a referência de movimento no controlo de fermentação
+- [x] Adicionar o selector de cuba de destino, botão e confirmação de envio na página da cuba
+- [x] Permitir distribuir uma ou várias origens por múltiplas cubas de destino, com transferência parcial
 - [ ] Validar o envio sem duplicar cubas nem movimentos
+
+## Integração sem Configuração Manual
+- [x] Substituir a configuração manual de segredo por uma ligação segura sem passos técnicos para o utilizador
+- [ ] Validar a ligação entre aplicações sem depender do menu de segredos
