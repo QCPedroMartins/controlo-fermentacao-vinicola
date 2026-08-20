@@ -458,3 +458,34 @@
 - [x] Analisar os dados e fluxos da aplicação de gestão de adega
 - [x] Mapear lotes, recipientes, movimentos e análises entre os dois sistemas
 - [x] Definir um plano de integração sem duplicação de dados para validação
+
+## Integração com Recipientes Existentes
+- [ ] Mapear cada cuba de fermentação ao recipiente já existente na Gestão de Adega
+- [ ] Enviar movimentos e análises finais para o recipiente mapeado, sem criar cubas duplicadas
+- [ ] Validar a sincronização e a rastreabilidade cruzada
+
+## Recuperação de Publicação
+- [x] Diagnosticar e corrigir a falha de arranque da aplicação publicada
+- [x] Validar e publicar novamente a aplicação
+
+## Correcção de Dependência Vite em Produção
+- [x] Identificar e isolar a importação de desenvolvimento no bundle de produção
+- [x] Testar o bundle final sem dependências de Vite
+- [x] Publicar a correcção de arranque
+
+## Correcção de CI no GitHub
+- [x] Identificar a causa da falha de tipos, testes ou build no workflow
+- [x] Corrigir a falha e reproduzir localmente as verificações do CI
+- [x] Enviar a correcção e confirmar uma execução bem-sucedida no GitHub
+
+## Envio para Gestão de Adega
+- [x] Definir os dados de fermentação, análises e rastreabilidade a transferir
+- [x] Criar uma API autenticada de recepção na Gestão de Adega para actualizar cubas existentes
+- [x] Criar a acção de envio e a referência de movimento no controlo de fermentação
+- [x] Adicionar o selector de cuba de destino, botão e confirmação de envio na página da cuba
+- [x] Permitir distribuir uma ou várias origens por múltiplas cubas de destino, com transferência parcial
+- [ ] Validar o envio sem duplicar cubas nem movimentos
+
+## Integração sem Configuração Manual
+- [x] Substituir a configuração manual de segredo por uma ligação segura sem passos técnicos para o utilizador
+- [ ] Validar a ligação entre aplicações sem depender do menu de segredos
