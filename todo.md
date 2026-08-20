@@ -486,6 +486,21 @@
 - [x] Permitir distribuir uma ou várias origens por múltiplas cubas de destino, com transferência parcial
 - [ ] Validar o envio sem duplicar cubas nem movimentos
 
+## Selector Integrado de Movimentos
+- [ ] Validar o selector de múltiplas origens e destinos no detalhe da cuba
+- [ ] Confirmar o balanço, confirmação no destino e rastreabilidade de saída/entrada
+
+## Término e Borras no Envio para Adega
+- [x] Permitir indicar borras mantidas, enviadas para cuba de borras ou registadas como lixo
+- [x] Mostrar no balanço vinho enviado, borras e eventual sobra por cuba de origem
+- [x] Terminar a fermentação automaticamente após confirmar o envio total da cuba
+- [x] Testar e publicar a gestão de borras no envio integrado
+
+## Email de Fecho de Fermentação
+- [x] Gerar um resumo de fecho com vinho, borras, análises, comentários e rastreabilidade
+- [x] Enviar automaticamente o email após confirmação do movimento integrado
+- [x] Testar e publicar o email de fecho
+
 ## Integração sem Configuração Manual
 - [x] Substituir a configuração manual de segredo por uma ligação segura sem passos técnicos para o utilizador
 - [ ] Validar a ligação entre aplicações sem depender do menu de segredos

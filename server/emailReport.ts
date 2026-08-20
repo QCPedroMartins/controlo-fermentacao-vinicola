@@ -10,6 +10,7 @@ import { getAllCubas, getLeiturasByCuba, getAdicoesByCuba, getMovimentosHoje, ge
 import { fileURLToPath } from "url";
 import { join, dirname } from "path";
 import { readFileSync } from "fs";
+import type { HandoffAdega } from "./gestaoAdegaHandoff";
 
 // Registar fontes empacotadas no projecto via Buffer (funciona em produção sem depender do sistema de ficheiros)
 try {
@@ -1198,4 +1199,28 @@ export async function enviarEmailComExcel(params: {
   }
 
   console.log(`[Email] Enviado com sucesso: ${params.assunto} → ${TO_EMAIL}`);
+}
+
+function escaparHtml(valor: string) {
+  return valor.replace(/[&<>'"]/g, caractere => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[caractere]!);
+}
+
+export async function enviarEmailFechoIntegrado(params: {
+  payload: HandoffAdega;
+  cubasFechadas: CubaInfo[];
+  detalhesBorras: string[];
+}): Promise<void> {
+  const { payload, cubasFechadas, detalhesBorras } = params;
+  const cubaRelatorio = cubasFechadas[0];
+  if (!cubaRelatorio) return;
+  const linhas = (itens: string[]) => itens.length ? `<ul>${itens.map(item => `<li>${escaparHtml(item)}</li>`).join("")}</ul>` : "<p>Sem registos.</p>";
+  const origens = payload.origens.map(origem => `${origem.cubaCodigo}: ${origem.litros.toLocaleString("pt-PT")} L`);
+  const destinos = payload.destinos.map(destino => `${destino.cubaCodigo}: ${destino.litros.toLocaleString("pt-PT")} L`);
+  const excel = await gerarExcelCuba(cubaRelatorio);
+  await enviarEmailComExcel({
+    assunto: `Fecho de fermentação — ${payload.origens.map(origem => origem.cubaCodigo).join(" + ")} → Gestão de Adega`,
+    nomeAnexo: `Fecho_Fermentacao_${cubaRelatorio.codigo}_${payload.referenciaExterna}.xlsx`,
+    bufferExcel: excel,
+    htmlBody: `<div style="font-family:Arial,sans-serif;color:#2d1b1e"><h2>Fecho de fermentação confirmado</h2><p><strong>Referência:</strong> ${escaparHtml(payload.referenciaExterna)}<br><strong>Data:</strong> ${escaparHtml(payload.dataMovimento)}<br><strong>Operador:</strong> ${escaparHtml(payload.operador)}</p><h3>Vinho enviado para Gestão de Adega</h3>${linhas(destinos)}<h3>Origem na fermentação</h3>${linhas(origens)}<h3>Borras</h3>${linhas(detalhesBorras)}<h3>Dados incluídos</h3><p>Análise final: ${payload.analiseFinal ? "incluída" : "não registada"}. Comentários: ${payload.comentarios.length}. Cubas terminadas: ${cubasFechadas.map(cuba => escaparHtml(cuba.codigo)).join(", ")}.</p><p>Segue em anexo o relatório Excel completo da cuba, incluindo leituras, adições, movimentos, análises, alertas e comentários.</p></div>`,
+  });
 }

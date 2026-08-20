@@ -103,7 +103,7 @@ import {
   comentariosCuba,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
-import { criarTokenHandoff, destinosAdegaSchema, novaReferenciaAdega, origensAdegaSchema } from "./gestaoAdegaHandoff";
+import { borrasAdegaSchema, criarTokenHandoff, destinosAdegaSchema, novaReferenciaAdega, origensAdegaSchema } from "./gestaoAdegaHandoff";
 
 // ── Router de Cubas ───────────────────────────────────────
 const cubasRouter = router({
@@ -1998,6 +1998,7 @@ const gestaoAdegaRouter = router({
     .input(z.object({
       origens: origensAdegaSchema,
       destinos: destinosAdegaSchema,
+      borras: borrasAdegaSchema,
       observacoes: z.string().max(4000).nullable().optional(),
       origemUrl: z.string().url(),
     }))
@@ -2016,10 +2017,17 @@ const gestaoAdegaRouter = router({
       if (fontes.some(fonte => !fonte.cuba)) throw new TRPCError({ code: "NOT_FOUND", message: "Uma das cubas de origem não foi encontrada." });
       for (const { origem, cuba } of fontes) {
         const disponivel = Number(cuba!.fichaLitros ?? 0);
-        if (disponivel + 0.001 < origem.litros) {
+        const borra = input.borras.find(item => item.cubaOrigemId === origem.cubaId);
+        const saidaBorras = borra?.destino === "manter" ? 0 : (borra?.litros ?? 0);
+        if (disponivel + 0.001 < origem.litros + saidaBorras) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `${cuba!.codigo} tem apenas ${disponivel} L disponíveis.` });
         }
       }
+      const resumoBorras = input.borras.filter(borra => borra.litros > 0).map(borra => {
+        const origem = porId.get(borra.cubaOrigemId)?.codigo ?? `#${borra.cubaOrigemId}`;
+        const destino = borra.destino === "lixo" ? "lixo" : borra.destino === "manter" ? "mantidas na origem" : `cuba de borras #${borra.cubaDestinoId}`;
+        return `${origem}: ${borra.litros} L → ${destino}`;
+      });
 
       const analises = await Promise.all(fontes.map(({ cuba }) => getAnalisesFinaisByCuba(cuba!.id, cuba!.fermentacaoNum)));
       const analiseFinal = analises.flat().sort((a, b) => String(b.dataAnalise).localeCompare(String(a.dataAnalise)))[0];
@@ -2035,6 +2043,7 @@ const gestaoAdegaRouter = router({
         operadorId: ctx.user.id ?? null,
         origens: fontes.map(({ origem, cuba }) => ({ cubaId: cuba!.id, cubaCodigo: cuba!.codigo, fermentacaoNumero: cuba!.fermentacaoNum, litros: origem.litros })),
         destinos: input.destinos,
+        borras: input.borras,
         tipoVinho: primeiraCuba.tipoCuba === "porto" ? "Vinho do Porto" as const : null,
         lote: primeiraCuba.nomeLote,
         proveniencia: fontes.map(({ cuba }) => cuba!.codigo).join(" + "),
@@ -2049,7 +2058,7 @@ const gestaoAdegaRouter = router({
           acidoMalico: analiseFinal.acidoMalico ? Number(analiseFinal.acidoMalico) : null,
         } : undefined,
         comentarios,
-        observacoes: input.observacoes ?? null,
+        observacoes: [input.observacoes?.trim(), resumoBorras.length ? `Borras: ${resumoBorras.join("; ")}` : null].filter(Boolean).join("\n") || null,
       };
       const token = await criarTokenHandoff(payload);
       const dados = Buffer.from(JSON.stringify(payload)).toString("base64url");

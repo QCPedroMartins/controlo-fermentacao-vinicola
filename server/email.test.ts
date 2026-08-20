@@ -154,6 +154,33 @@ describe("enviarEmailComExcel", () => {
     );
   });
 
+  it("envia o resumo de fecho com destinos, borras e anexo Excel", async () => {
+    const { enviarEmailFechoIntegrado } = await import("./emailReport");
+    const { Resend } = await import("resend");
+
+    await enviarEmailFechoIntegrado({
+      payload: {
+        referenciaExterna: "ADEGA-11111111-1111-4111-8111-111111111111",
+        dataMovimento: "2026-08-20T17:00:00.000Z",
+        operador: "Pedro Martins",
+        operadorId: 1,
+        origens: [{ cubaId: 1, cubaCodigo: "CF2", fermentacaoNumero: 1, litros: 1000 }],
+        destinos: [{ cubaCodigo: "C49", litros: 1000 }],
+        borras: [{ cubaOrigemId: 1, litros: 50, destino: "lixo" }],
+        comentarios: ["Origem preservada"],
+      },
+      cubasFechadas: [{ id: 1, codigo: "CF2", nomeLote: "Lote 2026", fermentacaoNum: 1, estado: "completa", densidadeLimite: "0.990", tempPretendida: "18" }],
+      detalhesBorras: ["CF2: 50 L → lixo"],
+    });
+
+    const instance = vi.mocked(Resend).mock.results.at(-1)?.value;
+    expect(instance?.emails.send).toHaveBeenCalledWith(expect.objectContaining({
+      subject: expect.stringContaining("Fecho de fermentação"),
+      html: expect.stringContaining("CF2: 50 L → lixo"),
+      attachments: expect.arrayContaining([expect.objectContaining({ filename: expect.stringContaining("Fecho_Fermentacao_CF2") })]),
+    }));
+  });
+
   it("não deve lançar erro quando RESEND_API_KEY não está definida", async () => {
     delete process.env.RESEND_API_KEY;
     const { enviarEmailComExcel } = await import("./emailReport");
