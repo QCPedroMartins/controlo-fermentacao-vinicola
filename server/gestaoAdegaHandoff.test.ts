@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { criarTokenHandoff, lerTokenHandoff, normalizarDataAnaliseIso } from "./gestaoAdegaHandoff";
+import { calcularResumoArquivo, criarTokenHandoff, lerTokenHandoff, normalizarDataAnaliseIso } from "./gestaoAdegaHandoff";
 
 describe("handoff para Gestão de Adega", () => {
   it("assina e recupera uma junção parcial com vários destinos", async () => {
@@ -49,5 +49,13 @@ describe("handoff para Gestão de Adega", () => {
   it("converte datas de análise sem hora para o formato ISO exigido pela Gestão de Adega", () => {
     expect(normalizarDataAnaliseIso("2026-08-19")).toBe("2026-08-19T00:00:00.000Z");
     expect(normalizarDataAnaliseIso(new Date("2026-08-19T13:45:00.000Z"))).toBe("2026-08-19T13:45:00.000Z");
+  });
+
+  it("prepara o resumo correcto para arquivar uma fermentação fechada pelo handoff", () => {
+    const resumo = calcularResumoArquivo([
+      { dataLeitura: "2026-08-15", diaNr: 1, densL1: "1.0850", tempL1: "18.0" },
+      { dataLeitura: "2026-08-20", diaNr: 6, densL1: "0.9937", tempL1: "22.5" },
+    ]);
+    expect(resumo).toEqual({ dataInicio: "2026-08-15", dataFim: "2026-08-20", totalDias: 6, densMin: "0.9937", tempMax: "22.5" });
   });
 });

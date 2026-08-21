@@ -1,10 +1,10 @@
 import type { Request, Response } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import { randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { cubas, movimentosCuba } from "../drizzle/schema";
-import { getDb } from "./db";
+import { cubas, fermentacoesArquivo, movimentosCuba } from "../drizzle/schema";
+import { associarCampanhaArquivo, createArquivo, getDb, getLeiturasByCuba } from "./db";
 import { ENV } from "./_core/env";
 
 export const destinosAdegaSchema = z.array(z.object({
@@ -77,6 +77,21 @@ export async function lerTokenHandoff(token: string, secret = ENV.cookieSecret):
 
 export function novaReferenciaAdega() {
   return `ADEGA-${randomUUID()}`;
+}
+
+export function calcularResumoArquivo(leituraRows: Array<{ dataLeitura: string; diaNr: number | null; densL1: string | null; tempL1: string | null }>) {
+  if (leituraRows.length === 0) {
+    return { dataInicio: null, dataFim: null, totalDias: null, densMin: null, tempMax: null };
+  }
+  const densidades = leituraRows.flatMap(leitura => leitura.densL1 === null ? [] : [Number(leitura.densL1)]);
+  const temperaturas = leituraRows.flatMap(leitura => leitura.tempL1 === null ? [] : [Number(leitura.tempL1)]);
+  return {
+    dataInicio: leituraRows[0].dataLeitura,
+    dataFim: leituraRows[leituraRows.length - 1].dataLeitura,
+    totalDias: leituraRows[leituraRows.length - 1].diaNr ?? leituraRows.length,
+    densMin: densidades.length ? Math.min(...densidades).toFixed(4) : null,
+    tempMax: temperaturas.length ? Math.max(...temperaturas).toFixed(1) : null,
+  };
 }
 
 function total(linhas: Array<{ litros: number }>) {
@@ -164,12 +179,57 @@ export async function confirmarHandoffNaFermentacao(payload: HandoffAdega) {
   });
 }
 
+/**
+ * Cria o arquivo para as fermentações que o handoff fechou. É idempotente para
+ * também reparar movimentos já confirmados antes desta regra existir.
+ */
+export async function arquivarFechosHandoff(payload: HandoffAdega) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de dados de fermentação indisponível.");
+  const arquivadas: number[] = [];
+
+  for (const origem of payload.origens) {
+    const cubaRows = await db.select().from(cubas).where(eq(cubas.id, origem.cubaId)).limit(1);
+    const cuba = cubaRows[0];
+    if (!cuba || cuba.estado !== "completa" || cuba.fermentacaoNum !== origem.fermentacaoNumero) continue;
+
+    const jaArquivada = await db.select({ id: fermentacoesArquivo.id })
+      .from(fermentacoesArquivo)
+      .where(and(eq(fermentacoesArquivo.cubaId, origem.cubaId), eq(fermentacoesArquivo.fermentacaoNum, origem.fermentacaoNumero)))
+      .limit(1);
+    if (jaArquivada[0]) continue;
+
+    const resumo = calcularResumoArquivo(await getLeiturasByCuba(origem.cubaId, origem.fermentacaoNumero));
+    await createArquivo({
+      cubaId: origem.cubaId,
+      fermentacaoNum: origem.fermentacaoNumero,
+      nomeLote: cuba.nomeLote,
+      ...resumo,
+      archivedBy: payload.operador,
+    });
+
+    const arquivo = await db.select({ id: fermentacoesArquivo.id })
+      .from(fermentacoesArquivo)
+      .where(and(eq(fermentacoesArquivo.cubaId, origem.cubaId), eq(fermentacoesArquivo.fermentacaoNum, origem.fermentacaoNumero)))
+      .orderBy(desc(fermentacoesArquivo.id))
+      .limit(1);
+    if (arquivo[0]) await associarCampanhaArquivo(arquivo[0].id);
+
+    await db.update(cubas)
+      .set({ nomeLote: null, fermentacaoNum: origem.fermentacaoNumero + 1, estado: "completa" })
+      .where(eq(cubas.id, origem.cubaId));
+    arquivadas.push(origem.cubaId);
+  }
+  return arquivadas;
+}
+
 export async function confirmarHandoffHandler(req: Request, res: Response) {
   const token = typeof req.query.token === "string" ? req.query.token : "";
   const voltar = typeof req.query.voltar === "string" ? req.query.voltar : "/";
   try {
     const payload = await lerTokenHandoff(token);
     const resultado = await confirmarHandoffNaFermentacao(payload);
+    const cubasArquivadas = await arquivarFechosHandoff(payload);
     if (!resultado.duplicate) {
       try {
         const { enviarEmailFechoIntegrado } = await import("./emailReport");
@@ -180,6 +240,7 @@ export async function confirmarHandoffHandler(req: Request, res: Response) {
     }
     const url = new URL(voltar);
     url.searchParams.set("integracaoAdega", resultado.duplicate ? "ja_registado" : "concluida");
+    if (cubasArquivadas.length > 0) url.searchParams.set("arquivo", "concluido");
     res.redirect(303, url.toString());
   } catch (error) {
     res.status(422).send(error instanceof Error ? error.message : "Não foi possível confirmar a saída para a adega.");

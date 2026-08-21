@@ -516,6 +516,26 @@
 - [x] Normalizar `dataAnalise` para ISO 8601 antes da confirmação na Gestão de Adega
 - [x] Testar o payload de análise final e publicar a correcção
 
+## Correcção de Entrada Vinda da Fermentação
+- [ ] Permitir que a Gestão de Adega receba origens que ainda não têm litros nesse sistema
+- [ ] Manter a validação apenas da capacidade da cuba de destino
+- [ ] Testar e publicar a confirmação CF4 para C45
+
+## Arquivo após Envio para Adega
+- [x] Criar o registo de fermentação arquivada após uma transferência total confirmada
+- [x] Preservar relatório, email, análises, comentários, borras e referência de movimento no arquivo
+- [x] Testar e publicar o arquivo automático após o envio
+
+## Diagnóstico de Validação Persistente
+- [ ] Confirmar a versão em execução e localizar a validação antiga ainda activa
+- [ ] Corrigir a execução ou publicação que mantém a validação de origem interna
+- [ ] Repetir o teste CF4 para C45 após a correcção
+
+## Correcção de Validação no Ecrã de Confirmação
+- [ ] Remover a validação de litros de origem interna da página de confirmação
+- [ ] Testar que CF4 externa pode entregar 2225 L na C45
+- [ ] Publicar a correcção da página de confirmação
+
 ## Email de Fecho de Fermentação
 - [x] Gerar um resumo de fecho com vinho, borras, análises, comentários e rastreabilidade
 - [x] Enviar automaticamente o email após confirmação do movimento integrado
