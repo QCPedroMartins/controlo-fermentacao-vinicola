@@ -53,6 +53,15 @@ export const handoffAdegaSchema = z.object({
 
 export type HandoffAdega = z.infer<typeof handoffAdegaSchema>;
 
+export function normalizarDataAnaliseIso(data: Date | string | number): string {
+  if (typeof data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.trim())) {
+    return `${data.trim()}T00:00:00.000Z`;
+  }
+  const normalizada = new Date(data);
+  if (Number.isNaN(normalizada.getTime())) throw new Error("A data da análise final é inválida.");
+  return normalizada.toISOString();
+}
+
 const secretKey = (secret: string) => new TextEncoder().encode(secret);
 
 export async function criarTokenHandoff(payload: HandoffAdega, secret = ENV.cookieSecret) {

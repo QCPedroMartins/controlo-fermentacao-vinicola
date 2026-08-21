@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { criarTokenHandoff, lerTokenHandoff } from "./gestaoAdegaHandoff";
+import { criarTokenHandoff, lerTokenHandoff, normalizarDataAnaliseIso } from "./gestaoAdegaHandoff";
 
 describe("handoff para Gestão de Adega", () => {
   it("assina e recupera uma junção parcial com vários destinos", async () => {
@@ -44,5 +44,10 @@ describe("handoff para Gestão de Adega", () => {
     const recuperado = await lerTokenHandoff(token, "segredo-de-teste-ci");
 
     expect(recuperado.borras).toEqual([]);
+  });
+
+  it("converte datas de análise sem hora para o formato ISO exigido pela Gestão de Adega", () => {
+    expect(normalizarDataAnaliseIso("2026-08-19")).toBe("2026-08-19T00:00:00.000Z");
+    expect(normalizarDataAnaliseIso(new Date("2026-08-19T13:45:00.000Z"))).toBe("2026-08-19T13:45:00.000Z");
   });
 });

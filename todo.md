@@ -507,6 +507,15 @@
 - [x] Bloquear o envio se a consulta à Gestão de Adega estiver indisponível
 - [ ] Testar e publicar a sincronização em tempo real
 
+## Revalidação após Alterações de Análises
+- [ ] Confirmar a versão publicada da Gestão de Adega e a disponibilidade da integração
+- [ ] Verificar a compatibilidade do envio com os novos parâmetros de análises
+- [ ] Autorizar novamente o teste controlado CF4 para C45
+
+## Correcção de Data de Análise na Integração
+- [x] Normalizar `dataAnalise` para ISO 8601 antes da confirmação na Gestão de Adega
+- [x] Testar o payload de análise final e publicar a correcção
+
 ## Email de Fecho de Fermentação
 - [x] Gerar um resumo de fecho com vinho, borras, análises, comentários e rastreabilidade
 - [x] Enviar automaticamente o email após confirmação do movimento integrado

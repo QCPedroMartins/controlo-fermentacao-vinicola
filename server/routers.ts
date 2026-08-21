@@ -103,7 +103,7 @@ import {
   comentariosCuba,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
-import { borrasAdegaSchema, criarTokenHandoff, destinosAdegaSchema, novaReferenciaAdega, origensAdegaSchema } from "./gestaoAdegaHandoff";
+import { borrasAdegaSchema, criarTokenHandoff, destinosAdegaSchema, normalizarDataAnaliseIso, novaReferenciaAdega, origensAdegaSchema } from "./gestaoAdegaHandoff";
 import { erroCapacidadeDestinos, listarDestinosAdega } from "./gestaoAdegaDestinos";
 
 // ── Router de Cubas ───────────────────────────────────────
@@ -2067,7 +2067,7 @@ const gestaoAdegaRouter = router({
         proveniencia: fontes.map(({ cuba }) => cuba!.codigo).join(" + "),
         anoProducao: new Date().getFullYear(),
         analiseFinal: analiseFinal ? {
-          dataAnalise: String(analiseFinal.dataAnalise), ph: analiseFinal.fichaPh ? Number(analiseFinal.fichaPh) : null,
+          dataAnalise: normalizarDataAnaliseIso(analiseFinal.dataAnalise), ph: analiseFinal.fichaPh ? Number(analiseFinal.fichaPh) : null,
           at: analiseFinal.fichaAt ? Number(analiseFinal.fichaAt) : null, av: analiseFinal.fichaAv ? Number(analiseFinal.fichaAv) : null,
           nfa: analiseFinal.fichaNfa ? Number(analiseFinal.fichaNfa) : null, ntu: analiseFinal.fichaNtu ? Number(analiseFinal.fichaNtu) : null,
           gluconico: analiseFinal.fichaGluconico ? Number(analiseFinal.fichaGluconico) : null,
