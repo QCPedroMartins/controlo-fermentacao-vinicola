@@ -104,6 +104,7 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { borrasAdegaSchema, criarTokenHandoff, destinosAdegaSchema, novaReferenciaAdega, origensAdegaSchema } from "./gestaoAdegaHandoff";
+import { erroCapacidadeDestinos, listarDestinosAdega } from "./gestaoAdegaDestinos";
 
 // ── Router de Cubas ───────────────────────────────────────
 const cubasRouter = router({
@@ -1994,6 +1995,15 @@ const barricasRouter = router({
 });
 
 const gestaoAdegaRouter = router({
+  destinos: editProcedure.query(async () => {
+    const adegaUrl = process.env.GESTAO_ADEGA_API_URL;
+    if (!adegaUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A ligação à Gestão de Adega ainda não está disponível." });
+    try {
+      return await listarDestinosAdega(adegaUrl);
+    } catch (error) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "Não foi possível consultar a Gestão de Adega." });
+    }
+  }),
   prepararEnvio: editProcedure
     .input(z.object({
       origens: origensAdegaSchema,
@@ -2010,6 +2020,14 @@ const gestaoAdegaRouter = router({
       }
       const adegaUrl = process.env.GESTAO_ADEGA_API_URL;
       if (!adegaUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A ligação à Gestão de Adega ainda não está disponível." });
+      try {
+        const destinosAdega = await listarDestinosAdega(adegaUrl);
+        const erroCapacidade = erroCapacidadeDestinos(input.destinos, destinosAdega);
+        if (erroCapacidade) throw new TRPCError({ code: "BAD_REQUEST", message: erroCapacidade });
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "Não foi possível validar os destinos na Gestão de Adega." });
+      }
 
       const todasCubas = await getAllCubas();
       const porId = new Map(todasCubas.map(cuba => [cuba.id, cuba]));
