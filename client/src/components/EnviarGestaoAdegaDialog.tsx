@@ -81,7 +81,14 @@ export default function EnviarGestaoAdegaDialog({ cuba, canEdit }: { cuba: CubaR
 
   return <Dialog open={open} onOpenChange={setOpen}>
     <DialogTrigger asChild>
-      <Button variant="outline" onClick={abrir} disabled={!canEdit} className="border-indigo-200 text-indigo-800 hover:bg-indigo-50"><Send className="mr-2 h-4 w-4" /> Enviar para Gestão de Adega</Button>
+      <Button
+        variant="outline"
+        onClick={abrir}
+        disabled={!canEdit}
+        className="min-h-12 rounded-xl border-indigo-500 bg-indigo-50/40 px-5 py-3 text-sm font-semibold text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 hover:text-indigo-800"
+      >
+        <Send className="mr-2 h-4 w-4" /> Enviar para Gestão de Adega
+      </Button>
     </DialogTrigger>
     <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
       <DialogHeader>

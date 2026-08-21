@@ -526,6 +526,10 @@
 - [x] Preservar relatório, email, análises, comentários, borras e referência de movimento no arquivo
 - [x] Testar e publicar o arquivo automático após o envio
 
+## Consistência Visual do Envio para Adega
+- [x] Alinhar o botão Enviar para Gestão de Adega com o tamanho e estilo dos movimentos
+- [x] Validar e publicar o ajuste visual
+
 ## Diagnóstico de Validação Persistente
 - [ ] Confirmar a versão em execução e localizar a validação antiga ainda activa
 - [ ] Corrigir a execução ou publicação que mantém a validação de origem interna
