@@ -56,6 +56,7 @@ import ProtocolosCubaPanel from "@/components/ProtocolosCubaPanel";
 import AnalisesFinaisCubaPanel from "@/components/AnalisesFinaisCubaPanel";
 import TransferenciaBarricasDialog from "@/components/TransferenciaBarricasDialog";
 import EnviarGestaoAdegaDialog from "@/components/EnviarGestaoAdegaDialog";
+import { agruparMarcadoresPorDia, criarMarcadoresAdicao } from "@/lib/adicaoMarkers";
 
 // ── Cores fixas dos gráficos ──────────────────────────────
 const CORES = {
@@ -573,25 +574,9 @@ export default function CubaPage() {
   // ── Marcadores de adições nos gráficos ────────────────────────
   const adicaoMarkers = useMemo(() => {
     if (!adicoes || !leituras) return [];
-    // Para cada adição, encontrar o dia mais próximo nas leituras
-    return adicoes.map((a) => {
-      const dataAdicao = new Date(a.dataAdicao).getTime();
-      let closestDia = 1;
-      let minDiff = Infinity;
-      for (const l of leituras) {
-        const diff = Math.abs(new Date(l.dataLeitura).getTime() - dataAdicao);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestDia = l.diaNr ?? 1;
-        }
-      }
-      return {
-        dia: closestDia,
-        label: a.produto ? a.produto.substring(0, 12) : "Nota",
-        full: a.produto ? `${a.produto}${a.dose ? " " + a.dose : ""}` : (a.observacoes?.substring(0, 30) ?? "Nota"),
-      };
-    });
+    return criarMarcadoresAdicao(adicoes, leituras);
   }, [adicoes, leituras]);
+  const adicaoMarkersPorDia = useMemo(() => agruparMarcadoresPorDia(adicaoMarkers), [adicaoMarkers]);
 
   // ── Dados para gráficos ───────────────────────────────
   const chartData = useMemo(() => {
@@ -1346,13 +1331,13 @@ export default function CubaPage() {
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="dia" type="number" domain={["dataMin", "dataMax"]} allowDecimals={false} label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
                     <Tooltip formatter={(v: number) => v?.toFixed(4)} labelFormatter={(l) => `Dia ${l}`} />
                     <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, fontSize: 12 }} />
-                    {adicaoMarkers.map((m, i) => (
-                      <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
-                        label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
+                    {adicaoMarkersPorDia.map((m) => (
+                      <ReferenceLine key={m.dia} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                        label={{ value: m.numeros.map(numero => `▼${numero}`).join(" "), position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
                     <Line type="monotone" dataKey="densL1" name="Densidade" stroke={CORES.densL1} strokeWidth={2.5} dot={{ r: 4 }} connectNulls={false} />
@@ -1365,13 +1350,13 @@ export default function CubaPage() {
                   <ResponsiveContainer width="100%" height={280}>
                     <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
+                      <XAxis dataKey="dia" type="number" domain={["dataMin", "dataMax"]} allowDecimals={false} label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
                       <Tooltip formatter={(v: number) => `${v?.toFixed(2)}°Bé`} labelFormatter={(l) => `Dia ${l}`} />
                       <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, fontSize: 12 }} />
-                      {adicaoMarkers.map((m, i) => (
-                        <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
-                          label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
+                      {adicaoMarkersPorDia.map((m) => (
+                        <ReferenceLine key={m.dia} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                          label={{ value: m.numeros.map(numero => `▼${numero}`).join(" "), position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                         />
                       ))}
                       {cuba.pontoAguardentacao && (
@@ -1389,13 +1374,13 @@ export default function CubaPage() {
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="dia" type="number" domain={["dataMin", "dataMax"]} allowDecimals={false} label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
                     <Tooltip formatter={(v: number) => `${v?.toFixed(1)}°C`} labelFormatter={(l) => `Dia ${l}`} />
                     <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, fontSize: 12 }} />
-                    {adicaoMarkers.map((m, i) => (
-                      <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
-                        label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
+                    {adicaoMarkersPorDia.map((m) => (
+                      <ReferenceLine key={m.dia} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                        label={{ value: m.numeros.map(numero => `▼${numero}`).join(" "), position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
                     {cuba.tempPretendida && (
@@ -1410,12 +1395,12 @@ export default function CubaPage() {
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="dia" type="number" domain={["dataMin", "dataMax"]} allowDecimals={false} label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(v: number) => `${v?.toFixed(2)} mg/L`} labelFormatter={(l) => `Dia ${l}`} />
-                    {adicaoMarkers.map((m, i) => (
-                      <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
-                        label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
+                    {adicaoMarkersPorDia.map((m) => (
+                      <ReferenceLine key={m.dia} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                        label={{ value: m.numeros.map(numero => `▼${numero}`).join(" "), position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
                     <Line type="monotone" dataKey="o2" name="O₂ Dissolvido" stroke={CORES.o2} strokeWidth={2.5} dot={{ r: 5, fill: CORES.o2 }} connectNulls={false} />
@@ -1427,12 +1412,12 @@ export default function CubaPage() {
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="dia" label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="dia" type="number" domain={["dataMin", "dataMax"]} allowDecimals={false} label={{ value: "Dia de fermentação", position: "insideBottom", offset: -2, fontSize: 11 }} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(v: number) => `${v?.toFixed(0)} mV`} labelFormatter={(l) => `Dia ${l}`} />
-                    {adicaoMarkers.map((m, i) => (
-                      <ReferenceLine key={i} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
-                        label={{ value: `▼${i + 1}`, position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
+                    {adicaoMarkersPorDia.map((m) => (
+                      <ReferenceLine key={m.dia} x={m.dia} stroke="#7c3aed" strokeDasharray="4 2" strokeWidth={1.5}
+                        label={{ value: m.numeros.map(numero => `▼${numero}`).join(" "), position: "insideTopRight", fontSize: 10, fill: "#7c3aed", fontWeight: "bold" }}
                       />
                     ))}
                     <Line type="monotone" dataKey="redox" name="Potencial Redox" stroke={CORES.redox} strokeWidth={2.5} dot={{ r: 5, fill: CORES.redox }} connectNulls={false} />
