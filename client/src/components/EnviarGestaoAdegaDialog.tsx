@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { distribuirVinhoPorOrigens } from "@/lib/gestaoAdegaBalance";
+import { encontrarDestinosAdegaDuplicados, normalizarCodigoDestinoAdega } from "@shared/gestaoAdegaDestinos";
 
 type CubaResumo = { id: number; codigo: string; fichaLitros: string | null };
 type Origem = { cubaId: number; litros: number };
@@ -35,6 +36,7 @@ export default function EnviarGestaoAdegaDialog({ cuba, canEdit }: { cuba: CubaR
   const porId = useMemo(() => new Map(cubas.map(item => [item.id, item])), [cubas]);
   const destinosAdega = destinosAdegaQuery.data ?? [];
   const porCodigoAdega = useMemo(() => new Map(destinosAdega.map(item => [item.codigo.toUpperCase(), item])), [destinosAdega]);
+  const destinosDuplicados = encontrarDestinosAdegaDuplicados(destinos);
   const totalDestino = destinos.reduce((total, destino) => total + (Number(destino.litros) || 0), 0);
   const distribuicao = distribuirVinhoPorOrigens(origens.map(origem => ({
     cubaId: origem.cubaId,
@@ -55,7 +57,7 @@ export default function EnviarGestaoAdegaDialog({ cuba, canEdit }: { cuba: CubaR
   const destinoInvalido = destinos.some(destino => {
     const cubaDestino = porCodigoAdega.get(destino.cubaCodigo.trim().toUpperCase());
     return !destino.cubaCodigo.trim() || destino.litros <= 0 || !cubaDestino || destino.litros > cubaDestino.disponivelLitros;
-  });
+  }) || destinosDuplicados.length > 0;
   const borrasInvalida = borrasAtivas.some(borra => {
     const origem = distribuicao.find(item => item.cubaId === borra.cubaOrigemId);
     return !origem || borra.litros < 0 || borra.litros > origem.restante || (borra.destino === "cuba_borras" && !borra.cubaDestinoId);
@@ -123,16 +125,25 @@ export default function EnviarGestaoAdegaDialog({ cuba, canEdit }: { cuba: CubaR
         {destinosAdegaQuery.isError && <p className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive">Não foi possível consultar a Gestão de Adega. O envio está bloqueado até a ligação voltar a estar disponível.</p>}
         {destinos.map((destino, index) => {
           const detalhe = porCodigoAdega.get(destino.cubaCodigo.trim().toUpperCase());
+          const outrosCodigos = new Set(destinos.filter((_, posicao) => posicao !== index).map(item => normalizarCodigoDestinoAdega(item.cubaCodigo)).filter(Boolean));
           return <div key={index} className="grid grid-cols-[1fr_110px_36px] gap-2">
-            <Select value={destino.cubaCodigo || undefined} onValueChange={valor => setDestinos(destinos.map((item, posicao) => posicao === index ? { ...item, cubaCodigo: valor } : item))} disabled={capacidadeInvalida}>
+            <Select value={destino.cubaCodigo || undefined} onValueChange={valor => {
+              const codigo = normalizarCodigoDestinoAdega(valor);
+              if (outrosCodigos.has(codigo)) {
+                toast.error(`A cuba ${codigo} já foi escolhida. Some os litros na linha existente.`);
+                return;
+              }
+              setDestinos(destinos.map((item, posicao) => posicao === index ? { ...item, cubaCodigo: codigo } : item));
+            }} disabled={capacidadeInvalida}>
               <SelectTrigger><SelectValue placeholder="Escolher cuba de destino" /></SelectTrigger>
-              <SelectContent>{destinosAdega.map(item => <SelectItem key={item.id} value={item.codigo}>{item.codigo} · {item.litrosAtuais.toLocaleString("pt-PT")} / {item.capacidadeLitros.toLocaleString("pt-PT")} L · livre {item.disponivelLitros.toLocaleString("pt-PT")} L</SelectItem>)}</SelectContent>
+              <SelectContent>{destinosAdega.filter(item => normalizarCodigoDestinoAdega(item.codigo) === normalizarCodigoDestinoAdega(destino.cubaCodigo) || !outrosCodigos.has(normalizarCodigoDestinoAdega(item.codigo))).map(item => <SelectItem key={item.id} value={normalizarCodigoDestinoAdega(item.codigo)}>{item.codigo} · {item.litrosAtuais.toLocaleString("pt-PT")} / {item.capacidadeLitros.toLocaleString("pt-PT")} L · livre {item.disponivelLitros.toLocaleString("pt-PT")} L</SelectItem>)}</SelectContent>
             </Select>
             <Input type="number" step="1" min="1" max={detalhe?.disponivelLitros} value={destino.litros || ""} onChange={evento => setDestinos(destinos.map((item, posicao) => posicao === index ? { ...item, litros: Number(evento.target.value) } : item))} placeholder="Litros" disabled={capacidadeInvalida} />
             <Button type="button" variant="ghost" size="icon" disabled={destinos.length === 1} onClick={() => setDestinos(destinos.filter((_, posicao) => posicao !== index))}><Trash2 className="h-4 w-4" /></Button>
             {detalhe && <p className={`col-span-3 text-xs ${destino.litros > detalhe.disponivelLitros ? "text-destructive" : "text-muted-foreground"}`}>Ocupação actual: {detalhe.litrosAtuais.toLocaleString("pt-PT")} / {detalhe.capacidadeLitros.toLocaleString("pt-PT")} L · Disponível: {detalhe.disponivelLitros.toLocaleString("pt-PT")} L</p>}
           </div>;
         })}
+        {destinosDuplicados.length > 0 && <p className="rounded-md border border-destructive/30 bg-destructive/5 p-2 text-sm text-destructive">A cuba {destinosDuplicados.join(", ")} só pode ser indicada uma vez. Some os litros na linha existente.</p>}
       </section>
 
       <section className="space-y-3 border-t pt-4">

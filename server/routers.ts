@@ -105,6 +105,7 @@ import {
 import { ENV } from "./_core/env";
 import { borrasAdegaSchema, criarTokenHandoff, destinosAdegaSchema, normalizarDataAnaliseIso, novaReferenciaAdega, origensAdegaSchema } from "./gestaoAdegaHandoff";
 import { erroCapacidadeDestinos, listarDestinosAdega } from "./gestaoAdegaDestinos";
+import { encontrarDestinosAdegaDuplicados, normalizarCodigoDestinoAdega } from "../shared/gestaoAdegaDestinos";
 
 // ── Router de Cubas ───────────────────────────────────────
 const cubasRouter = router({
@@ -2013,8 +2014,13 @@ const gestaoAdegaRouter = router({
       origemUrl: z.string().url(),
     }))
     .mutation(async ({ input, ctx }) => {
+      const destinos = input.destinos.map(destino => ({ ...destino, cubaCodigo: normalizarCodigoDestinoAdega(destino.cubaCodigo) }));
+      const destinosDuplicados = encontrarDestinosAdegaDuplicados(destinos);
+      if (destinosDuplicados.length > 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Cada cuba de destino só pode ser indicada uma vez (${destinosDuplicados.join(", ")}). Some os litros na mesma linha.` });
+      }
       const totalOrigem = input.origens.reduce((total, origem) => total + origem.litros, 0);
-      const totalDestino = input.destinos.reduce((total, destino) => total + destino.litros, 0);
+      const totalDestino = destinos.reduce((total, destino) => total + destino.litros, 0);
       if (Math.abs(totalOrigem - totalDestino) > 0.001) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `Balanço inválido: saem ${totalOrigem} L e entram ${totalDestino} L.` });
       }
@@ -2022,7 +2028,7 @@ const gestaoAdegaRouter = router({
       if (!adegaUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A ligação à Gestão de Adega ainda não está disponível." });
       try {
         const destinosAdega = await listarDestinosAdega(adegaUrl);
-        const erroCapacidade = erroCapacidadeDestinos(input.destinos, destinosAdega);
+        const erroCapacidade = erroCapacidadeDestinos(destinos, destinosAdega);
         if (erroCapacidade) throw new TRPCError({ code: "BAD_REQUEST", message: erroCapacidade });
       } catch (error) {
         if (error instanceof TRPCError) throw error;
@@ -2060,7 +2066,7 @@ const gestaoAdegaRouter = router({
         operador,
         operadorId: ctx.user.id ?? null,
         origens: fontes.map(({ origem, cuba }) => ({ cubaId: cuba!.id, cubaCodigo: cuba!.codigo, fermentacaoNumero: cuba!.fermentacaoNum, litros: origem.litros })),
-        destinos: input.destinos,
+        destinos,
         borras: input.borras,
         tipoVinho: primeiraCuba.tipoCuba === "porto" ? "Vinho do Porto" as const : null,
         lote: primeiraCuba.nomeLote,

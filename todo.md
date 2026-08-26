@@ -535,6 +535,11 @@
 - [x] Agrupar e apresentar correctamente várias adições no mesmo dia
 - [x] Testar e publicar a correcção nos gráficos de cubas
 
+## Recuperação de Referências Internas de Publicação
+- [x] Diagnosticar a duplicação de referências `origin/main` no repositório interno
+- [x] Recriar uma referência interna consistente para permitir o clone de publicação
+- [x] Validar a recuperação da publicação no domínio
+
 ## Diagnóstico de Validação Persistente
 - [ ] Confirmar a versão em execução e localizar a validação antiga ainda activa
 - [ ] Corrigir a execução ou publicação que mantém a validação de origem interna
@@ -553,3 +558,8 @@
 ## Integração sem Configuração Manual
 - [x] Substituir a configuração manual de segredo por uma ligação segura sem passos técnicos para o utilizador
 - [ ] Validar a ligação entre aplicações sem depender do menu de segredos
+
+## Prevenção de Destinos Duplicados
+- [x] Impedir a selecção repetida da mesma cuba de destino no formulário
+- [x] Validar no servidor que cada destino aparece apenas uma vez
+- [x] Testar e publicar o balanço com destinos únicos
