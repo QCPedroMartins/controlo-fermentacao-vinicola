@@ -25,6 +25,7 @@ import {
   Trash2,
   TrendingDown,
   Droplets,
+  Wine,
   X,
   Zap,
   ClipboardList,
@@ -379,6 +380,16 @@ export default function CubaPage() {
       toast.success("Densidade limite atualizada!");
       setEditingLimite(false);
       utils.cubas.get.invalidate();
+    },
+    onError: (e) => toast.error("Erro: " + e.message),
+  });
+
+  const updateTipoCuba = trpc.cubas.updateTipo.useMutation({
+    onSuccess: (_resultado, variaveis) => {
+      toast.success(variaveis.tipoCuba === "porto" ? "Cuba configurada como Vinho do Porto." : "Cuba configurada como vinho.");
+      utils.cubas.get.invalidate();
+      utils.cubas.dashboard.invalidate();
+      utils.cubas.list.invalidate();
     },
     onError: (e) => toast.error("Erro: " + e.message),
   });
@@ -934,6 +945,20 @@ export default function CubaPage() {
                 >
                   <ClipboardList size={11} /> Ficha inicial
                 </button>
+                <label className={`flex cursor-pointer items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  cuba.tipoCuba === "porto"
+                    ? "border-amber-500 bg-amber-100 text-amber-900"
+                    : "border-gray-200 text-gray-600 hover:border-amber-400 hover:text-amber-800"
+                }`} title="Activa o registo Baumé, a calculadora de envasilhamento e a identificação VP no Dashboard">
+                  <input
+                    type="checkbox"
+                    checked={cuba.tipoCuba === "porto"}
+                    disabled={updateTipoCuba.isPending}
+                    onChange={(e) => updateTipoCuba.mutate({ id: cuba.id, tipoCuba: e.target.checked ? "porto" : "vinho" })}
+                    className="h-3.5 w-3.5 accent-amber-700"
+                  />
+                  <Wine size={11} /> Vinho do Porto
+                </label>
               </div>
             )}
           </div>

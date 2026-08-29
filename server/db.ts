@@ -135,6 +135,12 @@ export async function updateCubaEstado(
   await db.update(cubas).set({ estado }).where(eq(cubas.id, id));
 }
 
+export async function updateCubaTipo(id: number, tipoCuba: "vinho" | "porto") {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(cubas).set({ tipoCuba }).where(eq(cubas.id, id));
+}
+
 export async function updateCubaDensidadeLimite(id: number, densidadeLimite: string) {
   const db = await getDb();
   if (!db) return;
@@ -478,10 +484,10 @@ export async function getDashboardCubas() {
         .limit(2);
       const ul = leiturasRecentes[0];
       const leituraAnterior = leiturasRecentes[1];
-      const ultimaDensidade = ul ? (ul.densL1 ?? null) : null;
+      const ultimaDensidade = cuba.tipoCuba === "porto" ? null : (ul ? (ul.densL1 ?? null) : null);
       const ultimoBaume = ul ? (ul.baumeL1 ?? null) : null;
       const ultimaTemperatura = ul ? (ul.tempL1 ?? null) : null;
-      const densidadeAnterior = leituraAnterior ? (leituraAnterior.densL1 ?? null) : null;
+      const densidadeAnterior = cuba.tipoCuba === "porto" ? null : (leituraAnterior ? (leituraAnterior.densL1 ?? null) : null);
 
       const adicoesDaFermentacao = await db.select({ produto: adicoes.produto })
         .from(adicoes)

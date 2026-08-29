@@ -84,8 +84,6 @@ function dataParaIso(dataStr: string): string | null {
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
-const CUBAS_PORTO = new Set(["VP01", "VP02", "VP03", "VP04", "VP05"]);
-
 export async function parsearCsv(csvContent: string): Promise<{
   validas: Array<{
     measNo: string;
@@ -203,8 +201,7 @@ export const importacaoRouter = router({
         const leiturasExistentes = await getLeiturasByCuba(cuba.id);
         const diaFermentacao = leiturasExistentes.length + 1;
 
-        const codigoNorm = linha.cubaCodigo.toUpperCase().replace(/^([A-Z]+)0+(\d+)$/, (_, p, n) => p + n);
-        const isPorto = CUBAS_PORTO.has(codigoNorm) || CUBAS_PORTO.has(linha.cubaCodigo.toUpperCase());
+        const isPorto = cuba.tipoCuba === "porto";
 
         linhasValidas.push({
           measNo: linha.measNo,
@@ -288,7 +285,7 @@ export const importacaoRouter = router({
             diaFermentacao = Math.floor((currentDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           }
 
-          const isPorto = linha.isPorto ?? false;
+          const isPorto = cuba.tipoCuba === "porto";
           await createLeitura({
             cubaId: linha.cubaId,
             fermentacaoNum: cuba.fermentacaoNum,

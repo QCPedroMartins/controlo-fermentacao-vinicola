@@ -174,7 +174,7 @@ export default function Dashboard() {
             <BarChart3 size={22} className="text-[var(--color-vinho)]" />
             <h1 className="text-2xl font-bold text-[var(--color-vinho)]">Dashboard</h1>
           </div>
-          <p className="text-gray-500 text-sm">Estado geral das 62 cubas de fermentação</p>
+          <p className="text-gray-500 text-sm">Estado geral das {cubas?.length ?? 0} cubas de fermentação</p>
         </div>
         <div className="flex items-center gap-2">
           <Link href="/campanhas">
@@ -356,7 +356,7 @@ export default function Dashboard() {
 
       {/* Estatísticas */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        <StatCard label="Total" value={62} color="text-[var(--color-vinho)]" bg="bg-white" />
+        <StatCard label="Total" value={cubas?.length ?? 0} color="text-[var(--color-vinho)]" bg="bg-white" />
         <StatCard label="Sem dados" value={semDados} color="text-gray-500" bg="bg-white" />
         <StatCard label="Em fermentação" value={emFermentacao} color="text-amber-600" bg="bg-amber-50" />
         <StatCard label="Vazias" value={completas} color="text-gray-500" bg="bg-white" />

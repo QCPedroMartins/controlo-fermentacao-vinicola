@@ -16,6 +16,7 @@ import {
   getLeituraById,
   updateCubaNomeLote,
   updateCubaEstado,
+  updateCubaTipo,
   updateCubaDensidadeLimite,
   updateCubaAlertas,
   updateFichaInicial,
@@ -132,6 +133,13 @@ const cubasRouter = router({
     .input(z.object({ id: z.number(), densidadeLimite: z.string() }))
     .mutation(async ({ input }) => {
       await updateCubaDensidadeLimite(input.id, input.densidadeLimite);
+      return { success: true };
+    }),
+
+  updateTipo: editProcedure
+    .input(z.object({ id: z.number().int().positive(), tipoCuba: z.enum(["vinho", "porto"]) }))
+    .mutation(async ({ input }) => {
+      await updateCubaTipo(input.id, input.tipoCuba);
       return { success: true };
     }),
 

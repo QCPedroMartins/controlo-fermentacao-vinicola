@@ -563,3 +563,10 @@
 - [x] Impedir a selecção repetida da mesma cuba de destino no formulário
 - [x] Validar no servidor que cada destino aparece apenas uma vez
 - [x] Testar e publicar o balanço com destinos únicos
+
+## Configuração Vinho do Porto por Cuba
+- [x] Auditar e eliminar as cubas VP01 a VP05 pré-criadas sem apagar dados relacionados
+- [x] Permitir activar ou desactivar Vinho do Porto em qualquer cuba existente
+- [x] Mostrar a calculadora de Baumé de envasilhamento apenas nas cubas assinaladas como VP
+- [x] Identificar no Dashboard as cubas normais configuradas como VP
+- [x] Testar, actualizar GitHub e preparar a publicação

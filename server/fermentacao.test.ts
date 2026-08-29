@@ -64,6 +64,7 @@ vi.mock("./db", async (importOriginal) => {
     createAdicao: vi.fn().mockResolvedValue(undefined),
     updateCubaNomeLote: vi.fn().mockResolvedValue(undefined),
     updateCubaEstado: vi.fn().mockResolvedValue(undefined),
+    updateCubaTipo: vi.fn().mockResolvedValue(undefined),
     updateCubaAlertas: vi.fn().mockResolvedValue(undefined),
     createArquivo: vi.fn().mockResolvedValue(undefined),
     deleteAdicao: vi.fn().mockResolvedValue(undefined),
@@ -177,6 +178,18 @@ describe("cubas.updateAlertas (adminProcedure)", () => {
       desvioDesnsAlerta: "0.010",
     });
     expect(result).toEqual({ success: true });
+  });
+});
+
+describe("cubas.updateTipo", () => {
+  it("permite a um utilizador autenticado marcar uma cuba como Vinho do Porto", async () => {
+    const caller = appRouter.createCaller(makeCtx(true));
+    await expect(caller.cubas.updateTipo({ id: 1, tipoCuba: "porto" })).resolves.toEqual({ success: true });
+  });
+
+  it("rejeita a alteração de tipo sem autenticação", async () => {
+    const caller = appRouter.createCaller(makeCtx(false));
+    await expect(caller.cubas.updateTipo({ id: 1, tipoCuba: "porto" })).rejects.toThrow();
   });
 });
 

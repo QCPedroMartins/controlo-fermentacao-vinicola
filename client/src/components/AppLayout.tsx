@@ -42,14 +42,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
     'CF200','CF201','CF202','CF203','CF204','CF205','CF206','CF207','CF208','CF209','CF210',
   ];
 
-  const VP_CUBAS = ['VP01','VP02','VP03','VP04','VP05'];
-
   const cubaGroups = [
     { label: "CF1 – CF20", codes: TODAS_CUBAS.slice(0, 20) },
     { label: "CF21 – CF36, LF37, LF38", codes: TODAS_CUBAS.slice(20, 38) },
     { label: "CF80 – CF94", codes: TODAS_CUBAS.slice(38, 46) },
     { label: "CF200 – CF210", codes: TODAS_CUBAS.slice(46) },
-    { label: "VP01 – VP05 (Vinho do Porto)", codes: VP_CUBAS },
   ];
 
   const navLink = (href: string, label: string, icon: React.ReactNode) => {

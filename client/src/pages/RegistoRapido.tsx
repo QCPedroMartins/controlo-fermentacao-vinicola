@@ -10,21 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Save, RotateCcw, CheckCircle2, XCircle, Loader2, LogIn, FileText, X } from "lucide-react";
 import { lerDadosCsvDoStorage, limparDadosCsvDoStorage } from "@/components/ImportacaoCsvModal";
 
-const CUBAS_VINHO = [
-  'CF1','CF2','CF3','CF4','CF5','CF6','CF7','CF8','CF9','CF10',
-  'CF11','CF12','CF13','CF14','CF15','CF16','CF17','CF18','CF19','CF20',
-  'CF21','CF22','CF23','CF24','CF25','CF26','CF27','CF28','CF29','CF30',
-  'CF31','CF32','CF33','CF34','CF35','CF36',
-  'LF37','LF38',
-  'CF80','CF81','CF82','CF83','CF84','CF85',
-  'CF93','CF94',
-  'CF200','CF201','CF202','CF203','CF204','CF205','CF206','CF207','CF208','CF209','CF210',
-];
-
-const CUBAS_PORTO = ['VP01','VP02','VP03','VP04','VP05'];
-
-const TODAS_CUBAS = [...CUBAS_VINHO, ...CUBAS_PORTO];
-
 type LinhaLeitura = {
   densL1: string;
   baumeL1: string;
@@ -56,9 +41,7 @@ export default function RegistoRapido() {
   const canEdit = usePodeEditar();
   const today = new Date().toISOString().split("T")[0];
   const [data, setData] = useState(today);
-  const [linhas, setLinhas] = useState<Record<string, LinhaLeitura>>(() =>
-    Object.fromEntries(TODAS_CUBAS.map((c) => [c, linhaVazia()]))
-  );
+  const [linhas, setLinhas] = useState<Record<string, LinhaLeitura>>({});
   const [estados, setEstados] = useState<Record<string, EstadoLinha>>({});
   const [mostrarSemDados, setMostrarSemDados] = useState(true);
   const [dadosCsvInfo, setDadosCsvInfo] = useState<{ nCubas: number; importadoEm: string; cubas: { codigo: string; hora: string }[] } | null>(null);
@@ -84,6 +67,14 @@ export default function RegistoRapido() {
     if (!cubasData) return {};
     return Object.fromEntries(cubasData.map((c) => [c.codigo.toUpperCase(), c]));
   }, [cubasData]);
+  const todasCubas = useMemo(() => cubasData?.map((c) => c.codigo.toUpperCase()) ?? [], [cubasData]);
+  const cubasVinho = useMemo(() => todasCubas.filter((codigo) => cubaMap[codigo]?.tipoCuba !== "porto"), [cubaMap, todasCubas]);
+  const cubasPorto = useMemo(() => todasCubas.filter((codigo) => cubaMap[codigo]?.tipoCuba === "porto"), [cubaMap, todasCubas]);
+
+  useEffect(() => {
+    if (!cubasData) return;
+    setLinhas((anteriores) => Object.fromEntries(todasCubas.map((codigo) => [codigo, anteriores[codigo] ?? linhaVazia()])));
+  }, [cubasData, todasCubas]);
 
   // Ao montar, verificar se há dados CSV no localStorage para pré-preencher
   useEffect(() => {
@@ -103,20 +94,18 @@ export default function RegistoRapido() {
       const novo = { ...prev };
       for (const cuba of dadosCsv.cubas) {
         const codigoUpper = normalizarCodigo(cuba.cubaCodigo);
-        if (codigoUpper in novo) {
-          if (cuba.isPorto) {
-            novo[codigoUpper] = {
-              ...linhaVazia(),
-              baumeL1: cuba.densidade,   // para VP, densidade do CSV vai para baumeL1
-              tempL1: cuba.temperatura,
-            };
-          } else {
-            novo[codigoUpper] = {
-              ...linhaVazia(),
-              densL1: cuba.densidade,    // 4 casas decimais
-              tempL1: cuba.temperatura,
-            };
-          }
+        if (cuba.isPorto) {
+          novo[codigoUpper] = {
+            ...linhaVazia(),
+            baumeL1: cuba.densidade,
+            tempL1: cuba.temperatura,
+          };
+        } else {
+          novo[codigoUpper] = {
+            ...linhaVazia(),
+            densL1: cuba.densidade,
+            tempL1: cuba.temperatura,
+          };
         }
       }
       return novo;
@@ -140,8 +129,8 @@ export default function RegistoRapido() {
     setMostrarSemDados(false);
   }, []);
 
-  const cubasComDados = TODAS_CUBAS.filter((c) => temDados(linhas[c]));
-  const cubasSemDados = TODAS_CUBAS.filter((c) => !temDados(linhas[c]));
+  const cubasComDados = todasCubas.filter((c) => temDados(linhas[c] ?? linhaVazia()));
+  const cubasSemDados = todasCubas.filter((c) => !temDados(linhas[c] ?? linhaVazia()));
 
   function updateCampo(codigo: string, campo: keyof LinhaLeitura, valor: string) {
     setLinhas((prev) => ({ ...prev, [codigo]: { ...prev[codigo], [campo]: valor } }));
@@ -149,7 +138,7 @@ export default function RegistoRapido() {
   }
 
   function limparTudo() {
-    setLinhas(Object.fromEntries(TODAS_CUBAS.map((c) => [c, linhaVazia()])));
+    setLinhas(Object.fromEntries(todasCubas.map((c) => [c, linhaVazia()])));
     setEstados({});
     setHorasPorCuba({});
     setHoraGlobal("");
@@ -160,7 +149,7 @@ export default function RegistoRapido() {
   function descartarCsv() {
     limparDadosCsvDoStorage();
     setDadosCsvInfo(null);
-    setLinhas(Object.fromEntries(TODAS_CUBAS.map((c) => [c, linhaVazia()])));
+    setLinhas(Object.fromEntries(todasCubas.map((c) => [c, linhaVazia()])));
     setEstados({});
     setHorasPorCuba({});
     setMostrarSemDados(true);
@@ -172,7 +161,7 @@ export default function RegistoRapido() {
   }
 
   async function registar() {
-    const linhasComDados = TODAS_CUBAS.filter((c) => temDados(linhas[c]));
+    const linhasComDados = todasCubas.filter((c) => temDados(linhas[c] ?? linhaVazia()));
     if (linhasComDados.length === 0) {
       toast.error("Não há dados para registar. Preencha pelo menos uma leitura.");
       return;
@@ -184,8 +173,7 @@ export default function RegistoRapido() {
 
     const payload = linhasComDados.map((codigo) => {
       const cuba = cubaMap[codigo.toUpperCase()];
-      const l = linhas[codigo];
-      const isPorto = CUBAS_PORTO.includes(codigo);
+      const l = linhas[codigo] ?? linhaVazia();
       return {
         cubaId: cuba.id,
         fermentacaoNum: cuba.fermentacaoNum,
@@ -248,12 +236,12 @@ export default function RegistoRapido() {
   }
 
   const cubasVinhoVisiveis = mostrarSemDados
-    ? CUBAS_VINHO
-    : CUBAS_VINHO.filter((c) => temDados(linhas[c]));
+    ? cubasVinho
+    : cubasVinho.filter((c) => temDados(linhas[c] ?? linhaVazia()));
 
   const cubasPortoVisiveis = mostrarSemDados
-    ? CUBAS_PORTO
-    : CUBAS_PORTO.filter((c) => temDados(linhas[c]));
+    ? cubasPorto
+    : cubasPorto.filter((c) => temDados(linhas[c] ?? linhaVazia()));
 
   return (
     <>
@@ -384,7 +372,7 @@ export default function RegistoRapido() {
               </thead>
               <tbody>
                 {cubasVinhoVisiveis.map((codigo, idx) => {
-                  const linha = linhas[codigo];
+                  const linha = linhas[codigo] ?? linhaVazia();
                   const estado = estados[codigo] ?? "idle";
                   const temDadosLinha = temDados(linha);
                   const rowBg = temDadosLinha ? "bg-amber-50" : idx % 2 === 0 ? "bg-white" : "bg-gray-50/60";
@@ -464,7 +452,7 @@ export default function RegistoRapido() {
               </thead>
               <tbody>
                 {cubasPortoVisiveis.map((codigo, idx) => {
-                  const linha = linhas[codigo];
+                  const linha = linhas[codigo] ?? linhaVazia();
                   const estado = estados[codigo] ?? "idle";
                   const temDadosLinha = temDados(linha);
                   const rowBg = temDadosLinha ? "bg-amber-50" : idx % 2 === 0 ? "bg-white" : "bg-amber-50/30";
