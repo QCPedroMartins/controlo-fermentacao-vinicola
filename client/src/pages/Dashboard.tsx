@@ -6,6 +6,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import ImportacaoCsvModal from "@/components/ImportacaoCsvModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { deveMostrarBaumeNoDashboard } from "@shared/dashboardLeituras";
 
 type Estado = "todos" | "sem_dados" | "em_fermentacao" | "completa" | "com_alertas";
 
@@ -416,6 +417,7 @@ export default function Dashboard() {
               inoculacaoLsa?: boolean;
               produtoInoculacao?: string | null;
             };
+            const mostraBaume = deveMostrarBaumeNoDashboard(cuba.tipoCuba);
             return (
               <Link key={cuba.id} href={`/cuba/${cuba.codigo}`}>
                 <div
@@ -436,7 +438,7 @@ export default function Dashboard() {
                       {cuba.codigo}
                     </span>
                     <div className="flex items-center gap-1">
-                      {(cuba as { tipoCuba?: string }).tipoCuba === "porto" && (
+                      {mostraBaume && (
                         <span className="text-[8px] font-bold bg-amber-800 text-amber-100 px-1 rounded">VP</span>
                       )}
                       <div className={`w-2 h-2 rounded-full ${temAlerta ? "bg-red-400 animate-pulse" : cfg.dot}`} />
@@ -445,13 +447,13 @@ export default function Dashboard() {
                   <p className="text-sm font-semibold text-gray-700 truncate leading-tight">
                     {cuba.nomeLote ?? "—"}
                   </p>
-                  {indicadores.ultimaDensidade && (
+                  {!mostraBaume && indicadores.ultimaDensidade && (
                     <p className="text-[11px] font-mono text-gray-700 mt-1 whitespace-nowrap" title="Densidade anterior → densidade actual">
                       <span className="font-sans text-[10px] text-gray-500">D:</span>{" "}
                       {indicadores.densidadeAnterior ? `${formatarDensidade(indicadores.densidadeAnterior)}→` : ""}{formatarDensidade(indicadores.ultimaDensidade)}
                     </p>
                   )}
-                  {!indicadores.ultimaDensidade && indicadores.ultimoBaume && (
+                  {mostraBaume && indicadores.ultimoBaume && (
                     <p className="text-xs font-mono mt-1 truncate" style={{ color: "#f59e0b" }}>
                       <span className="font-sans text-[10px]">Baumé</span>{" "}{parseFloat(indicadores.ultimoBaume).toFixed(2)}°Bé
                     </p>

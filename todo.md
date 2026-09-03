@@ -570,3 +570,15 @@
 - [x] Mostrar a calculadora de Baumé de envasilhamento apenas nas cubas assinaladas como VP
 - [x] Identificar no Dashboard as cubas normais configuradas como VP
 - [x] Testar, actualizar GitHub e preparar a publicação
+
+## Integração do Sistema de Frio
+- [ ] Identificar a aplicação/controlador de frio e a interface de dados disponível
+- [ ] Definir uma recolha segura na rede local sem expor o VNC à internet
+- [ ] Guardar separadamente a temperatura do mosto e a temperatura da cuba/camisa de frio
+- [ ] Mostrar em tempo real estados, setpoints e avisos de frio no Dashboard por cuba
+- [ ] Permitir alterar o setpoint do frio por cuba com histórico de operador e data/hora
+- [ ] Implementar, testar e publicar a ligação após obter a documentação técnica
+
+## Apresentação de Baumé no Dashboard
+- [x] Mostrar Baumé apenas quando a cuba estiver configurada como Vinho do Porto
+- [x] Testar e publicar a correcção da CF10 e de cubas normais equivalentes
