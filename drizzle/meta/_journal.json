@@ -141,6 +141,13 @@
       "when": 1787231708419,
       "tag": "0019_lowly_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1788527588905,
+      "tag": "0020_worried_star_brand",
+      "breakpoints": true
     }
   ]
 }

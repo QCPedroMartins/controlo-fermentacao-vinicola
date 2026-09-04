@@ -1,14 +1,19 @@
 import { formatarDensidade } from "@shared/const";
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, Archive, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, Download, FileSpreadsheet, FileText, FlaskConical, Mail, Search, Upload, X } from "lucide-react";
+import { AlertTriangle, Archive, BarChart3, Calendar, CheckCircle2, Circle, ClipboardList, Download, FileSpreadsheet, FileText, FlaskConical, Mail, RotateCcw, Search, SlidersHorizontal, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import ImportacaoCsvModal from "@/components/ImportacaoCsvModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { deveMostrarBaumeNoDashboard } from "@shared/dashboardLeituras";
+import { correspondeFiltrosDashboard, type FiltrosIndicadoresDashboard, type TipoVinhoFiltro } from "@shared/dashboardFiltros";
 
 type Estado = "todos" | "sem_dados" | "em_fermentacao" | "completa" | "com_alertas";
+
+const filtrosIndicadoresIniciais: FiltrosIndicadoresDashboard = {
+  densidadeMin: "", densidadeMax: "", temperaturaMin: "", temperaturaMax: "", baumeMin: "", baumeMax: "",
+};
 
 const estadoConfig = {
   sem_dados: {
@@ -82,6 +87,9 @@ function temAlertasAtivos(cuba: {
 
 export default function Dashboard() {
   const [filtro, setFiltro] = useState<Estado>("todos");
+  const [filtroTipoVinho, setFiltroTipoVinho] = useState<TipoVinhoFiltro>("todos");
+  const [filtrosIndicadores, setFiltrosIndicadores] = useState<FiltrosIndicadoresDashboard>(filtrosIndicadoresIniciais);
+  const [filtrosAvancadosAbertos, setFiltrosAvancadosAbertos] = useState(false);
 
   const enviarRelatorio = trpc.relatorio.enviarDigestDiario.useMutation({
     onSuccess: (data) => {
@@ -157,10 +165,17 @@ export default function Dashboard() {
   }, [alertasPorCuba]);
 
   const cubasFiltradas = cubas?.filter((c) => {
-    if (filtro === "todos") return true;
-    if (filtro === "com_alertas") return alertasPorCuba.get(c.id) === true;
-    return c.estado === filtro;
+    const correspondeEstado = filtro === "todos"
+      || (filtro === "com_alertas" ? alertasPorCuba.get(c.id) === true : c.estado === filtro);
+    if (!correspondeEstado) return false;
+    return correspondeFiltrosDashboard(c, filtroTipoVinho, filtrosIndicadores);
   });
+
+  const temFiltrosAvancados = filtroTipoVinho !== "todos" || Object.values(filtrosIndicadores).some(Boolean);
+  const limparFiltrosAvancados = () => {
+    setFiltroTipoVinho("todos");
+    setFiltrosIndicadores(filtrosIndicadoresIniciais);
+  };
 
   const totalResultados = resultadosPesquisa
     ? (resultadosPesquisa.cubas?.length ?? 0) + (resultadosPesquisa.adicoes?.length ?? 0) + (resultadosPesquisa.arquivo?.length ?? 0)
@@ -365,36 +380,97 @@ export default function Dashboard() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        {(["todos", "sem_dados", "em_fermentacao", "completa", "com_alertas"] as Estado[]).map((f) => (
+      <div className="mb-5 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {(["todos", "sem_dados", "em_fermentacao", "completa", "com_alertas"] as Estado[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFiltro(f)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                filtro === f
+                  ? f === "com_alertas"
+                    ? "bg-red-600 text-white border-red-600"
+                    : "bg-[var(--color-vinho)] text-white border-[var(--color-vinho)]"
+                  : f === "com_alertas"
+                    ? "bg-red-50 text-red-600 border-red-200 hover:border-red-400"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              {f === "todos"
+                ? "Todas"
+                : f === "sem_dados"
+                ? "Sem dados"
+                : f === "em_fermentacao"
+                ? "Em fermentação"
+                : f === "completa"
+                ? "Vazias"
+                : (
+                  <span className="flex items-center gap-1">
+                    <AlertTriangle size={11} /> Com alertas {totalAlertas > 0 && `(${totalAlertas})`}
+                  </span>
+                )}
+            </button>
+          ))}
           <button
-            key={f}
-            onClick={() => setFiltro(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-              filtro === f
-                ? f === "com_alertas"
-                  ? "bg-red-600 text-white border-red-600"
-                  : "bg-[var(--color-vinho)] text-white border-[var(--color-vinho)]"
-                : f === "com_alertas"
-                  ? "bg-red-50 text-red-600 border-red-200 hover:border-red-400"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+            onClick={() => setFiltrosAvancadosAbertos((abertos) => !abertos)}
+            className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+              filtrosAvancadosAbertos || temFiltrosAvancados
+                ? "border-amber-500 bg-amber-50 text-amber-800"
+                : "border-gray-200 bg-white text-gray-600 hover:border-amber-400 hover:text-amber-800"
             }`}
           >
-            {f === "todos"
-              ? "Todas"
-              : f === "sem_dados"
-              ? "Sem dados"
-              : f === "em_fermentacao"
-              ? "Em fermentação"
-              : f === "completa"
-              ? "Vazias"
-              : (
-                <span className="flex items-center gap-1">
-                  <AlertTriangle size={11} /> Com alertas {totalAlertas > 0 && `(${totalAlertas})`}
-                </span>
-              )}
+            <SlidersHorizontal size={13} /> Filtros avançados{temFiltrosAvancados ? " activos" : ""}
           </button>
-        ))}
+        </div>
+
+        {filtrosAvancadosAbertos && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 sm:p-4 animate-fade-in">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-amber-950">Filtrar por tipo de vinho e última leitura</p>
+                <p className="text-xs text-amber-800/80">Os critérios combinam-se entre si; deixe os limites em branco para não os aplicar.</p>
+              </div>
+              {temFiltrosAvancados && (
+                <button onClick={limparFiltrosAvancados} className="flex items-center gap-1 text-xs font-semibold text-amber-800 hover:text-amber-950">
+                  <RotateCcw size={12} /> Limpar filtros
+                </button>
+              )}
+            </div>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {([
+                ["todos", "Todos"], ["branco", "Branco"], ["tinto", "Tinto"], ["rose", "Rosé"], ["porto", "Vinho do Porto"], ["sem_classificacao", "Sem classificação"],
+              ] as [TipoVinhoFiltro, string][]).map(([valor, rotulo]) => (
+                <button
+                  key={valor}
+                  onClick={() => setFiltroTipoVinho(valor)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    filtroTipoVinho === valor
+                      ? "border-[var(--color-vinho)] bg-[var(--color-vinho)] text-white"
+                      : "border-amber-200 bg-white text-gray-700 hover:border-amber-400"
+                  }`}
+                >{rotulo}</button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {([
+                ["Densidade", "densidadeMin", "densidadeMax", "Cubas normais", "ex.: 1,000"],
+                ["Temperatura (°C)", "temperaturaMin", "temperaturaMax", "Todas as cubas", "ex.: 16,5"],
+                ["Baumé (°Bé)", "baumeMin", "baumeMax", "Apenas Vinho do Porto", "ex.: 8,5"],
+              ] as [string, keyof FiltrosIndicadoresDashboard, keyof FiltrosIndicadoresDashboard, string, string][]).map(([rotulo, chaveMin, chaveMax, ajuda, exemplo]) => (
+                <div key={rotulo} className="rounded-lg border border-amber-100 bg-white p-3">
+                  <p className="text-xs font-semibold text-gray-700">{rotulo}</p>
+                  <p className="mb-2 text-[10px] text-gray-400">{ajuda}</p>
+                  <div className="flex items-center gap-2">
+                    <input type="text" inputMode="decimal" placeholder={`Mín. ${exemplo}`} value={filtrosIndicadores[chaveMin]} onChange={(e) => setFiltrosIndicadores((actual) => ({ ...actual, [chaveMin]: e.target.value }))} className="min-w-0 w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:border-amber-500" />
+                    <span className="text-xs text-gray-400">—</span>
+                    <input type="text" inputMode="decimal" placeholder="Máx." value={filtrosIndicadores[chaveMax]} onChange={(e) => setFiltrosIndicadores((actual) => ({ ...actual, [chaveMax]: e.target.value }))} className="min-w-0 w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:border-amber-500" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <p className="text-xs text-gray-400">A mostrar {cubasFiltradas?.length ?? 0} de {cubas?.length ?? 0} cuba(s).</p>
       </div>
 
       {/* Grid de cubas */}
@@ -405,8 +481,13 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-          {cubasFiltradas?.map((cuba) => {
+        cubasFiltradas?.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
+            Nenhuma cuba corresponde aos filtros seleccionados.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            {cubasFiltradas?.map((cuba) => {
             const cfg = estadoConfig[cuba.estado];
             const temAlerta = alertasPorCuba.get(cuba.id) === true;
             const indicadores = cuba as typeof cuba & {
@@ -489,8 +570,9 @@ export default function Dashboard() {
                 </div>
               </Link>
             );
-          })}
-        </div>
+            })}
+          </div>
+        )
       )}
 
       {cubasFiltradas?.length === 0 && !isLoading && (

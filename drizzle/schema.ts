@@ -60,6 +60,8 @@ export const cubas = mysqlTable("cubas", {
   id: int("id").autoincrement().primaryKey(),
   codigo: varchar("codigo", { length: 8 }).notNull().unique(),
   tipoCuba: mysqlEnum("tipo_cuba", ["vinho", "porto"]).default("vinho").notNull(),
+  /** Classificação enológica manual da cuba normal; o Vinho do Porto é definido por tipoCuba. */
+  tipoVinho: mysqlEnum("tipo_vinho", ["branco", "tinto", "rose", "outro"]),
   nomeLote: varchar("nome_lote", { length: 120 }),
   fermentacaoNum: int("fermentacao_num").default(1).notNull(),
   estado: mysqlEnum("estado", ["sem_dados", "em_fermentacao", "completa"])

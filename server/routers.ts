@@ -180,6 +180,7 @@ const cubasRouter = router({
         fichaNtu: z.string().nullable().optional(),
         fichaGluconico: z.string().nullable().optional(),
         fichaAlcoolProvavel: z.string().nullable().optional(),
+        tipoVinho: z.enum(["branco", "tinto", "rose", "outro"]).nullable().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -194,6 +195,7 @@ const cubasRouter = router({
         fichaNtu: normalizarNumeroDecimal(data.fichaNtu),
         fichaGluconico: normalizarNumeroDecimal(data.fichaGluconico),
         fichaAlcoolProvavel: normalizarNumeroDecimal(data.fichaAlcoolProvavel),
+        tipoVinho: data.tipoVinho,
       };
       await updateFichaInicial(id, fichaNormalizada);
       // Guardar no histórico de análises

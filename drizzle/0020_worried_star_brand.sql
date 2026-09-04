@@ -1,0 +1,1 @@
+ALTER TABLE `cubas` ADD `tipo_vinho` enum('branco','tinto','rose','outro');

@@ -255,6 +255,7 @@ export default function CubaPage() {
     fichaPh: "", fichaAt: "", fichaAv: "",
     fichaNfa: "", fichaNtu: "",
     fichaGluconico: "", fichaAlcoolProvavel: "",
+    tipoVinho: "",
   });
 
   // ── Estado: configurações de alerta ──────────────────────
@@ -415,6 +416,7 @@ export default function CubaPage() {
       fichaNtu: cuba.fichaNtu ?? "",
       fichaGluconico: cuba.fichaGluconico ?? "",
       fichaAlcoolProvavel: cuba.fichaAlcoolProvavel ?? "",
+      tipoVinho: cuba.tipoVinho ?? "",
     });
     setShowFichaInicial(true);
   };
@@ -2516,6 +2518,23 @@ export default function CubaPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="py-2 grid grid-cols-2 gap-4">
+            {cuba.tipoCuba !== "porto" && (
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de vinho</label>
+                <select
+                  value={fichaForm.tipoVinho}
+                  onChange={(e) => setFichaForm({ ...fichaForm, tipoVinho: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-[var(--color-vinho)]"
+                >
+                  <option value="">Sem classificação</option>
+                  <option value="branco">Branco</option>
+                  <option value="tinto">Tinto</option>
+                  <option value="rose">Rosé</option>
+                  <option value="outro">Outro</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Usado para organizar e filtrar as cubas no Dashboard.</p>
+              </div>
+            )}
             {([
               { key: "fichaKilos", label: "Kilos", placeholder: "ex: 15000" },
               { key: "fichaLitros", label: "Litros", placeholder: "ex: 12000" },
@@ -2596,6 +2615,7 @@ export default function CubaPage() {
                   fichaNtu: fichaForm.fichaNtu || null,
                   fichaGluconico: fichaForm.fichaGluconico || null,
                   fichaAlcoolProvavel: fichaForm.fichaAlcoolProvavel || null,
+                  tipoVinho: cuba.tipoCuba === "porto" ? null : (fichaForm.tipoVinho || null) as "branco" | "tinto" | "rose" | "outro" | null,
                 });
                 // Para cubas VP, guardar também o ponto de aguardentação
                 if (cuba.tipoCuba === "porto" && (alertaForm.pontoAguardentacao || alertaForm.desvioAguardentacaoAlerta)) {

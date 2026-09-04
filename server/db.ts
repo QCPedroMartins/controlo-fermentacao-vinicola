@@ -184,11 +184,13 @@ export async function updateFichaInicial(
     fichaNtu?: string | null;
     fichaGluconico?: string | null;
     fichaAlcoolProvavel?: string | null;
+    tipoVinho?: "branco" | "tinto" | "rose" | "outro" | null;
   }
 ) {
   const db = await getDb();
   if (!db) return;
   const set: Record<string, unknown> = {};
+  if (data.tipoVinho !== undefined) set.tipoVinho = data.tipoVinho;
   const fields = [
     "fichaKilos", "fichaLitros", "fichaPh", "fichaAt", "fichaAv",
     "fichaNfa", "fichaNtu", "fichaGluconico", "fichaAlcoolProvavel",

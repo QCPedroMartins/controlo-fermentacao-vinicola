@@ -582,3 +582,11 @@
 ## Apresentação de Baumé no Dashboard
 - [x] Mostrar Baumé apenas quando a cuba estiver configurada como Vinho do Porto
 - [x] Testar e publicar a correcção da CF10 e de cubas normais equivalentes
+
+## Filtros Avançados do Dashboard
+- [x] Permitir filtrar cubas por tipo de vinho: branco, tinto, rosé, Vinho do Porto e sem classificação
+- [x] Permitir filtrar cubas normais por intervalo de densidade e de temperatura
+- [x] Permitir filtrar cubas Vinho do Porto por intervalo de Baumé e de temperatura
+- [x] Manter os filtros actuais de estado, pesquisa e alertas compatíveis com os novos critérios
+- [x] Criar testes e validar a utilização dos filtros em telemóvel e computador
+- [ ] Guardar a alteração e actualizar o GitHub
