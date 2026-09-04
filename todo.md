@@ -596,4 +596,4 @@
 - [x] Guardar ou recuperar de forma fiável o tipo Vinho do Porto para cada registo arquivado
 - [x] Mostrar tabela de Baumé e gráfico de evolução no detalhe de arquivo VP
 - [x] Corrigir também todas as fermentações VP já arquivadas que tenham leituras Baumé
-- [ ] Criar testes, actualizar o GitHub e preparar a publicação
+- [x] Criar testes, actualizar o GitHub e preparar a publicação
