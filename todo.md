@@ -589,4 +589,4 @@
 - [x] Permitir filtrar cubas Vinho do Porto por intervalo de Baumé e de temperatura
 - [x] Manter os filtros actuais de estado, pesquisa e alertas compatíveis com os novos critérios
 - [x] Criar testes e validar a utilização dos filtros em telemóvel e computador
-- [ ] Guardar a alteração e actualizar o GitHub
+- [x] Guardar a alteração e actualizar o GitHub
