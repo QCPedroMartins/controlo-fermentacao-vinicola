@@ -95,7 +95,8 @@ export default function ArquivoDetalhe() {
     () => tipoCubaArquivo(resumo?.tipoCuba, leituras ?? []),
     [resumo?.tipoCuba, leituras],
   );
-  const temBaume = tipoHistorico === "porto" || chartData.some((leitura) => leitura.baumeL1 !== null);
+  const mostrarColunaBaume = true;
+  const mostrarGraficoBaume = tipoHistorico === "porto" && chartData.some((leitura) => leitura.baumeL1 !== null);
   const temDensidade = chartData.some((leitura) => leitura.densL1 !== null);
   const baumeMinimo = useMemo(() => {
     const valores = chartData.map((leitura) => leitura.baumeL1).filter((valor): valor is number => valor !== null);
@@ -333,7 +334,7 @@ export default function ArquivoDetalhe() {
             </ChartCard>
           )}
 
-          {temBaume && (
+          {mostrarGraficoBaume && (
             <ChartCard title="Baumé (°Bé)">
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
@@ -407,7 +408,7 @@ export default function ArquivoDetalhe() {
                   <th className="px-3 py-3 text-left text-xs font-semibold">Data</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold">Dia</th>
                   {temDensidade && <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Densidade</th>}
-                  {temBaume && <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ffd180" }}>Baumé</th>}
+                  {mostrarColunaBaume && <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ffd180" }}>Baumé</th>}
                   <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#a5d6a7" }}>Temperatura</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#80deea" }}>O₂</th>
                   <th className="px-3 py-3 text-center text-xs font-semibold" style={{ color: "#ce93d8" }}>Redox</th>
@@ -416,9 +417,9 @@ export default function ArquivoDetalhe() {
               </thead>
               <tbody>
                 {loadingLeituras ? (
-                  <tr><td colSpan={6 + Number(temDensidade) + Number(temBaume)} className="text-center py-8 text-gray-400">A carregar...</td></tr>
+                  <tr><td colSpan={6 + Number(temDensidade) + Number(mostrarColunaBaume)} className="text-center py-8 text-gray-400">A carregar...</td></tr>
                 ) : !leituras?.length ? (
-                  <tr><td colSpan={6 + Number(temDensidade) + Number(temBaume)} className="text-center py-8 text-gray-400">Sem leituras registadas</td></tr>
+                  <tr><td colSpan={6 + Number(temDensidade) + Number(mostrarColunaBaume)} className="text-center py-8 text-gray-400">Sem leituras registadas</td></tr>
                 ) : (
                   leituras.map((l, idx) => (
                     <tr key={l.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
@@ -427,7 +428,7 @@ export default function ArquivoDetalhe() {
                       </td>
                       <td className="px-3 py-2.5 text-center text-xs font-bold text-[var(--color-vinho)]">{l.diaNr ?? "—"}</td>
                       {temDensidade && <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.densL1 }}>{l.densL1 ? parseFloat(l.densL1).toFixed(4) : "—"}</td>}
-                      {temBaume && <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.baumeL1 }}>{l.baumeL1 ? `${parseFloat(l.baumeL1).toFixed(2)}°Bé` : "—"}</td>}
+                      {mostrarColunaBaume && <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.baumeL1 }}>{l.baumeL1 ? `${parseFloat(l.baumeL1).toFixed(2)}°Bé` : "—"}</td>}
                       <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.tempL1 }}>{l.tempL1 ? `${parseFloat(l.tempL1).toFixed(1)}°` : "—"}</td>
                       <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.o2 }}>{l.o2 ? `${parseFloat(l.o2).toFixed(2)}` : "—"}</td>
                       <td className="px-3 py-2.5 text-center text-xs font-mono" style={{ color: CORES.redox }}>{l.redox ? `${parseFloat(l.redox).toFixed(0)}` : "—"}</td>

@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { tipoCubaArquivo } from "@shared/arquivoBaume";
+import { validarAdicaoLiquida } from "@shared/adicoesLiquidas";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, editProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -751,23 +752,28 @@ const adicoesRouter = router({
         dataAdicao: z.string(),
         produto: z.string().optional(),
         dose: z.string().optional(),
+        isLiquido: z.boolean().optional().default(false),
+        litrosAdicionados: z.number().finite().positive().nullable().optional(),
         observacoes: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      await createAdicao({
+      const volume = validarAdicaoLiquida(input);
+      if (!volume.ok) throw new TRPCError({ code: "BAD_REQUEST", message: volume.erro });
+      const litrosAdicionados = await createAdicao({
         ...input,
+        litrosAdicionados: input.isLiquido ? volume.litros : null,
         userId: ctx.user.id,
         userName: ctx.user.name ?? ctx.user.email ?? "Utilizador",
       });
-      return { success: true };
+      return { success: true, litrosAdicionados };
     }),
 
   delete: editProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      await deleteAdicao(input.id);
-      return { success: true };
+      const litrosRevertidos = await deleteAdicao(input.id);
+      return { success: true, litrosRevertidos };
     }),
 });
 

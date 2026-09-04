@@ -237,6 +237,7 @@ export default function CubaPage() {
   const [formAdicao, setFormAdicao] = useState({
     dataAdicao: new Date().toISOString().split("T")[0],
     produto: "", dose: "", observacoes: "",
+    isLiquido: false, litrosAdicionados: "",
   });
 
   // ── Estado: modal de edição de leitura ───────────────────
@@ -361,18 +362,22 @@ export default function CubaPage() {
   });
 
   const criarAdicao = trpc.adicoes.create.useMutation({
-    onSuccess: () => {
-      toast.success("Adição registada!");
-      setFormAdicao({ dataAdicao: new Date().toISOString().split("T")[0], produto: "", dose: "", observacoes: "" });
+    onSuccess: (resultado) => {
+      toast.success(resultado.litrosAdicionados ? `Adição líquida registada: +${resultado.litrosAdicionados.toLocaleString("pt-PT")} L na cuba.` : "Adição registada!");
+      setFormAdicao({ dataAdicao: new Date().toISOString().split("T")[0], produto: "", dose: "", observacoes: "", isLiquido: false, litrosAdicionados: "" });
       utils.adicoes.listByCuba.invalidate();
+      utils.cubas.get.invalidate();
+      utils.cubas.dashboard.invalidate();
     },
     onError: (e) => toast.error("Erro: " + e.message),
   });
 
   const eliminarAdicao = trpc.adicoes.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Adição eliminada.");
+    onSuccess: (resultado) => {
+      toast.success(resultado.litrosRevertidos ? `Adição eliminada: -${resultado.litrosRevertidos.toLocaleString("pt-PT")} L repostos no balanço.` : "Adição eliminada.");
       utils.adicoes.listByCuba.invalidate();
+      utils.cubas.get.invalidate();
+      utils.cubas.dashboard.invalidate();
     },
   });
 
@@ -700,6 +705,7 @@ export default function CubaPage() {
       "Data": new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
       "Dia Nº": l.diaNr ?? "",
       "Densidade": l.densL1 ?? "",
+      "Baumé (°Bé)": l.baumeL1 ?? "",
       "Temperatura (°C)": l.tempL1 ?? "",
       "O₂ (mg/L)": l.o2 ?? "",
       "Redox (mV)": l.redox ?? "",
@@ -717,6 +723,8 @@ export default function CubaPage() {
         "Data": new Date(a.dataAdicao).toLocaleDateString("pt-PT"),
         "Produto / Adição": a.produto ?? "",
         "Dose / Quantidade": a.dose ?? "",
+        "É líquido?": a.isLiquido ? "Sim" : "Não",
+        "Litros adicionados": a.isLiquido && a.litrosAdicionados ? `${a.litrosAdicionados} L` : "",
         "Observações": a.observacoes ?? "",
         "Registado por": a.userName ?? "",
       }));
@@ -735,6 +743,7 @@ export default function CubaPage() {
       "Data": new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
       "Dia Nº": l.diaNr ?? "",
       "Densidade": l.densL1 ?? "",
+      "Baumé (°Bé)": l.baumeL1 ?? "",
       "Temperatura (°C)": l.tempL1 ?? "",
       "O₂ (mg/L)": l.o2 ?? "",
       "Redox (mV)": l.redox ?? "",
@@ -1372,7 +1381,7 @@ export default function CubaPage() {
                 </ResponsiveContainer>
               </ChartCard>
 
-              {chartData.some(d => d.baumeL1 != null) && (
+              {cuba.tipoCuba === "porto" && chartData.some(d => d.baumeL1 != null) && (
                 <ChartCard title="Baumé (°Bé)">
                   <ResponsiveContainer width="100%" height={280}>
                     <LineChart data={chartData} margin={{ top: 5, right: 120, left: 0, bottom: 20 }}>
@@ -1526,11 +1535,53 @@ export default function CubaPage() {
                   />
                 </div>
               </div>
+              <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/60 p-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-sky-950">
+                  <input
+                    type="checkbox"
+                    checked={formAdicao.isLiquido}
+                    onChange={(e) => setFormAdicao({ ...formAdicao, isLiquido: e.target.checked, litrosAdicionados: e.target.checked ? formAdicao.litrosAdicionados : "" })}
+                    className="h-4 w-4 rounded border-sky-300 accent-sky-700"
+                  />
+                  É líquido e altera a litragem da cuba
+                </label>
+                <p className="mt-1 text-xs text-sky-800">Assinale para aguardente, água, H₂O ou qualquer outra adição que entre na cuba em litros.</p>
+                {formAdicao.isLiquido && (
+                  <div className="mt-3 max-w-xs">
+                    <label className="block text-xs font-medium text-sky-950 mb-1">Litros adicionados</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="ex.: 75,5"
+                        value={formAdicao.litrosAdicionados}
+                        onChange={(e) => setFormAdicao({ ...formAdicao, litrosAdicionados: e.target.value })}
+                        className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 pr-9 text-sm focus:border-sky-600 focus:outline-none"
+                      />
+                      <span className="absolute inset-y-0 right-3 flex items-center text-xs font-semibold text-sky-800">L</span>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="flex justify-end mt-3">
                 <button
                   onClick={() => {
                     if (!cuba || !formAdicao.dataAdicao) { toast.error("Insira a data"); return; }
-                    criarAdicao.mutate({ cubaId: cuba.id, fermentacaoNum: cuba.fermentacaoNum, ...formAdicao });
+                    const litros = Number(formAdicao.litrosAdicionados.replace(",", "."));
+                    if (formAdicao.isLiquido && (!formAdicao.litrosAdicionados.trim() || !Number.isFinite(litros) || litros <= 0)) {
+                      toast.error("Indique os litros adicionados para a adição líquida.");
+                      return;
+                    }
+                    criarAdicao.mutate({
+                      cubaId: cuba.id,
+                      fermentacaoNum: cuba.fermentacaoNum,
+                      dataAdicao: formAdicao.dataAdicao,
+                      produto: formAdicao.produto || undefined,
+                      dose: formAdicao.dose || undefined,
+                      observacoes: formAdicao.observacoes || undefined,
+                      isLiquido: formAdicao.isLiquido,
+                      litrosAdicionados: formAdicao.isLiquido ? litros : null,
+                    });
                   }}
                   disabled={criarAdicao.isPending}
                   className="flex items-center gap-2 px-5 py-2.5 bg-[var(--color-vinho)] text-white rounded-xl text-sm font-semibold hover:bg-[var(--color-vinho-light)] transition-colors disabled:opacity-50"
@@ -1548,6 +1599,7 @@ export default function CubaPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold">Data</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold">Produto / Adição</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold">Dose</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold">Volume</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold">Observações</th>
                   <th className="px-4 py-3 text-center text-xs font-semibold">Por</th>
                   {canEdit && <th className="px-4 py-3" />}
@@ -1555,9 +1607,9 @@ export default function CubaPage() {
               </thead>
               <tbody>
                 {loadingAdicoes ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-gray-400">A carregar...</td></tr>
+                  <tr><td colSpan={6 + Number(canEdit)} className="text-center py-8 text-gray-400">A carregar...</td></tr>
                 ) : adicoes?.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-gray-400">Sem adições registadas</td></tr>
+                  <tr><td colSpan={6 + Number(canEdit)} className="text-center py-8 text-gray-400">Sem adições registadas</td></tr>
                 ) : (
                   adicoes?.map((a, idx) => (
                     <tr key={a.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
@@ -1566,6 +1618,7 @@ export default function CubaPage() {
                       </td>
                       <td className="px-4 py-2.5 text-xs font-medium text-gray-800">{a.produto ?? "—"}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{a.dose ?? "—"}</td>
+                      <td className="px-4 py-2.5 text-center text-xs font-semibold text-sky-800">{a.isLiquido && a.litrosAdicionados ? `+${Number(a.litrosAdicionados).toLocaleString("pt-PT")} L` : "—"}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-600">{a.observacoes ?? "—"}</td>
                       <td className="px-4 py-2.5 text-center text-xs text-gray-400">{a.userName ?? "—"}</td>
                       {canEdit && (

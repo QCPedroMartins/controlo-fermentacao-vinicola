@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import ExcelJS from "exceljs";
 
 // ── Mock do módulo db ──────────────────────────────────────
 vi.mock("./db", () => ({
@@ -26,7 +27,7 @@ vi.mock("./db", () => ({
     {
       id: 1, cubaId: 1, fermentacaoNum: 1,
       dataLeitura: new Date("2026-05-01"), diaNr: 1,
-      densL1: "1.085", densL2: "1.083", densL3: null,
+      densL1: "1.085", densL2: "1.083", densL3: null, baumeL1: "12.50",
       tempL1: "18.5", tempL2: "19.0", tempL3: null,
       o2: null, redox: null, userName: "João",
       editedAt: null, editedByName: null,
@@ -34,7 +35,7 @@ vi.mock("./db", () => ({
     {
       id: 2, cubaId: 1, fermentacaoNum: 1,
       dataLeitura: new Date("2026-05-05"), diaNr: 5,
-      densL1: "1.050", densL2: "1.048", densL3: null,
+      densL1: "1.050", densL2: "1.048", densL3: null, baumeL1: "8.20",
       tempL1: "22.0", tempL2: "22.5", tempL3: null,
       o2: "6.50", redox: "250", userName: "João",
       editedAt: null, editedByName: null,
@@ -101,6 +102,22 @@ describe("gerarExcelCuba", () => {
     });
     expect(buffer).toBeDefined();
     expect(buffer.byteLength).toBeGreaterThan(100);
+  });
+
+  it("inclui Baumé na folha de leituras mesmo numa cuba normal", async () => {
+    const { gerarExcelCuba } = await import("./emailReport");
+    const buffer = await gerarExcelCuba({
+      id: 1, codigo: "cf1", nomeLote: "Tinto Reserva 2026", fermentacaoNum: 1,
+      estado: "em_fermentacao", densidadeLimite: "1.000", tempPretendida: "18.0", tipoCuba: "vinho",
+    });
+    const livro = new ExcelJS.Workbook();
+    await livro.xlsx.load(Buffer.from(buffer));
+    const folha = livro.getWorksheet("Leituras");
+    const cabecalhos: string[] = [];
+    folha?.eachRow((linha) => linha.eachCell((celula) => {
+      if (typeof celula.value === "string") cabecalhos.push(celula.value);
+    }));
+    expect(cabecalhos).toContain("Baumé (°Bé)");
   });
 });
 

@@ -597,3 +597,16 @@
 - [x] Mostrar tabela de Baumé e gráfico de evolução no detalhe de arquivo VP
 - [x] Corrigir também todas as fermentações VP já arquivadas que tenham leituras Baumé
 - [x] Criar testes, actualizar o GitHub e preparar a publicação
+
+## Baumé em Tabelas e Exportações
+- [x] Mostrar a coluna Baumé em todas as tabelas de leituras, sem depender do tipo de cuba
+- [x] Incluir Baumé em todos os ficheiros Excel, incluindo arquivo e cubas normais
+- [x] Limitar os gráficos de Baumé às fermentações marcadas como Vinho do Porto
+- [x] Testar exportações e actualizar o GitHub
+
+## Adições Líquidas e Volume da Cuba
+- [x] Adicionar o campo explícito É líquido? em cada adição
+- [x] Pedir os litros adicionados apenas quando a adição estiver assinalada como líquida
+- [x] Somar o volume líquido à litragem actual da cuba, com validação de valor positivo
+- [x] Registar a actualização de volume na rastreabilidade e nos relatórios
+- [x] Testar adições líquidas, actualização de litros e actualizar o GitHub

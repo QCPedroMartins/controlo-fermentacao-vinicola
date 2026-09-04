@@ -179,6 +179,10 @@ export const adicoes = mysqlTable("adicoes", {
   dataAdicao: date("data_adicao", { mode: "string" }).notNull(),
   produto: varchar("produto", { length: 200 }),
   dose: varchar("dose", { length: 100 }),
+  /** Indica se a adição altera fisicamente a litragem da cuba. */
+  isLiquido: boolean("is_liquido").default(false).notNull(),
+  /** Volume efectivamente adicionado quando a adição é líquida. */
+  litrosAdicionados: decimal("litros_adicionados", { precision: 10, scale: 1 }),
   observacoes: text("observacoes"),
   userId: int("user_id"),
   userName: varchar("user_name", { length: 120 }),

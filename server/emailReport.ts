@@ -70,6 +70,8 @@ type AdicaoRow = {
   dataAdicao: Date | string;
   produto: string | null;
   dose: string | null;
+  isLiquido?: boolean;
+  litrosAdicionados?: string | null;
   observacoes: string | null;
   userName: string | null;
 };
@@ -403,7 +405,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   // Cabeçalhos da tabela
   const headerRow = wsL.addRow([
     "Data", "Dia Nº",
-    "Densidade", "Temperatura (°C)",
+    "Densidade", "Baumé (°Bé)", "Temperatura (°C)",
     "O₂ (mg/L)", "Redox (mV)",
     "Utilizador",
   ]);
@@ -422,6 +424,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
       new Date(l.dataLeitura).toLocaleDateString("pt-PT"),
       l.diaNr ?? "",
       l.densL1 ? parseFloat(l.densL1) : "",
+      l.baumeL1 ? parseFloat(l.baumeL1) : "",
       l.tempL1 ? parseFloat(l.tempL1) : "",
       l.o2 ? parseFloat(l.o2) : "",
       l.redox ? parseFloat(l.redox) : "",
@@ -444,7 +447,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   // Larguras das colunas
   wsL.columns = [
     { width: 13 }, { width: 8 },
-    { width: 12 }, { width: 14 },
+    { width: 12 }, { width: 12 }, { width: 14 },
     { width: 10 }, { width: 10 },
     { width: 22 },
   ];
@@ -632,12 +635,12 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
   // ── Folha 3: Adições ──────────────────────────────────
   if (adicoes.length > 0) {
     const wsA = wb.addWorksheet("Adições e Notas");
-    wsA.mergeCells("A1:E1");
+    wsA.mergeCells("A1:G1");
     wsA.getCell("A1").value = `Adições e Notas — ${cuba.codigo.toUpperCase()} — ${cuba.nomeLote ?? "Sem nome"}`;
     wsA.getCell("A1").font = { bold: true, size: 12, color: { argb: "FF5D1A2E" } };
     wsA.getCell("A1").alignment = { horizontal: "center" };
 
-    const hdrA = wsA.addRow(["Data", "Produto / Adição", "Dose", "Observações", "Registado por"]);
+    const hdrA = wsA.addRow(["Data", "Produto / Adição", "Dose", "É líquido?", "Litros adicionados", "Observações", "Registado por"]);
     hdrA.eachCell((cell) => {
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5D1A2E" } };
       cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
@@ -649,6 +652,8 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
         new Date(a.dataAdicao).toLocaleDateString("pt-PT"),
         a.produto ?? "",
         a.dose ?? "",
+        a.isLiquido ? "Sim" : "Não",
+        a.isLiquido && a.litrosAdicionados ? `${Number(a.litrosAdicionados).toLocaleString("pt-PT")} L` : "",
         a.observacoes ?? "",
         a.userName ?? "",
       ]);
@@ -660,7 +665,7 @@ export async function gerarExcelCuba(cuba: CubaInfo): Promise<ArrayBuffer> {
     });
 
     wsA.columns = [
-      { width: 13 }, { width: 28 }, { width: 16 }, { width: 40 }, { width: 20 },
+      { width: 13 }, { width: 28 }, { width: 16 }, { width: 12 }, { width: 18 }, { width: 40 }, { width: 20 },
     ];
   }
 
@@ -956,7 +961,7 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
       wsC.addImage(imgId, { tl: { col: 0, row: startRow }, ext: { width: 750, height: pngDens.height } });
 
       // Gráfico 2: Baumé (se tiver dados)
-      const hasBaume = leituras.some((l) => l.baumeL1);
+      const hasBaume = cuba.tipoCuba === "porto" && leituras.some((l) => l.baumeL1);
       let baumeOffset = 0;
       if (hasBaume) {
         const chartDataBaume = leituras.map((l, idx) => ({
@@ -1004,7 +1009,7 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
     if (adicoes.length > 0) {
       const addRow = leituras.length + 40;
       const hdrA = wsC.getRow(addRow);
-      const addRowData = ["Data", "Produto / Adição", "Dose", "Observações", "Por"];
+      const addRowData = ["Data", "Produto / Adição", "Dose", "É líquido?", "Litros adicionados", "Observações", "Por"];
       addRowData.forEach((v, i) => {
         const cell = hdrA.getCell(i + 1);
         cell.value = v;
@@ -1018,6 +1023,8 @@ export async function gerarExcelDigestDiario(): Promise<ArrayBuffer> {
           new Date(a.dataAdicao).toLocaleDateString("pt-PT"),
           a.produto ?? "",
           a.dose ?? "",
+          a.isLiquido ? "Sim" : "Não",
+          a.isLiquido && a.litrosAdicionados ? `${Number(a.litrosAdicionados).toLocaleString("pt-PT")} L` : "",
           a.observacoes ?? "",
           a.userName ?? "",
         ].forEach((v, i) => {

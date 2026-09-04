@@ -46,6 +46,7 @@ import {
 import { ENV } from "./_core/env";
 import { encontrarInoculacaoLsa } from "./dashboardRules";
 import { normalizarNumeroDecimal } from "./numeros";
+import { reverterVolumeAdicaoLiquida, somarVolumeAdicaoLiquida, validarAdicaoLiquida } from "@shared/adicoesLiquidas";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -396,28 +397,62 @@ export async function createAdicao(data: {
   dataAdicao: string;
   produto?: string;
   dose?: string;
+  isLiquido?: boolean;
+  litrosAdicionados?: number | null;
   observacoes?: string;
   userId?: number;
   userName?: string;
 }) {
   const db = await getDb();
   if (!db) return;
-  await db.insert(adicoes).values({
-    cubaId: data.cubaId,
-    fermentacaoNum: data.fermentacaoNum,
-    dataAdicao: data.dataAdicao,
-    produto: data.produto ?? null,
-    dose: data.dose ?? null,
-    observacoes: data.observacoes ?? null,
-    userId: data.userId,
-    userName: data.userName,
+  const volume = validarAdicaoLiquida(data);
+  if (!volume.ok) throw new Error(volume.erro);
+  await db.transaction(async (tx) => {
+    const cubaRows = await tx.select().from(cubas).where(eq(cubas.id, data.cubaId)).limit(1);
+    const cuba = cubaRows[0];
+    if (!cuba) throw new Error("Cuba não encontrada.");
+    if (cuba.fermentacaoNum !== data.fermentacaoNum) throw new Error("A fermentação desta cuba mudou. Actualize a página antes de registar a adição.");
+
+    await tx.insert(adicoes).values({
+      cubaId: data.cubaId,
+      fermentacaoNum: data.fermentacaoNum,
+      dataAdicao: data.dataAdicao,
+      produto: data.produto ?? null,
+      dose: data.dose ?? null,
+      isLiquido: Boolean(data.isLiquido),
+      litrosAdicionados: data.isLiquido ? String(volume.litros) : null,
+      observacoes: data.observacoes ?? null,
+      userId: data.userId,
+      userName: data.userName,
+    });
+
+    if (data.isLiquido) {
+      const novosLitros = somarVolumeAdicaoLiquida(cuba.fichaLitros, volume.litros);
+      await tx.update(cubas).set({ fichaLitros: String(novosLitros) }).where(eq(cubas.id, cuba.id));
+    }
   });
+  return volume.litros;
 }
 
 export async function deleteAdicao(id: number) {
   const db = await getDb();
-  if (!db) return;
-  await db.delete(adicoes).where(eq(adicoes.id, id));
+  if (!db) return 0;
+  let litrosRevertidos = 0;
+  await db.transaction(async (tx) => {
+    const rows = await tx.select().from(adicoes).where(eq(adicoes.id, id)).limit(1);
+    const adicao = rows[0];
+    if (!adicao) return;
+    await tx.delete(adicoes).where(eq(adicoes.id, id));
+    if (!adicao.isLiquido || !adicao.litrosAdicionados) return;
+    const cubaRows = await tx.select().from(cubas).where(eq(cubas.id, adicao.cubaId)).limit(1);
+    const cuba = cubaRows[0];
+    // Só reverte o volume quando se trata da fermentação ainda activa na cuba.
+    if (!cuba || cuba.fermentacaoNum !== adicao.fermentacaoNum) return;
+    const novosLitros = reverterVolumeAdicaoLiquida(cuba.fichaLitros, Number(adicao.litrosAdicionados));
+    await tx.update(cubas).set({ fichaLitros: String(novosLitros) }).where(eq(cubas.id, cuba.id));
+    litrosRevertidos = Number(adicao.litrosAdicionados);
+  });
+  return litrosRevertidos;
 }
 
 // ── Arquivo de Fermentações ───────────────────────────────

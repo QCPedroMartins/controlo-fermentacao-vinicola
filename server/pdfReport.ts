@@ -55,6 +55,8 @@ type AdicaoRow = {
   dataAdicao: Date | string;
   produto: string | null;
   dose: string | null;
+  isLiquido?: boolean;
+  litrosAdicionados?: string | null;
   observacoes: string | null;
   userName: string | null;
 };
@@ -561,25 +563,16 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
         .text("LEITURAS DE FERMENTAÇÃO", MARGIN, y + 3, { width: CONTENT_W, align: "center" });
       y += 18;
 
-      const cols = isPorto
-        ? [
-            { header: "Data", width: 65 },
-            { header: "Dia", width: 30 },
-            { header: "Baumé", width: 55 },
-            { header: "Temperatura", width: 55 },
-            { header: "O₂", width: 40 },
-            { header: "Redox", width: 45 },
-            { header: "Utilizador", width: 0 },
-          ]
-        : [
-            { header: "Data", width: 65 },
-            { header: "Dia", width: 30 },
-            { header: "Densidade", width: 60 },
-            { header: "Temperatura", width: 55 },
-            { header: "O₂", width: 40 },
-            { header: "Redox", width: 45 },
-            { header: "Utilizador", width: 0 },
-          ];
+      const cols = [
+        { header: "Data", width: 65 },
+        { header: "Dia", width: 30 },
+        { header: "Densidade", width: 60 },
+        { header: "Baumé", width: 55 },
+        { header: "Temperatura", width: 55 },
+        { header: "O₂", width: 40 },
+        { header: "Redox", width: 45 },
+        { header: "Utilizador", width: 0 },
+      ];
 
       const totalFixed = cols.slice(0, -1).reduce((s, c) => s + c.width, 0);
       cols[cols.length - 1].width = Math.max(CONTENT_W - totalFixed, 60);
@@ -603,25 +596,16 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
         const bg = idx % 2 === 0 ? "#FFFFFF" : "#F8F4F6";
         doc.rect(MARGIN, y, CONTENT_W, rowH).fill(bg);
 
-        const vals = isPorto
-          ? [
-              formatDate(l.dataLeitura),
-              String(l.diaNr ?? ""),
-              formatVal(l.baumeL1, 1),
-              formatVal(l.tempL1, 1),
-              formatVal(l.o2, 2),
-              formatVal(l.redox, 0),
-              l.editedAt && l.editedByName ? `${l.userName ?? ""} ✏ ${l.editedByName}` : (l.userName ?? ""),
-            ]
-          : [
-              formatDate(l.dataLeitura),
-              String(l.diaNr ?? ""),
-              formatVal(l.densL1),
-              formatVal(l.tempL1, 1),
-              formatVal(l.o2, 2),
-              formatVal(l.redox, 0),
-              l.editedAt && l.editedByName ? `${l.userName ?? ""} ✏ ${l.editedByName}` : (l.userName ?? ""),
-            ];
+        const vals = [
+          formatDate(l.dataLeitura),
+          String(l.diaNr ?? ""),
+          formatVal(l.densL1),
+          formatVal(l.baumeL1, 1),
+          formatVal(l.tempL1, 1),
+          formatVal(l.o2, 2),
+          formatVal(l.redox, 0),
+          l.editedAt && l.editedByName ? `${l.userName ?? ""} ✏ ${l.editedByName}` : (l.userName ?? ""),
+        ];
 
         cx = MARGIN;
         vals.forEach((v, i) => {
@@ -652,11 +636,12 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
         { header: "Data", width: 55 },
         { header: "Produto / Adição", width: 140 },
         { header: "Dose", width: 70 },
+        { header: "Volume", width: 65 },
         { header: "Observações", width: 0 },
         { header: "Por", width: 80 },
       ];
-      const totalAddFixed = addCols.filter((_, i) => i !== 4).reduce((s, c) => s + c.width, 0);
-      addCols[4].width = Math.max(CONTENT_W - totalAddFixed, 80);
+      const totalAddFixed = addCols.filter((_, i) => i !== 5).reduce((s, c) => s + c.width, 0);
+      addCols[5].width = Math.max(CONTENT_W - totalAddFixed, 80);
 
       doc.rect(MARGIN, y, CONTENT_W, 14).fill("#F3E8FF");
       let ax = MARGIN;
@@ -681,6 +666,7 @@ export async function gerarPdfCuba(cuba: CubaInfo): Promise<Buffer> {
           formatDate(a.dataAdicao),
           a.produto ?? "",
           a.dose ?? "",
+          a.isLiquido && a.litrosAdicionados ? `+${formatVal(a.litrosAdicionados, 1)} L` : "—",
           a.observacoes ?? "",
           a.userName ?? "",
         ];
