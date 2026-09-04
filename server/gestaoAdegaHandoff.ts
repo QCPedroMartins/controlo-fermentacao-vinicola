@@ -203,6 +203,7 @@ export async function arquivarFechosHandoff(payload: HandoffAdega) {
     await createArquivo({
       cubaId: origem.cubaId,
       fermentacaoNum: origem.fermentacaoNumero,
+      tipoCuba: cuba.tipoCuba,
       nomeLote: cuba.nomeLote,
       ...resumo,
       archivedBy: payload.operador,

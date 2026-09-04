@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
+import { tipoCubaArquivo } from "@shared/arquivoBaume";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, editProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -804,6 +805,7 @@ async function terminarFermentacaoCuba(cubaId: number, nomeLote?: string | null,
   await createArquivo({
     cubaId,
     fermentacaoNum: fermentacaoAtual,
+    tipoCuba: cuba.tipoCuba,
     nomeLote: nomeLoteArquivo,
     dataInicio,
     dataFim,
@@ -886,6 +888,7 @@ const arquivoRouter = router({
       await createArquivo({
         cubaId: input.cubaId,
         fermentacaoNum: fermentacaoAtual,
+        tipoCuba: cuba[0].tipoCuba,
         nomeLote: nomeLoteArquivo,
         dataInicio,
         dataFim,
@@ -1108,6 +1111,8 @@ const relatorioRouter = router({
           .where(and(eq(fermentacoesArquivo.cubaId, cuba.id), eq(fermentacoesArquivo.fermentacaoNum, input.fermentacaoNum)))
           .limit(1);
         if (arq[0]?.nomeLote) cubaArquivo.nomeLote = arq[0].nomeLote;
+        const leiturasArquivo = await getLeiturasByCuba(cuba.id, input.fermentacaoNum);
+        cubaArquivo.tipoCuba = tipoCubaArquivo(arq[0]?.tipoCuba, leiturasArquivo);
       }
       const { gerarExcelCuba } = await import("./emailReport");
       const buffer = await gerarExcelCuba(cubaArquivo);
@@ -1129,6 +1134,8 @@ const relatorioRouter = router({
           .where(and(eq(fermentacoesArquivo.cubaId, cuba.id), eq(fermentacoesArquivo.fermentacaoNum, input.fermentacaoNum)))
           .limit(1);
         if (arq[0]?.nomeLote) cubaArquivo.nomeLote = arq[0].nomeLote;
+        const leiturasArquivo = await getLeiturasByCuba(cuba.id, input.fermentacaoNum);
+        cubaArquivo.tipoCuba = tipoCubaArquivo(arq[0]?.tipoCuba, leiturasArquivo);
       }
       const { gerarPdfCuba } = await import("./pdfReport");
       const buffer = await gerarPdfCuba(cubaArquivo);

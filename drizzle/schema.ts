@@ -193,6 +193,8 @@ export const fermentacoesArquivo = mysqlTable("fermentacoes_arquivo", {
   id: int("id").autoincrement().primaryKey(),
   cubaId: int("cuba_id").notNull(),
   fermentacaoNum: int("fermentacao_num").notNull(),
+  /** Instantâneo do tipo de cuba no fecho, independente da configuração posterior da cuba. */
+  tipoCuba: mysqlEnum("tipo_cuba", ["vinho", "porto"]).default("vinho").notNull(),
   campanhaId: int("campanha_id"),
   nomeLote: varchar("nome_lote", { length: 120 }),
   dataInicio: date("data_inicio", { mode: "string" }),

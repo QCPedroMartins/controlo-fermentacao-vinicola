@@ -148,6 +148,13 @@
       "when": 1788527588905,
       "tag": "0020_worried_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1788529202517,
+      "tag": "0021_tricky_spectrum",
+      "breakpoints": true
     }
   ]
 }

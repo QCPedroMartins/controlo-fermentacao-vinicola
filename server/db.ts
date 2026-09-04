@@ -434,6 +434,7 @@ export async function getArquivoByCuba(cubaId: number) {
 export async function createArquivo(data: {
   cubaId: number;
   fermentacaoNum: number;
+  tipoCuba?: "vinho" | "porto";
   nomeLote?: string | null;
   dataInicio?: string | null;
   dataFim?: string | null;
@@ -447,6 +448,7 @@ export async function createArquivo(data: {
   await db.insert(fermentacoesArquivo).values({
     cubaId: data.cubaId,
     fermentacaoNum: data.fermentacaoNum,
+    tipoCuba: data.tipoCuba ?? "vinho",
     nomeLote: data.nomeLote ?? null,
     dataInicio: data.dataInicio ?? null,
     dataFim: data.dataFim ?? null,

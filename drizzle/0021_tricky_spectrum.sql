@@ -1,0 +1,1 @@
+ALTER TABLE `fermentacoes_arquivo` ADD `tipo_cuba` enum('vinho','porto') DEFAULT 'vinho' NOT NULL;

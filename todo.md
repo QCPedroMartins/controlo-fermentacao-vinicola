@@ -590,3 +590,10 @@
 - [x] Manter os filtros actuais de estado, pesquisa e alertas compatíveis com os novos critérios
 - [x] Criar testes e validar a utilização dos filtros em telemóvel e computador
 - [x] Guardar a alteração e actualizar o GitHub
+
+## Baumé em Fermentações VP Arquivadas
+- [x] Diagnosticar por que o arquivo perde a apresentação de Baumé nas fermentações terminadas
+- [x] Guardar ou recuperar de forma fiável o tipo Vinho do Porto para cada registo arquivado
+- [x] Mostrar tabela de Baumé e gráfico de evolução no detalhe de arquivo VP
+- [x] Corrigir também todas as fermentações VP já arquivadas que tenham leituras Baumé
+- [ ] Criar testes, actualizar o GitHub e preparar a publicação
